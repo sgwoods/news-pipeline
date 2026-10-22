@@ -75,5 +75,5 @@ section.story{scroll-margin-top:60px}section.speaking{outline:2px solid var(--ac
 <a href="/runs" class="{{ 'on' if p.startswith('/runs') }}">Runs</a>
 <a href="/voices" class="{{ 'on' if p.startswith('/voices') }}">Voices</a>
 <a href="/control" class="{{ 'on' if p.startswith('/control') }}">Control</a></nav>
-<span class="r">local · {{ now }}</span></header>
+<span class="r">v{{ version }} · local · {{ now }}</span></header>
 <main>{% block body %}{% endblock %}</main></body></html>

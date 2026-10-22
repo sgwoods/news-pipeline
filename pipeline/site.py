@@ -253,7 +253,28 @@ def _page(title: str, body: str, rel: str = "", cfg: dict | None = None, bare: b
             f'from public sources (every claim links to its source); "Steven\'s take" is personal opinion. '
             + (f'<a href="{rel}index.html#email">Subscribe by email</a> · ' if _script_url(cfg or {}) else "")
             + f'<a href="{rel}index.html#listen">Add the podcast</a> · '
-            f'<a href="{rel}feed.xml">RSS</a> · <a href="{rel}podcast.xml">Podcast feed</a></footer></body></html>')
+            f'<a href="{rel}feed.xml">RSS</a> · <a href="{rel}podcast.xml">Podcast feed</a>'
+            + _version_links(rel, cfg or {}, sc) + '</footer></body></html>')
+
+
+def _version_links(rel: str, cfg: dict, sc: dict) -> str:
+    """'· v0.1 beta (release notes) · Code · All projects' in every footer."""
+    from .version import short
+    code = cfg.get("code_repo") or ""
+    return (f'<br><span class="small"><a href="{rel}releases/index.html">{htmllib.escape(short())}</a>'
+            + (f' · <a href="https://github.com/{htmllib.escape(code)}">Code</a>' if code else "")
+            + (f' · <a href="{htmllib.escape(sc["home_url"])}">{htmllib.escape(sc["home_label"] or "All projects")}</a>'
+               if sc.get("home_url") else "") + "</span>")
+
+
+def releases_page(cfg: dict) -> str:
+    """<site>/releases/: the release notes, from CHANGELOG.md."""
+    from .version import full, releases
+    body = [f'<h1>Release notes</h1><p class="muted">Running <b>v{htmllib.escape(full())}</b>. Changes are built and '
+            'tested on a development branch and reach production together as a release.</p>']
+    for head, md in releases():
+        body.append(f'<section class="panel"><h2>{htmllib.escape(head)}</h2>{_md_to_html(md)}</section>')
+    return _page("AI Briefing · Release notes", "".join(body), "../", cfg)
 
 
 def site_cfg(cfg: dict) -> dict:
@@ -390,6 +411,8 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
     (out / "index.html").write_text(_page(cfg.get("podcast", {}).get("title", "AI Briefing"),
                                           landing(cfg, latest, rows, podcast_url, bool(episodes), base_url, dives),
                                           cfg=cfg, bare=True), "utf-8")
+    (out / "releases").mkdir(exist_ok=True)
+    (out / "releases" / "index.html").write_text(releases_page(cfg), "utf-8")
     (out / "feed.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>AI Briefing</title>'
         f'<link>{base_url or "./"}</link><description>Daily AI briefing for early-stage investors</description>'

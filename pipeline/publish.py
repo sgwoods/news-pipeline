@@ -143,7 +143,7 @@ def backup_push(root: Path, cfg: dict | None = None) -> str:
     if not view or view.returncode != 0 or view.stdout.strip().upper() != "PRIVATE":
         raise RuntimeError(f"refusing to push: could not confirm {repo} is PRIVATE (the archive, reader replies and the "
                            "private people list are in this repo)")
-    _run(["git", "push", "-q", "origin", "main"], cwd=root)
+    _run(["git", "push", "-q", "--follow-tags", "origin", "main"], cwd=root)     # release tags go with it
     return "pushed to origin"
 
 

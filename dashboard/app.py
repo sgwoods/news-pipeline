@@ -164,6 +164,10 @@ def create_app(root: Path = ROOT) -> Flask:
         except Exception:
             return ""
 
+    def _version():
+        from pipeline.version import full
+        return full(root)
+
     @app.context_processor
     def inject():
         try:
@@ -172,7 +176,7 @@ def create_app(root: Path = ROOT) -> Flask:
         except Exception:  # noqa: BLE001
             fbc = {}
         return {"csrf": app.config["CSRF"], "now": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "action": action_status(), "fb_counts": fbc}
+                "action": action_status(), "fb_counts": fbc, "version": _version()}
 
     @app.template_filter("safe_href")
     def safe_href(u):

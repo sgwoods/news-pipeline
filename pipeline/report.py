@@ -66,7 +66,8 @@ def _count_entries(md: str, section: str) -> int:
 
 def build(root: Path, cfg: dict, cmd: str = "", exit_code=None, output_file: str = "") -> str:
     paths = cfg.get("paths", {})
-    L = [f"# news-pipeline report · {dt.datetime.now():%Y-%m-%d %H:%M}"]
+    from .version import full
+    L = [f"# news-pipeline report · v{full(root)} · {dt.datetime.now():%Y-%m-%d %H:%M}"]
     if cmd:
         L.append(f"Command: `./np {cmd}`" + (f" → exit {exit_code}" if exit_code is not None else "")
                  + (f" · full output: `{output_file}`" if output_file else ""))
