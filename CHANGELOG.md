@@ -6,6 +6,13 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.1.1-beta · 2026-10-22
+- AI Briefing on the public project hub (sgwoods.github.io/public) as an exporting project: after each publish,
+  `./np hub push` writes its status (19 fields, naming this released public commit) and its project page with the
+  hub's freshness panel, and pushes only those two files. It refuses when the running code isn't the release.
+- The site's old `/hub/` copy of the status files is retired.
+- `./np log <command>` saves any command's output under `logs/`.
+
 ## v0.1.0-beta · 2026-10-22
 The system as it runs today, labelled the first beta: a small number of outside readers.
 

@@ -24,3 +24,5 @@ data/inbox/
 
 # the public code export (./np push-code builds it; its own git repo)
 .public/
+# clone of the public project hub (sgwoods/public), used by ./np hub push
+.hub/

@@ -33,6 +33,7 @@ case "$cmd" in
              echo "Python: $(python --version)"
              pip install -q --upgrade pip            # not via run(): the report needs packages installed first
              run pip install -q -r requirements.txt ;;
+  log)       run "$@" ;;                                       # any command, output saved to logs/cmd-log-<time>.txt (e.g. ./np log gh repo view)
   doctor)    run $PY run.py --doctor ;;
   run)       run $PY run.py "$@" ;;                         # full daily run
   fetch)     run $PY run.py --no-llm "$@" ;;                # fetch + archive only
@@ -80,6 +81,7 @@ case "$cmd" in
   quality)   run $PY run.py --quality "$@" ;;                    # [DAY|all] | rate DAY SCORE [note]: scorecard
   review)    run $PY run.py --review "${@:-weekly}" ;;             # weekly [DAY]: quality review from local files
   preflight) run $PY run.py --preflight ;;                     # evening: is the release gate approval current? (notifies)
+  hub)       run $PY run.py --hub "${@:-status}" ;;                 # status | push: AI Briefing on the public project hub
   remaster)  run $PY run.py --remaster "${1:?usage: ./np remaster YYYY-MM-DD}" ;;   # DAY's podcast in the current style, then publish
   factcheck) run $PY run.py --factcheck "$@" ;;                 # [DAY] | probe "sentence" FIGURE: fact check + search-before-cut, dry run
   reader)    run $PY run.py --reader "${@:-check}" ;;             # check [DAYS]: article reader on past items (dry run)

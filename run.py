@@ -797,6 +797,23 @@ def cmd_audio(cfg: dict, day: str = None) -> int:
 
 
 
+def cmd_hub(cfg: dict, argv: list) -> int:
+    """./np hub status | push: AI Briefing's status on the public project hub (pipeline/hub.py)."""
+    from pipeline import hub
+    sub = (argv or ["status"])[0]
+    try:
+        if sub == "push":
+            print(hub.push(ROOT, cfg))
+            return 0
+        b = hub.build(ROOT, cfg)
+        print(b["files"][hub.ALLOW[0]], end="")
+        print(f"(page {hub.ALLOW[1]}: {len(b['files'][hub.ALLOW[1]])} bytes; nothing pushed. To push: ./np hub push)")
+        return 0
+    except hub.HubExportError as e:
+        print(f"Hub export refused: {e}")
+        return 1
+
+
 def cmd_remaster(cfg: dict, day: str) -> int:
     """./np remaster DAY: rebuild DAY's podcast in the current style (deep dive re-recorded with the current opener and
     sign-off, briefing audio rebuilt with the hand-off, one combined episode), then publish. No email is re-sent."""
@@ -2060,12 +2077,12 @@ def cmd_publish(cfg: dict, sub: str = "run") -> int:
         if sub == "setup":
             print(publish.setup(ROOT, repo))
         res = site.build(ROOT, cfg, base_url=pc.get("site_url", ""), audio_days=pc.get("audio_days", 14))
-        try:                                     # status for the public project hub, published at <site>/hub/
-            from pipeline import hub
-            hub.write(ROOT, cfg, ROOT / "site")
-        except Exception as e:  # noqa: BLE001 - the hub status never blocks a publish
-            print(f"hub status skipped: {e}")
         url = publish.push(ROOT, ROOT / "site", repo, f"Publish {dt.datetime.now():%Y-%m-%d %H:%M}", cfg)
+        try:                                     # after a publication: the public hub's status (pipeline/hub.py)
+            from pipeline import hub
+            hub.push(ROOT, cfg)
+        except Exception as e:  # noqa: BLE001 - the hub status never blocks a publish
+            print(f"hub export skipped: {e}"[:400])
         from pipeline import episodes as eps
         eps.mark_published(ROOT, res.get("episode_keys") or [])
     except RuntimeError as e:
@@ -2108,6 +2125,7 @@ def main() -> int:
     ap.add_argument("--deepdive", nargs="*", metavar="ARG", help='[DAY] [--topic "..."] [--force] [--no-audio]: topical deep-dive episode')
     ap.add_argument("--review", nargs="*", metavar="ARG", help="weekly [DAY]: the weekly quality review")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
+    ap.add_argument("--hub", nargs="*", metavar="ARG", help="status | push: status on the public project hub")
     ap.add_argument("--remaster", metavar="DAY", help="rebuild DAY's podcast in the current style and publish")
     ap.add_argument("--factcheck", nargs="*", metavar="ARG", help="[DAY] | probe SENTENCE FIGURE: fact-check dry run")
     ap.add_argument("--reader", nargs="*", metavar="ARG", help="check [DAYS]: try the article reader on past items")
@@ -2175,6 +2193,8 @@ def main() -> int:
         return cmd_preflight(cfg)
     if args.review is not None:
         return cmd_review(cfg, args.review)
+    if args.hub is not None:
+        return cmd_hub(cfg, args.hub)
     if args.remaster:
         return cmd_remaster(cfg, args.remaster)
     if args.factcheck is not None:
