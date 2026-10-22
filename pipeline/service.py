@@ -69,6 +69,9 @@ def build_plist(kind: str, root: Path, cfg: dict) -> dict:
 
 
 def install(kind: str, root: Path, cfg: dict) -> str:
+    from .env import staging
+    if staging(root):
+        raise RuntimeError("services are installed only in the production folder, never in the dev checkout")
     p = plist_path(kind)
     p.parent.mkdir(parents=True, exist_ok=True)
     (root / "logs").mkdir(exist_ok=True)

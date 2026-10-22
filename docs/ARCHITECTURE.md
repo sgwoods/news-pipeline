@@ -13,10 +13,10 @@ This page describes the design as of **v0.1 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.1.3-beta (2026-10-22)
+- **Release:** v0.1.4-beta (2026-10-22)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 54 in `pipeline/`
+- **Modules:** 56 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -123,6 +123,17 @@ release candidate, reviewed, and promoted in a safe window with a single approva
 canary, and a rollback returns to the previous, already-approved release. Editorial content (sources, watchlist,
 perspective, takes) isn't code and is edited in production at any time.
 
+| Command | Where | What |
+|---|---|---|
+| `./np dev setup` | production | creates the development checkout (branch `dev`, staging) |
+| `./np staging sync` | dev | brings in production's latest data and fixes |
+| `./np staging run [DAY]` | dev | rebuilds an edition with the dev code; outbound off, review email to the owner only |
+| `./np release VERSION "reviewed: ..."` | production | merges dev with one approval, then tags it and updates the public code, backup and hub |
+| `./np rollback "reviewed: ..."` | production | returns the code to the previous release |
+
+Modules: `env.py` (production or staging), `devenv.py` (the development checkout), `releaser.py` (release and
+rollback), `release.py` (the gate).
+
 ## Operations
 - **Schedule:** early morning with two retries. A retry skips work already done. An evening preflight checks
   that tomorrow's release is approved.
@@ -142,6 +153,7 @@ _Generated from each module's own description at build time._
 | `audio.py` | Phase 2 |
 | `bluesky.py` | Bluesky lists and Steven's own posts as sources, via the public AT Protocol API (no key, no login). |
 | `deepdive.py` | Topical deep dive |
+| `devenv.py` | The development checkout |
 | `dive.py` | Deep dive on one story |
 | `docs.py` | Public documentation on the site |
 | `editor_note.py` | Steven's private evening note |
@@ -171,6 +183,7 @@ _Generated from each module's own description at build time._
 | `reader.py` | Read the article behind a thin item before its evidence check. |
 | `record.py` | Public record |
 | `release.py` | Release gate |
+| `releaser.py` | Promote a release from dev to production, or roll production back (docs/plans/release-process.md). |
 | `report.py` | Compact, paste-friendly status report → logs/last-report.md. |
 | `review.py` | Weekly quality review, run on the Mac from local files only (no web, no tools, no mailbox). |
 | `runlog.py` | Records every run |

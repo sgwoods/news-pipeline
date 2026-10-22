@@ -322,6 +322,8 @@ def require(root: Path, cfg: dict, action: str, log=print, staging_ok: bool = Fa
 HOOKS = {
     "pre-commit": "#!/bin/sh\n# news-pipeline: no secrets in a commit (pipeline/release.py)\n"
                   "cd \"$(git rev-parse --show-toplevel)\" || exit 1\nPY=python3; [ -x .venv/bin/python ] && PY=.venv/bin/python\n"
+                  "if [ -f .staging ] && git diff --cached --name-only | grep -qE '^(data|briefings|hub|site)/|^sources.yaml$'; then\n"
+                  "  echo 'staging: data paths are never committed from the dev checkout (./np staging reset)'; exit 1; fi\n"
                   "exec \"$PY\" -c 'import sys; from pathlib import Path; from pipeline import release as r; "
                   "import subprocess; fs=[Path(f) for f in subprocess.run([\"git\",\"diff\",\"--cached\",\"--name-only\",\"--diff-filter=ACM\"],"
                   "capture_output=True,text=True).stdout.split()]; ok,d=r.check_secrets(Path(\".\").resolve(),[Path(\".\").resolve()/f for f in fs]); "

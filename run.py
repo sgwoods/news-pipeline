@@ -814,6 +814,86 @@ def cmd_hub(cfg: dict, argv: list) -> int:
         return 1
 
 
+def cmd_dev(cfg: dict, argv: list) -> int:
+    """./np dev setup: create the development checkout (pipeline/devenv.py). Run from production."""
+    from pipeline import devenv
+    try:
+        if (argv or ["setup"])[0] == "setup":
+            print(devenv.setup(ROOT, cfg))
+            return 0
+        print(cmd_dev.__doc__)
+        return 2
+    except devenv.DevError as e:
+        print(f"Dev: {e}")
+        return 1
+
+
+def cmd_staging(cfg: dict, argv: list) -> int:
+    """./np staging sync | run [DAY] [--email] [--force] | reset | status: the dev checkout's own runs."""
+    from pipeline import devenv, env
+    sub, rest = (argv or ["status"])[0], (argv or [])[1:]
+    try:
+        if sub == "status":
+            print(f"{'STAGING (dev checkout)' if env.staging(ROOT) else 'PRODUCTION'} · {ROOT}")
+            return 0
+        if sub == "sync":
+            print(devenv.sync(ROOT, cfg))
+            return 0
+        if sub == "reset":
+            print(devenv.reset(ROOT))
+            return 0
+        if sub == "run":
+            devenv._need_staging(ROOT)
+            devenv.check_window("--force" in rest)
+            day = next((a for a in rest if not a.startswith("--")), "") or devenv.latest_day(ROOT)
+            print(f"Staging run: rebuilding {day} with the dev code (outbound off)")
+            code = cmd_run(cfg, rebrief_day=day, commit=False)
+            cmd_site(cfg)
+            if "--email" in rest:
+                from pipeline import mailer
+                print(mailer.send_day(ROOT, cfg, day, to=(cfg.get("email") or {}).get("test_to") or _owner()["account"],
+                                      force=True))
+            return code
+    except devenv.DevError as e:
+        print(f"Staging: {e}")
+        return 1
+    print(cmd_staging.__doc__)
+    return 2
+
+
+def cmd_release(cfg: dict, argv: list, rollback: bool = False) -> int:
+    """./np release VERSION "reviewed: ..." [--force] | ./np rollback "reviewed: ...": promote dev to production,
+    or return to the previous release (pipeline/releaser.py). Then the public code, backup and hub status."""
+    from pipeline import releaser
+    force = "--force" in argv
+    argv = [a for a in argv if a != "--force"]
+    try:
+        if rollback:
+            r = releaser.rollback(ROOT, cfg, " ".join(argv).strip())
+            print(f"Rolled back: v{r['previous']} -> v{r['version']} (commit {r['commit']})")
+        else:
+            if not argv:
+                print(cmd_release.__doc__)
+                return 2
+            r = releaser.promote(ROOT, cfg, argv[0], " ".join(argv[1:]).strip(), force=force)
+            print(f"Released v{r['version']} (was v{r['previous']}, commit {r['commit']})")
+    except releaser.ReleaseError as e:
+        print(f"Release: {e}")
+        return 1
+    from pipeline import publish
+    try:
+        print("backup:", publish.backup_push(ROOT, cfg))
+    except Exception as e:  # noqa: BLE001
+        print(f"backup push failed: {e}"[:300])
+    try:
+        from pipeline import hub
+        print(hub.push(ROOT, cfg))
+    except Exception as e:  # noqa: BLE001
+        print(f"hub export skipped: {e}"[:400])
+    print("Tomorrow's run is the canary. If it fails: ./np rollback \"reviewed: <why>\"")
+    return 0
+
+
 def cmd_remaster(cfg: dict, day: str) -> int:
     """./np remaster DAY: rebuild DAY's podcast in the current style (deep dive re-recorded with the current opener and
     sign-off, briefing audio rebuilt with the hand-off, one combined episode), then publish. No email is re-sent."""
@@ -2126,6 +2206,10 @@ def main() -> int:
     ap.add_argument("--review", nargs="*", metavar="ARG", help="weekly [DAY]: the weekly quality review")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
     ap.add_argument("--hub", nargs="*", metavar="ARG", help="status | push: status on the public project hub")
+    ap.add_argument("--dev", nargs="*", metavar="ARG", help="setup: create the development checkout")
+    ap.add_argument("--staging", nargs="*", metavar="ARG", help="sync | run [DAY] [--email] | reset | status (dev checkout)")
+    ap.add_argument("--release", nargs="*", metavar="ARG", help='VERSION "reviewed: ...": promote dev to production')
+    ap.add_argument("--rollback", nargs="*", metavar="ARG", help='"reviewed: ...": back to the previous release')
     ap.add_argument("--remaster", metavar="DAY", help="rebuild DAY's podcast in the current style and publish")
     ap.add_argument("--factcheck", nargs="*", metavar="ARG", help="[DAY] | probe SENTENCE FIGURE: fact-check dry run")
     ap.add_argument("--reader", nargs="*", metavar="ARG", help="check [DAYS]: try the article reader on past items")
@@ -2195,6 +2279,14 @@ def main() -> int:
         return cmd_review(cfg, args.review)
     if args.hub is not None:
         return cmd_hub(cfg, args.hub)
+    if args.dev is not None:
+        return cmd_dev(cfg, args.dev)
+    if args.staging is not None:
+        return cmd_staging(cfg, args.staging)
+    if args.release is not None:
+        return cmd_release(cfg, args.release)
+    if args.rollback is not None:
+        return cmd_release(cfg, args.rollback, rollback=True)
     if args.remaster:
         return cmd_remaster(cfg, args.remaster)
     if args.factcheck is not None:

@@ -6,6 +6,23 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.1.4-beta · 2026-10-22
+- Development checkout: `./np dev setup` creates a second working copy of the repository on branch `dev`, in
+  staging mode. Inside it:
+  - `./np staging sync` brings in production's latest data and fixes;
+  - `./np staging run [DAY]` rebuilds an edition with the development code while outbound stays off, and
+    `--email` sends the review copy to the owner only;
+  - `./np staging reset` throws away what staging wrote.
+- Staging outputs can't be committed: the pre-commit hook refuses data paths in a staging checkout, archive
+  commits are skipped there, alerts aren't sent, and services can't be installed. Staging runs keep out of the
+  03:30–08:30 production window.
+- Releases and rollback:
+  - `./np release VERSION "reviewed: ..."` merges dev into production between 08:30 and 20:00, needs one
+    approval, then tags the release and pushes the public code, the backup and the hub status. It refuses if
+    production has stray code changes, a run is in progress, dev's version or changelog don't match, or the
+    staging marker was committed.
+  - `./np rollback "reviewed: ..."` returns the code to the previous release.
+
 ## v0.1.3-beta · 2026-10-22
 - Documentation on the site at `/docs/`, rebuilt at every publish from the same markdown as the public code, with
   the diagrams embedded. Each page shows the running version and when it last changed. Linked from the footer and

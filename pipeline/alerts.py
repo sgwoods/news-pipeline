@@ -94,6 +94,10 @@ def send(root: Path, cfg: dict, kind: str, day: str = "", detail: str = "", file
     """Email Steven once per (day, kind). -> True if an email went out now. (The caller shows the Mac notification.)"""
     log = log or print
     day = day or dt.date.today().isoformat()
+    from .env import staging
+    if staging(root):                                    # a blocked outbound step is expected in staging
+        log(f"staging: {kind} alert not sent ({detail[:120]})")
+        return False
     if already(root, day, kind):
         return False
     from . import mailer

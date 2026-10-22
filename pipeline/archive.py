@@ -103,6 +103,9 @@ class Archive:
     def git_commit(self, message: str, paths=("data", "briefings", "sources.yaml")) -> str:
         def git(*args):
             return subprocess.run(["git", *args], cwd=self.root, capture_output=True, text=True)
+        from .env import staging
+        if staging(self.root):                           # staging outputs are thrown away, never committed
+            return "not committed (staging)"
         existing = [p for p in paths if (self.root / p).exists()]
         if not existing:
             return "nothing to commit"

@@ -82,6 +82,10 @@ case "$cmd" in
   review)    run $PY run.py --review "${@:-weekly}" ;;             # weekly [DAY]: quality review from local files
   preflight) run $PY run.py --preflight ;;                     # evening: is the release gate approval current? (notifies)
   hub)       run $PY run.py --hub "${@:-status}" ;;                 # status | push: AI Briefing on the public project hub
+  dev)       run $PY run.py --dev "${@:-setup}" ;;                # setup: create the development checkout (from production)
+  staging)   run $PY run.py --staging "${@:-status}" ;;            # sync | run [DAY] [--email] [--force] | reset | status (dev checkout)
+  release)   run $PY run.py --release "$@" ;;                     # VERSION "reviewed: ...": promote dev to production (one approval)
+  rollback)  run $PY run.py --rollback "$@" ;;                    # "reviewed: why": production back to the previous release
   remaster)  run $PY run.py --remaster "${1:?usage: ./np remaster YYYY-MM-DD}" ;;   # DAY's podcast in the current style, then publish
   factcheck) run $PY run.py --factcheck "$@" ;;                 # [DAY] | probe "sentence" FIGURE: fact check + search-before-cut, dry run
   reader)    run $PY run.py --reader "${@:-check}" ;;             # check [DAYS]: article reader on past items (dry run)
