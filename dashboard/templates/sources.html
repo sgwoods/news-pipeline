@@ -1,0 +1,99 @@
+{% extends "base.html" %}{% block title %}Sources{% endblock %}{% block body %}
+<style>
+.q{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.q .card h3{margin:0 0 4px;font-size:16px}.q .why{margin:6px 0}.q ul{margin:4px 0 8px;padding-left:18px}
+.q .acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.q input[type=text]{width:150px}
+.chans{list-style:none;padding-left:0}.chans li{margin:3px 0}.nolive{color:var(--muted);font-style:italic}
+form.add input[type=text]{padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}
+</style>
+<h1>Sources <span class="muted small">verified {{ verified_at.replace('T',' ') }}</span></h1>
+{% if action %}<div hx-get="/actions/output" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
+
+<h2 id="queue">Suggestion queue <span class="muted small">{{ q.pending|length }} to review</span></h2>
+<p>
+<form class="inline" method="post" action="/actions/suggest"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/sources">
+<button {{ 'disabled' if busy_suggest }} title="Claude suggests new sources (may search the web); every URL is verified before it is queued. ~2-6 min">Refresh suggestions</button></form>
+<form class="inline add" method="post" action="/actions/find-source"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/sources">
+<input type="text" name="name" placeholder="Add a person or source" maxlength="80" required>
+<input type="text" name="note" placeholder="note (optional)" maxlength="300">
+<button {{ 'disabled' if busy_suggest }} title="Searches for this person's feeds and puts the result in the queue">Find &amp; queue</button></form>
+</p>
+{% if not q.pending %}<p class="muted">Nothing to review. Use Refresh suggestions, or add a person above.</p>{% endif %}
+<div class="q">
+{% for x in q.pending %}<div class="card">
+<h3>{{ x.name }} {% if x.scrutiny %}<span class="pill scr">SCRUTINY</span>{% endif %}
+<span class="pill">{{ x.kind }}</span>{% if x.origin == 'manual' %} <span class="pill flag">added by you</span>{% endif %}</h3>
+<div class="why">{{ x.why }}</div>
+{% if x.related_to %}<div class="small muted">related to: {{ x.related_to|join(', ') }}</div>{% endif %}
+{% if x.verified %}<form id="acc-{{ x.id }}" method="post" action="/api/sources/{{ x.id }}/accept"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="picked" value="1">
+<div class="small">Live channels (verified {{ (x.checked or '')[:10] }}) — tick the ones to follow:</div><ul class="small chans">
+{% for v in x.verified %}<li><label><input type="checkbox" name="url" value="{{ v.url }}" {{ '' if v.stale else 'checked' }}>
+<b>{{ v.channel or v.kind }}</b>{% if v.stale %} <span class="pill scr">stale</span>{% endif %}</label>
+<a class="mono" href="{{ v.url|safe_href }}" target="_blank" rel="noopener">{{ v.url|short(50) }}</a>
+<span class="muted">{{ v.title|short(40) }} · {{ v.entries }} items{% if v.latest %} · latest {{ v.latest }}{% endif %}</span></li>{% endfor %}</ul></form>
+{% else %}<div class="small nolive">No live web source found. Accepting keeps it on the watch list for later (X / Nitter in Phase 3).</div>{% endif %}
+{% if x.x or x.other %}<div class="small muted">elsewhere: {% for h in x.x %}X @{{ h }}{{ ', ' if not loop.last or x.other }}{% endfor %}{{ x.other|join(', ') }}</div>{% endif %}
+{% if x.failed %}<details class="small muted"><summary>{{ x.failed|length }} candidate(s) failed</summary><ul>{% for f in x.failed %}<li class="mono">{{ f.label|short(50) }} → {{ f.reason|short(60) }}</li>{% endfor %}</ul></details>{% endif %}
+<div class="acts">
+{% if x.verified %}<button form="acc-{{ x.id }}" title="Re-verify the ticked channels and wire them into the next run (none ticked = watch list)">Accept ticked</button>
+{% else %}<form class="inline" method="post" action="/api/sources/{{ x.id }}/accept"><input type="hidden" name="csrf" value="{{ csrf }}"><button title="Remember on the watch list">Accept (watch)</button></form>{% endif %}
+<form class="inline" method="post" action="/api/sources/{{ x.id }}/deny"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="text" name="reason" placeholder="why not (optional)" maxlength="200"><button>Deny</button></form>
+<form class="inline" method="post" action="/actions/recheck-source"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/sources"><input type="hidden" name="id" value="{{ x.id }}"><button class="mini" {{ 'disabled' if busy_suggest }} title="Verify the candidate URLs again">recheck</button></form>
+</div></div>{% endfor %}
+</div>
+
+<h2>Email newsletters <span class="muted small">Gmail label {{ news.config.label }} · {{ 'on' if news.config.enabled else 'off' }}{% if not news.password_set %} · app password not set{% endif %}</span></h2>
+<table><tr><th>Newsletter</th><th>Tier</th><th>Senders</th><th>Archived</th><th>Latest</th><th>Watch for</th></tr>
+{% for n in news.newsletters %}<tr><td><a href="{{ n.web|safe_href }}" target="_blank" rel="noopener">{{ n.name }}</a>{% if n.scrutiny %} <span class="pill scr">SCRUTINY</span>{% endif %}</td>
+<td class="small">{{ n.tier }}</td><td class="small mono">{{ n['from']|join(', ') }}</td>
+<td>{% if n.count %}<a href="/items?person={{ n.name|urlencode }}&kind=email">{{ n.count }}</a>{% else %}<span class="s-error">0</span>{% endif %}</td>
+<td class="small">{{ n.latest or 'never' }}</td><td class="small muted">{{ n.bias|short(140) }}</td></tr>{% endfor %}</table>
+{% if news.confirms %}<p class="small s-error">Subscription confirmations waiting under the label (the filter skips the inbox, so click them in Gmail): {% for a, u in news.confirms.items() %}<span class="mono">{{ a }}</span> ({{ u.date }}){{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+{% if news.unlisted %}<p class="small s-partial">Senders under the label that are not in <span class="mono">newsletters.yaml</span>: {% for a, u in news.unlisted.items() %}<span class="mono">{{ a }}</span> ({{ u.name }}, {{ u.date }}){{ ', ' if not loop.last }}{% endfor %}. Add them to the file or unsubscribe.</p>{% endif %}
+<p class="muted small">Edit <span class="mono">newsletters.yaml</span> to add a newsletter and its bias note; setup in <span class="mono">docs/NEWSLETTERS.md</span>. Wire and coverage-check items never lead a story.</p>
+
+<h2>Bluesky lists <span class="muted small">{{ bluesky.lists|length }} list(s){% if bluesky.own %} · own posts @{{ bluesky.own }}{% endif %}</span></h2>
+<ul class="small">{% for u in bluesky.lists %}<li><a href="{{ u|safe_href }}" target="_blank" rel="noopener">{{ u }}</a>
+{% set st = last_status.get(('Bluesky list: ' ~ '', u)) %}{% for (p, uu), v in last_status.items() if uu == u %} · last fetch: <span class="s-{{ v.status }}">{{ v.status }}</span>{% if v.get('members') %} · {{ v.members }} members · {{ v.new }} new{% endif %}{% if v.get('error') %} · {{ v.error|short(80) }}{% endif %}{% endfor %}</li>{% endfor %}</ul>
+{% if bl_counts %}<p class="small muted">Archived from lists so far: {% for p, c in bl_counts.most_common(12) %}{{ p }} ({{ c }}){{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+<p class="muted small">Add a person to the list in the Bluesky app and they are a source from the next run. Lists are set in <span class="mono">config.yaml bluesky</span>.</p>
+
+<h2>X / Twitter <span class="muted small">via Nitter-style mirrors · {{ xs.accounts|length }} accounts in <span class="mono">x.yaml</span></span></h2>
+<p class="small">Mirrors: {% for i in xs.instances %}<span class="{{ 's-ok' if i.get('ok') else ('s-error' if 'ok' in i else 'muted') }}">{{ i.url|replace('https://', '') }}</span>{{ ' · ' if not loop.last }}{% endfor %}
+{% if xs.last_good %} · last good: {{ xs.last_good|replace('https://', '') }}{% endif %}{% if xs.last_fail %} · <span class="s-error">no mirror answered at {{ xs.last_fail[:16].replace('T', ' ') }}</span>{% endif %}</p>
+<table><tr><th>Account</th><th>Tier</th><th>Archived</th><th>Latest</th><th>Why</th></tr>
+{% for a in xs.accounts %}<tr><td><a href="https://x.com/{{ a.handle }}" target="_blank" rel="noopener">@{{ a.handle }}</a> {{ a.name }}{% for f in a.flags %} <span class="pill flag">{{ f }}</span>{% endfor %}</td>
+<td class="small">{{ a.tier }}</td><td>{{ a.count or '<span class="muted">0</span>'|safe }}</td><td class="small">{{ a.latest or 'never' }}</td><td class="small muted">{{ a.why|short(110) }}</td></tr>{% endfor %}</table>
+
+<h2>Wired sources <span class="muted small">{{ rows|length }}</span></h2>
+<table><tr><th>Person</th><th>Kind</th><th>Feed / page source</th><th>Last fetch</th><th>Archived</th><th>Newest item</th><th></th></tr>
+{% for s in rows %}<tr>
+<td>{{ s.person }} {% if s.scrutiny %}<span class="pill scr">SCRUTINY</span>{% endif %}{% for f in s.flags %} <span class="pill flag">{{ f }}</span>{% endfor %}
+<div class="muted small">{{ s.tier }}{% if s.added %} · from the queue{% endif %}</div></td>
+<td>{{ s.kind }}{% if s.method %}<div class="muted small">{{ s.method }} · {{ s.include|join(', ') }}</div>{% endif %}</td>
+<td class="mono"><a href="{{ s.url|safe_href }}" target="_blank" rel="noopener">{{ s.url|short(60) }}</a><div class="muted small">{% if s.channel %}{{ s.channel }} · {% endif %}{{ s.title|short(60) }}</div></td>
+<td>{% if s.last %}<span class="s-{{ s.last.status }}">{{ s.last.status }}</span>
+<div class="small muted">{% if s.last.error %}<span class="s-error">{{ s.last.error|short(80) }}</span>{% else %}{{ s.last.new }} new{% if s.last.note %} · {{ s.last.note }}{% endif %}{% if s.last.deferred %} · {{ s.last.deferred }} deferred{% endif %}{% endif %}</div>
+{% else %}<span class="muted">never</span>{% endif %}</td>
+<td><a href="/items?person={{ s.person|urlencode }}&kind={{ s.kind }}">{{ s.archived }}</a></td>
+<td class="small">{{ s.newest }}</td>
+<td><form class="inline" method="post" action="/api/sources/remove" onsubmit="return confirm('Stop fetching this source? The archive keeps what was already collected.')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="url" value="{{ s.url }}"><button class="mini">remove</button></form></td></tr>{% endfor %}</table>
+
+{% if q.watch %}<h2 id="watch">Watch list <span class="muted small">accepted, no live web source yet</span></h2>
+<ul>{% for x in q.watch %}<li><b>{{ x.name }}</b> <span class="muted small">{{ x.why|short(140) }}</span>
+<span class="small">{% for h in x.x %} · X @{{ h }}{% endfor %}{% for o in x.other %} · {{ o }}{% endfor %}</span>
+<form class="inline" method="post" action="/actions/recheck-source"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/sources"><input type="hidden" name="id" value="{{ x.id }}"><button class="mini">look again</button></form></li>{% endfor %}</ul>{% endif %}
+
+{% if q.accepted %}<details><summary>Accepted from the queue ({{ q.accepted|length }})</summary><ul class="small">
+{% for x in q.accepted %}<li>{{ x.name }} <span class="muted">{{ (x.decided or '')[:10] }} · {{ x.wired|default([])|length }} source(s)</span></li>{% endfor %}</ul></details>{% endif %}
+{% if q.denied %}<details><summary>Denied ({{ q.denied|length }}) <span class="muted small">never suggested again</span></summary><ul class="small">
+{% for x in q.denied %}<li>{{ x.name }} <span class="muted">{{ (x.decided or '')[:10] }}{% if x.deny_reason %} · {{ x.deny_reason }}{% endif %}</span>
+<form class="inline" method="post" action="/api/sources/{{ x.id }}/reconsider"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="mini">reconsider</button></form></li>{% endfor %}</ul></details>{% endif %}
+{% if removed %}<details id="removed"><summary>Removed sources ({{ removed|length }}) <span class="muted small">skipped by re-verify</span></summary><ul class="small">
+{% for r in removed %}<li>{{ r.person }} [{{ r.kind }}] <span class="mono">{{ r.url|short(60) }}</span> <span class="muted">{{ r.at }}{% if r.reason %} · {{ r.reason }}{% endif %}</span>
+<form class="inline" method="post" action="/api/sources/restore"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="url" value="{{ r.url }}"><button class="mini">restore</button></form></li>{% endfor %}</ul></details>{% endif %}
+
+{% if failed_section %}<h2>From the latest verification report <span class="muted small mono">logs/{{ report_name }}</span></h2>
+<pre>{{ failed_section }}</pre>{% endif %}
+<p class="muted small">Sources come from <span class="mono">perspective.md</span> + <span class="mono">source_hints.yaml</span> (hand-edited) and <span class="mono">sources_managed.yaml</span> (this page). Re-verify on the Control page rebuilds the list; removed URLs stay out.</p>
+{% endblock %}

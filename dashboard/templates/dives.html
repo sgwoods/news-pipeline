@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}Deep dives{% endblock %}{% block body %}
+<h1>Deep dives</h1>
+{% if not rows %}<p class="muted">None yet. Open a briefing and use "Dig deeper" on a story.</p>{% endif %}
+<ul>{% for r in rows %}<li><a href="/dives/{{ r.day }}/{{ r.key }}">{{ r.headline }}</a> <span class="small muted">{{ r.day }} · {{ r.sources|length }} sources + {{ r.related|length }} related · {{ r.created[:16].replace('T', ' ') }}</span></li>{% endfor %}</ul>
+{% endblock %}

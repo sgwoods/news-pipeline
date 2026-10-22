@@ -1,0 +1,57 @@
+{% extends "base.html" %}{% block title %}Tuning{% endblock %}{% block body %}
+<style>
+.tune{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px}@media(max-width:900px){.tune{grid-template-columns:1fr}}
+.knob{display:grid;grid-template-columns:220px 1fr;gap:4px 12px;align-items:start;padding:7px 0;border-bottom:1px solid var(--line)}
+@media(max-width:640px){.knob{grid-template-columns:1fr}}
+.knob label{font-weight:600}.knob .help{grid-column:2;color:var(--muted);font-size:12px}@media(max-width:640px){.knob .help{grid-column:1}}
+.knob input[type=text],.knob input[type=number],.knob select,textarea{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);width:100%;box-sizing:border-box}
+.knob.changed label::after{content:" •";color:var(--accent)}
+textarea.prompt{font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:260px}
+.side .card{margin-bottom:12px}.err{color:var(--bad,#c33)}
+</style>
+<h1>Tuning <span class="muted small">profile <b>{{ name }}</b>{% if name == active %} · <span class="s-ok">used by the daily run</span>{% endif %} · fingerprint <span class="mono">{{ fingerprint }}</span></span></h1>
+{% if action %}<div hx-get="/actions/output" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
+{% if saved %}<p class="s-ok small">Saved and committed.</p>{% endif %}
+{% for e in errors %}<p class="err small">{{ e }}</p>{% endfor %}
+<p class="small">Profiles:
+{% for n in names %}<a href="/tuning?profile={{ n }}" class="pill {{ 'flag' if n == name }}">{{ n }}{% if n == active %} ✓{% endif %}</a> {% endfor %}</p>
+
+<div class="tune"><div>
+<form method="post" action="/api/tuning/{{ name }}/save"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="knob"><label>Description</label><input type="text" name="description" value="{{ prof.description }}" maxlength="200"></div>
+{% for g, knobs in groups.items() %}<h2>{{ g }}</h2>
+{% for k in knobs %}<div class="knob {{ 'changed' if k.changed }}"><label for="{{ k.key }}">{{ k.label }}</label>
+{% if k.type == 'bool' %}<input type="checkbox" id="{{ k.key }}" name="{{ k.key }}" value="1" {{ 'checked' if k.value }}>
+{% elif k.type == 'choice' %}<select id="{{ k.key }}" name="{{ k.key }}">{% for c in k.extra %}<option {{ 'selected' if c == k.value }}>{{ c }}</option>{% endfor %}</select>
+{% elif k.type in ('int', 'float') %}<input type="number" id="{{ k.key }}" name="{{ k.key }}" value="{{ k.value }}" min="{{ k.extra[0] }}" max="{{ k.extra[1] }}" step="{{ '0.05' if k.type == 'float' else '1' }}">
+{% elif k.key == 'audio.voice' and voices %}<select id="{{ k.key }}" name="{{ k.key }}">{% for v in voices %}<option {{ 'selected' if v == k.value }}>{{ v }}</option>{% endfor %}{% if k.value not in voices %}<option selected>{{ k.value }}</option>{% endif %}</select>
+{% else %}<input type="text" id="{{ k.key }}" name="{{ k.key }}" value="{{ k.value }}" maxlength="400">{% endif %}
+{% if k.help %}<div class="help">{{ k.help }}{% if k.changed %} · changed from the default{% endif %}</div>{% endif %}</div>{% endfor %}
+{% endfor %}
+<p><button>Save profile {{ name }}</button> <span class="small muted">Saved profiles apply to previews; the daily run uses <b>{{ active }}</b>.</span></p>
+</form>
+
+<h2>Prompts <span class="muted small">the exact wording each stage sends; edits are saved in this profile only</span></h2>
+<p class="small muted">Placeholders in <span class="mono">{{ '{{…}}' }}</span> are filled by code from the knobs above (e.g. audience, focus, tone, rules for counts). Your perspective file is always the system prompt and is never changed here. Every output records the hash of the wording that made it.</p>
+{% for p in prompts %}<details id="prompt-{{ p.stage }}" {{ 'open' if p.override }}><summary><b>{{ p.stage }}</b>{% if p.override %} <span class="pill flag">edited in {{ name }}</span>{% endif %}</summary>
+<form method="post" action="/api/tuning/{{ name }}/prompt/{{ p.stage }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+<textarea class="prompt" name="text">{{ p.text }}</textarea>
+<p><button>Save prompt</button> {% if p.override %}<button name="reset" value="1">Reset to built-in</button>{% endif %}</p></form></details>{% endfor %}
+</div>
+
+<div class="side">
+<div class="card"><div class="k">Use this profile</div>
+{% if name != active %}<form method="post" action="/api/tuning/{{ name }}/activate"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Make it the daily profile</button></form>
+{% else %}<p class="small">This is the daily profile.</p>{% endif %}</div>
+<div class="card"><div class="k">Preview</div><p class="small muted">Rebuilds one day's briefing and audio with this profile into an experiments folder. The real briefing is untouched. ~3–6 min.</p>
+<form method="post" action="/actions/preview"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/tuning?profile={{ name }}"><input type="hidden" name="profile" value="{{ name }}">
+<input type="text" name="day" value="{{ day }}" size="10" pattern="\d{4}-\d{2}-\d{2}"> <button {{ 'disabled' if action and action.running }}>Preview</button></form></div>
+<div class="card"><div class="k">New profile</div>
+<form method="post" action="/api/tuning/new"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="from" value="{{ name }}">
+<input type="text" name="name" placeholder="e.g. calm-10min" pattern="[a-z0-9][a-z0-9-]{0,30}" required> <button>Copy {{ name }}</button></form></div>
+<div class="card"><div class="k">Experiments</div>
+{% if exps %}<ul class="small">{% for e in exps %}<li><a href="/experiments/{{ e.day }}/{{ e.profile }}">{{ e.day }} · {{ e.profile }}</a> <span class="muted">{{ e.words }} words · {{ e.created[5:16].replace('T', ' ') }}</span>
+· <a href="/compare?day={{ e.day }}&a=live&b={{ e.profile }}">compare</a></li>{% endfor %}</ul>
+{% else %}<p class="small muted">None yet. Preview a profile to make one.</p>{% endif %}</div>
+</div></div>
+{% endblock %}

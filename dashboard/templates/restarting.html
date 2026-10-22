@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}Restarting{% endblock %}{% block body %}
+{% if ok %}<h1>Restarting the dashboard…</h1><p class="muted">This page reloads the control panel in a few seconds.</p>
+<script>setTimeout(() => location.href = "/control", 5000)</script>
+{% else %}<h1>Can't restart from here</h1>
+<p>The dashboard isn't running as a background service (it was probably started with <span class="mono">./np dash</span> in Terminal).
+Stop it with Ctrl-C there, or install the service: <span class="mono">./np service install</span>.</p>
+<p><a href="/control">← Control panel</a></p>{% endif %}
+{% endblock %}

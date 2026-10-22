@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}Deep dive{% endblock %}{% block body %}
+<p class="small"><a href="/briefings/{{ day }}">← Briefing {{ day }}</a> · <a href="/dives">all deep dives</a>{% if rec.thread %} · <a href="/threads/{{ rec.thread }}">thread</a>{% endif %} · <a href="?raw=1">raw</a></p>
+{% if html %}<div class="md">{{ html|safe }}</div>{% else %}<div class="text">{{ text }}</div>{% endif %}
+<p class="small muted">{{ rec.model }} · prompt {{ rec.prompt }}{% if rec.web_dropped %} · {{ rec.web_dropped|length }} dead web link(s) dropped{% endif %}</p>
+{% endblock %}

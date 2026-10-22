@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block title %}Lens{% endblock %}{% block body %}
+<style>.lens{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}@media(max-width:900px){.lens{grid-template-columns:1fr}}
+.lens textarea{width:100%;box-sizing:border-box;min-height:620px;font:13px/1.45 ui-monospace,Menlo,monospace;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}</style>
+<h1>Lens <span class="muted small">who the briefing is for, and how it reads the news · <a href="/record">your public record →</a></span></h1>
+{% if saved %}<p class="s-ok small">Saved and committed. The next run, preview and deep dive use it.</p>{% endif %}
+<p class="small muted">Every model stage (analysis, critical pass, editorial, audio script, suggestions, deep dives) reads both files below. <b>About you</b> says who is reading and from what experience; <b>Perspective</b> says what to track and how sceptical to be. The prompt version recorded on every output changes when either changes.</p>
+<div class="lens"><div>
+<h2>About you <span class="muted small mono">author.md</span></h2>
+<form method="post" action="/api/lens/author"><input type="hidden" name="csrf" value="{{ csrf }}">
+<textarea name="text" spellcheck="true">{{ author }}</textarea>
+<p><button>Save</button> <span class="small muted">Markdown. Text inside &lt;!-- --&gt; is a note to yourself and is not sent to the models.</span></p></form>
+{% if author_log %}<details class="small"><summary>History ({{ author_log|length }})</summary><ul>{% for c in author_log %}<li><span class="mono">{{ c.h }}</span> {{ c.date }} · {{ c.msg }}</li>{% endfor %}</ul></details>{% endif %}
+<div class="card small" style="margin-top:12px"><div class="k">Also shaping the voice (Tuning page, profile <b>{{ prof.name }}</b>)</div>
+Written for: {{ prof.editorial.audience }}<br>Our read gives: {{ prof.editorial.focus }}<br>Tone: {{ prof.editorial.tone }}<br>
+Audio persona: {{ prof.audio.persona }}{% if prof.audio.persona == 'custom' %} ({{ prof.audio.persona_custom }}){% endif %} · <a href="/tuning?profile={{ prof.name }}">change</a></div>
+</div><div>
+<h2>Perspective <span class="muted small mono">perspective.md · read-only here</span></h2>
+<p class="small muted">Hand-edited by you in your editor; the code only reads it (project rule).{% if persp_log %} Last change: {{ persp_log[0].date }}.{% endif %}</p>
+{% if persp_html %}<div class="md card">{{ persp_html|safe }}</div>{% else %}<pre>{{ persp_text }}</pre>{% endif %}
+</div></div>
+{% endblock %}

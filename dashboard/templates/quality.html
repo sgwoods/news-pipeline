@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Quality{% endblock %}{% block body %}
+<h1>Quality <span class="muted small">daily scorecard from the format spec · measured by code · your rating and readers' · also <span class="mono">./np quality</span></span></h1>
+<p class="small muted">Green meets the target, red misses it. Ratings: yours (1–5) from this page or the stars in your own copy of the email; readers' from their email stars or replies that start with a number; Site is anonymous stars on the public pages (shown, never counted toward the breakpoint). The weekly rubric review (grounded / interesting / opinionated / listenable) adds the judgement code can't make.</p>
+<div style="overflow-x:auto"><table class="small">
+<tr><th>Day</th><th>Checks</th><th>You</th><th>Readers</th><th>Site</th>{% for k, lab, tgt in keys %}<th title="target {{ tgt }}">{{ lab }}<br><span class="muted">{{ tgt }}</span></th>{% endfor %}</tr>
+{% for r in rows %}{% set by = {} %}{% for c in r.checks %}{% set _ = by.update({c.key: c}) %}{% endfor %}
+<tr id="q-{{ r.day }}"><td><a href="/briefings/{{ r.day }}">{{ r.day }}</a></td>
+<td><b>{{ r.passed }}/{{ r.total }}</b></td>
+<td><form class="inline" method="post" action="/api/quality/{{ r.day }}/rate"><input type="hidden" name="csrf" value="{{ csrf }}">
+<select name="score" onchange="this.form.submit()"><option value="">{{ r.rating_steven or '–' }}</option>{% for n in [1,2,3,4,5] %}<option>{{ n }}</option>{% endfor %}</select></form></td>
+<td>{{ r.rating_readers or '–' }}{% if r.n_reader_ratings %} <span class="muted">({{ r.n_reader_ratings }})</span>{% endif %}</td>
+<td>{{ r.rating_web or '–' }}{% if r.n_web_ratings %} <span class="muted">({{ r.n_web_ratings }})</span>{% endif %}</td>
+{% for k, lab, tgt in keys %}{% set c = by.get(k) %}<td style="{% if c %}color:{{ 'var(--ok,#2e9d5b)' if c.ok else 'var(--err,#d33)' }}{% endif %}">{{ fmt(c.value) if c else '–' }}</td>{% endfor %}</tr>
+{% if r.privacy_details %}<tr><td></td><td colspan="{{ keys|length + 4 }}" class="small s-error">privacy: {{ r.privacy_details|join(' · ') }}</td></tr>{% endif %}
+{% endfor %}</table></div>
+{% endblock %}

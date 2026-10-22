@@ -1,0 +1,6 @@
+<div id="live" {% if live %}hx-get="/partials/live" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
+{% if live %}
+<div class="card"><b class="s-running">● Run {{ live.run_id }} in progress</b> <span class="muted small">started {{ live.started[11:19] }}</span>
+<div class="small" style="margin-top:6px">{% for name, s in live.stages.items() %}
+<span class="pill s-{{ s.status }}">{{ name }}: {{ s.status }}{% if s.seconds %} {{ s.seconds }}s{% endif %}</span> {% endfor %}</div></div>
+{% endif %}</div>

@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Experiment {{ s.which }} {{ day }}{% endblock %}{% block body %}
+<p class="small"><a href="/tuning?profile={{ s.which }}">← Tuning: {{ s.which }}</a> · <a href="/compare?day={{ day }}&a=live&b={{ s.which }}">compare with the live briefing</a></p>
+<h1>{{ day }} · {{ s.label }} <span class="muted small">{{ s.words }} words{% if rec.fingerprint %} · fingerprint <span class="mono">{{ rec.fingerprint }}</span>{% endif %}</span></h1>
+{% if s.audio %}<audio controls preload="none" src="{{ s.audio }}" style="width:100%"></audio><p class="small muted">Spoken script: {{ s.script_words }} words (~{{ (s.script_words / 150)|round(1) }} min)</p>{% endif %}
+<div class="md">{{ s.html|safe }}</div>
+{% if s.script %}<h2>Spoken script</h2><div class="text">{{ s.script }}</div>{% endif %}
+{% endblock %}

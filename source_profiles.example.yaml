@@ -1,0 +1,644 @@
+# Example source profiles (generated from the owner's source_profiles.yaml by ./np push-code).
+# Copy to source_profiles.yaml and edit: what kind of evidence each source is (see pipeline/profiles.py).
+defaults:
+  bluesky:
+    kind: social
+    standards: none
+    stance: neutral
+  x:
+    kind: social
+    standards: none
+    stance: neutral
+  email:
+    kind: aggregator
+    standards: mixed
+    stance: neutral
+  shared:
+    kind: analysis
+    standards: mixed
+    stance: neutral
+  site:
+    kind: analysis
+    standards: cites
+    stance: neutral
+  feed:
+    kind: analysis
+    standards: cites
+    stance: neutral
+  pages:
+    kind: primary
+    standards: cites
+    stance: neutral
+outlets:
+  anthropic.com:
+    kind: primary
+    standards: cites
+    stance: safety
+    interests: frontier lab; reports on its own products
+  openai.com:
+    kind: primary
+    standards: cites
+    stance: AGI-forward
+    interests: frontier lab; reports on its own products
+  deepmind.google:
+    kind: primary
+    standards: cites
+    stance: AGI-forward
+    interests: Google's lab; reports on its own work
+  blog.google:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: Google; reports on its own products
+  ai.meta.com:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: Meta; reports on its own models
+  about.fb.com:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: Meta corporate
+  microsoft.com:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: Microsoft; reports on its own products
+  nvidia.com:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: Nvidia; sells the chips
+  mistral.ai:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: model company; reports on its own models
+  huggingface.co:
+    kind: primary
+    standards: cites
+    stance: neutral
+    note: model cards, datasets and papers
+  huggingface.co/blog:
+    kind: analysis
+    standards: mixed
+    stance: neutral
+    note: community and staff blog posts
+  x.ai:
+    kind: primary
+    standards: cites
+    stance: AGI-forward
+    interests: xAI; reports on its own models
+  research.google:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: Google; reports on its own research
+  allenai.org:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: non-profit open-model lab; reports on its own work
+  github.com:
+    kind: primary
+    standards: cites
+    stance: neutral
+  arxiv.org:
+    kind: primary
+    standards: cites
+    stance: neutral
+    note: 'preprint: not peer reviewed'
+  nature.com:
+    kind: primary
+    standards: cites-and-corrects
+    stance: neutral
+    note: peer-reviewed journal
+  science.org:
+    kind: primary
+    standards: cites-and-corrects
+    stance: neutral
+    note: peer-reviewed journal
+  thelancet.com:
+    kind: primary
+    standards: cites-and-corrects
+    stance: neutral
+    note: peer-reviewed journal
+  sec.gov:
+    kind: primary
+    standards: cites
+    stance: neutral
+    note: regulatory filing
+  justice.gov:
+    kind: primary
+    standards: cites
+    stance: neutral
+    note: 'court filings and charges: allegations until proven'
+  canada.ca:
+    kind: primary
+    standards: cites
+    stance: policy
+  gov.uk:
+    kind: primary
+    standards: cites
+    stance: policy
+  whitehouse.gov:
+    kind: primary
+    standards: cites
+    stance: policy
+  europa.eu:
+    kind: primary
+    standards: cites
+    stance: policy
+  legora.com:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: legal AI company; reports on its own products
+  harvey.ai:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: legal AI company; reports on its own products
+  lab.cloud:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: AI research company; reports on its own products
+  tera-ai.com:
+    kind: primary
+    standards: cites
+    stance: neutral
+    interests: robotics AI company; reports on its own products
+  chai.org:
+    kind: primary
+    standards: cites
+    stance: policy
+    interests: industry coalition of health systems and vendors
+  reuters.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  apnews.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  bloomberg.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: market
+  ft.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: market
+  wsj.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: market
+  nytimes.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  washingtonpost.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  theguardian.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  bbc.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  bbc.co.uk:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  cnbc.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: market
+  axios.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  semafor.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  theinformation.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: market
+    note: paywalled; often single-source scoops
+  techcrunch.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  theverge.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  wired.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  arstechnica.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  technologyreview.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  404media.co:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: AI-realist
+  platformer.news:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  thelogic.co:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  news.crunchbase.com:
+    kind: reporting
+    standards: cites
+    stance: market
+    interests: owned by Crunchbase, a data company
+  sifted.eu:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+    note: FT-backed; some posts paywalled
+  transformernews.ai:
+    kind: reporting
+    standards: cites
+    stance: safety
+  artificiallawyer.com:
+    kind: reporting
+    standards: mixed
+    stance: neutral
+    interests: runs Legal Innovators events; sponsored content appears
+  lawnext.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  mobihealthnews.com:
+    kind: reporting
+    standards: mixed
+    stance: neutral
+    interests: owned by HIMSS
+  therobotreport.com:
+    kind: reporting
+    standards: mixed
+    stance: neutral
+    note: sponsored posts appear
+  theglobeandmail.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  thenextweb.com:
+    kind: reporting
+    standards: mixed
+    stance: neutral
+  businessinsider.com:
+    kind: reporting
+    standards: mixed
+    stance: neutral
+  fortune.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: market
+  forbes.com:
+    kind: reporting
+    standards: mixed
+    stance: market
+    note: staff reporting vs contributor posts differ widely
+  theatlantic.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  dw.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  techradar.com:
+    kind: reporting
+    standards: mixed
+    stance: neutral
+  the-decoder.com:
+    kind: reporting
+    standards: mixed
+    stance: neutral
+  krebsonsecurity.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  zetter-zeroday.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  economist.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: market
+  scmp.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+    note: Hong Kong; owned by Alibaba
+  lemonde.fr:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  variety.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+    note: entertainment trade press
+  cyberscoop.com:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+  hackaday.com:
+    kind: reporting
+    standards: mixed
+    stance: neutral
+    note: hobbyist hardware news
+  thein.fo:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: market
+    note: The Information's short links
+  arstechnica.visitlink.me:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
+    note: Ars Technica's short links
+  simonwillison.net:
+    kind: analysis
+    standards: cites
+    stance: neutral
+    tests: true
+  magazine.sebastianraschka.com:
+    kind: analysis
+    standards: cites
+    stance: neutral
+    tests: true
+  interconnects.ai:
+    kind: analysis
+    standards: cites
+    stance: neutral
+    interests: works at Ai2 (open models)
+  artificialanalysis.ai:
+    kind: analysis
+    standards: cites
+    stance: neutral
+    note: independent benchmarks
+    tests: true
+  epoch.ai:
+    kind: analysis
+    standards: cites
+    stance: neutral
+    tests: true
+  epochai.org:
+    kind: analysis
+    standards: cites
+    stance: neutral
+    tests: true
+  stratechery.com:
+    kind: analysis
+    standards: cites
+    stance: market
+  ben-evans.com:
+    kind: analysis
+    standards: cites
+    stance: market
+  aisnakeoil.com:
+    kind: analysis
+    standards: cites
+    stance: AI-realist
+  normaltech.ai:
+    kind: analysis
+    standards: cites
+    stance: AI-realist
+  newsletter.pragmaticengineer.com:
+    kind: analysis
+    standards: cites
+    stance: neutral
+  latent.space:
+    kind: analysis
+    standards: mixed
+    stance: AGI-forward
+    interests: runs the AI Engineer conferences
+  dwarkesh.com:
+    kind: analysis
+    standards: mixed
+    stance: AGI-forward
+    note: long interviews; guests' claims are self-reported
+  oneusefulthing.org:
+    kind: analysis
+    standards: cites
+    stance: neutral
+    tests: true
+  importai.substack.com:
+    kind: analysis
+    standards: cites
+    stance: safety
+    interests: Anthropic co-founder
+  thezvi.substack.com:
+    kind: analysis
+    standards: cites
+    stance: safety
+  noahpinion.blog:
+    kind: opinion
+    standards: cites
+    stance: market
+  exponentialview.co:
+    kind: analysis
+    standards: cites
+    stance: AGI-forward
+  theconversation.com:
+    kind: analysis
+    standards: cites
+    stance: neutral
+    note: written by academics, edited
+  idc.com:
+    kind: analysis
+    standards: mixed
+    stance: market
+    interests: industry research firm; much of it vendor-funded
+  academic.oup.com:
+    kind: primary
+    standards: cites-and-corrects
+    stance: neutral
+    note: peer-reviewed journals (Oxford)
+  garymarcus.substack.com:
+    kind: opinion
+    standards: cites
+    stance: AI-realist
+    interests: founded AI companies; long-running critic of scaling
+  wheresyoured.at:
+    kind: opinion
+    standards: cites
+    stance: AI-realist
+    note: detailed financial critiques; argues a bubble
+  pmarca.substack.com:
+    kind: opinion
+    standards: none
+    stance: AGI-forward
+    interests: a16z co-founder; invests across AI
+  a16z.com:
+    kind: opinion
+    standards: mixed
+    stance: AGI-forward
+    interests: venture firm invested across AI
+  a16z.news:
+    kind: opinion
+    standards: mixed
+    stance: AGI-forward
+    interests: venture firm invested across AI
+  reidhoffman.substack.com:
+    kind: opinion
+    standards: none
+    stance: AGI-forward
+    interests: Greylock partner; early OpenAI backer; Inflection co-founder
+  psychologytoday.com:
+    kind: opinion
+    standards: mixed
+    stance: neutral
+  techmeme.com:
+    kind: aggregator
+    standards: cites
+    stance: neutral
+  news.smol.ai:
+    kind: aggregator
+    standards: cites
+    stance: AGI-forward
+  tldr.tech:
+    kind: aggregator
+    standards: mixed
+    stance: neutral
+    interests: sponsored
+  therundown.ai:
+    kind: aggregator
+    standards: mixed
+    stance: AGI-forward
+    interests: sponsored
+  superhuman.ai:
+    kind: aggregator
+    standards: mixed
+    stance: AGI-forward
+    interests: sponsored
+  lastweekin.ai:
+    kind: aggregator
+    standards: cites
+    stance: AI-realist
+  deeplearning.ai:
+    kind: aggregator
+    standards: cites
+    stance: AGI-forward
+    interests: Andrew Ng's education company; he also invests via AI Fund
+  bsky.app:
+    kind: social
+    standards: none
+    stance: neutral
+  x.com:
+    kind: social
+    standards: none
+    stance: neutral
+  youtube.com:
+    kind: social
+    standards: none
+    stance: neutral
+  youtu.be:
+    kind: social
+    standards: none
+    stance: neutral
+sources:
+  Techmeme:
+    kind: aggregator
+    standards: cites
+    stance: neutral
+  Ed Zitron:
+    kind: opinion
+    standards: cites
+    stance: AI-realist
+    note: detailed financial critiques; argues a bubble
+  Simon Willison:
+    kind: analysis
+    standards: cites
+    stance: neutral
+    tests: true
+  Andrew Ng:
+    kind: analysis
+    standards: cites
+    stance: AGI-forward
+    interests: AI Fund investor; DeepLearning.AI; Landing AI
+  Dario Amodei:
+    kind: primary
+    standards: cites
+    stance: safety
+    interests: Anthropic CEO
+  Gary Marcus:
+    kind: opinion
+    standards: cites
+    stance: AI-realist
+    interests: founded AI companies; long-running critic of scaling
+  Marcus on AI (Gary Marcus):
+    kind: opinion
+    standards: cites
+    stance: AI-realist
+    interests: founded AI companies; long-running critic of scaling
+  Noah Smith:
+    kind: opinion
+    standards: cites
+    stance: market
+  Jack Clark:
+    kind: analysis
+    standards: cites
+    stance: safety
+    interests: Anthropic co-founder
+  Import AI:
+    kind: analysis
+    standards: cites
+    stance: safety
+    interests: Anthropic co-founder
+  Sam Altman:
+    kind: primary
+    standards: none
+    stance: AGI-forward
+    interests: OpenAI CEO
+  a16z (Substack):
+    kind: opinion
+    standards: mixed
+    stance: AGI-forward
+    interests: venture firm invested across AI
+  TLDR AI:
+    kind: aggregator
+    standards: mixed
+    stance: neutral
+    interests: sponsored
+  The Rundown AI:
+    kind: aggregator
+    standards: mixed
+    stance: AGI-forward
+    interests: sponsored
+  OpenAI (news):
+    kind: primary
+    standards: cites
+    stance: AGI-forward
+    interests: OpenAI; reports on its own products
+  Shared by Steven:
+    kind: analysis
+    standards: mixed
+    stance: neutral
+    note: judged by the article's own site when it is listed
+  Forwarded by Steven:
+    kind: analysis
+    standards: mixed
+    stance: neutral

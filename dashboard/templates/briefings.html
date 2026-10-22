@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block title %}Briefings{% endblock %}{% block body %}
+<h1>Briefings <span class="muted small">{{ rows|length }} days · <a href="/briefings/latest">open latest →</a></span></h1>
+{% if action %}<div hx-get="/actions/output" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
+{% if msg %}<p class="s-ok small">{{ msg }}{% if publish_btn %} <form class="inline" method="post" action="/actions/publish"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/briefings"><button class="mini">Publish now</button></form>{% endif %}</p>{% endif %}
+<p class="small"><form class="inline" method="post" action="/actions/rebuild-history" onsubmit="return confirm('Rebuild every day\'s briefing and audio with the daily profile ({{ profile }})? Older versions are kept. About 5 minutes per day.')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/briefings"><button {{ 'disabled' if action and action.running }}>Rebuild all days with profile {{ profile }}</button></form>
+<span class="muted">Each day gets a new version (old ones stay under Versions) and new audio; published afterwards if auto-publish is on.</span></p>
+{% if rows %}<table>
+<tr><th style="width:110px">Day</th><th>Top of mind</th><th>Items</th><th>Audio</th><th>Versions</th><th>Public</th></tr>
+{% for r in rows %}<tr>
+<td><a href="/briefings/{{ r.day }}"><b>{{ r.day }}</b></a><div class="muted small">{{ (r.latest.run_id or '')[9:13] and ('run ' ~ r.latest.run_id[9:11] ~ ':' ~ r.latest.run_id[11:13]) }}</div></td>
+<td class="small">{% for b in r.bullets[:2] %}<div>• {{ b|short(150) }}</div>{% else %}<span class="muted">—</span>{% endfor %}
+{% if r.bullets|length > 2 %}<div class="muted">+{{ r.bullets|length - 2 }} more</div>{% endif %}</td>
+<td>{{ r['items'] }}</td>
+<td>{% if r.audio %}<audio controls preload="none" src="/briefings/{{ r.day }}.mp3" style="width:180px"></audio>{% else %}<span class="muted small">not yet</span>{% endif %}</td>
+<td class="small">{{ r.n_versions }}{% if r.latest.profile %}<div class="muted">profile {{ r.latest.profile }}</div>{% endif %}</td>
+<td class="small" style="white-space:nowrap">{% if r.hidden %}<span class="s-error">hidden</span>
+<form class="inline" method="post" action="/api/episodes/{{ r.day }}/show"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="mini">show</button></form>
+{% else %}<span class="s-ok">published</span>
+<form class="inline" method="post" action="/api/episodes/{{ r.day }}/hide"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="mini" title="Remove this day's page and episode from the public site and podcast feed (kept here)">hide</button></form>{% endif %}
+{% if r.audio %}<form class="inline" method="post" action="/api/episodes/{{ r.day }}/delete-audio" onsubmit="return confirm('Delete the MP3 for {{ r.day }}? The text briefing and script stay; ./np audio {{ r.day }} rebuilds it.')"><input type="hidden" name="csrf" value="{{ csrf }}"><label class="muted"><input type="checkbox" name="icloud" value="1"> +iCloud</label><button class="mini">delete MP3</button></form>{% endif %}</td></tr>{% endfor %}</table>
+{% else %}<p class="muted">No briefings yet.</p>{% endif %}
+<p class="muted small">Files: <span class="mono">briefings/YYYY-MM-DD.md</span> (latest per day) and <span class="mono">briefings/versions/</span> (every version). Terminal: <span class="mono">./np read [DAY]</span>.</p>
+{% endblock %}

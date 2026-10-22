@@ -1,0 +1,49 @@
+{% extends "base.html" %}{% block title %}Status{% endblock %}{% block body %}
+<h1>Status</h1>
+{% include "_live.html" %}
+<div style="margin:12px 0">
+{% set busy = action and action.running %}
+<form class="inline" method="post" action="/actions/run"><input type="hidden" name="csrf" value="{{ csrf }}"><button {{ 'disabled' if busy }}>Run now</button></form>
+<form class="inline" method="post" action="/actions/stages"><input type="hidden" name="csrf" value="{{ csrf }}"><button {{ 'disabled' if busy }} title="LLM stages on items not yet analyzed (no fetch)">Analyze pending</button></form>
+<form class="inline" method="post" action="/actions/reprocess"><input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="text" name="day" value="{{ last.day if last else '' }}" size="10" pattern="\d{4}-\d{2}-\d{2}" title="YYYY-MM-DD"><button {{ 'disabled' if busy }} title="Re-run filter/rank/critique/write for items first seen that day; adds new versions">Re-analyze day</button></form>
+<form class="inline" method="post" action="/actions/verify"><input type="hidden" name="csrf" value="{{ csrf }}"><button {{ 'disabled' if busy }}>Re-verify sources</button></form>
+<div class="muted small" style="margin-top:4px">Buttons run the same commands as Terminal: <span class="mono">python run.py</span>, <span class="mono">--stages-only</span>, <span class="mono">--reprocess DAY</span>, <span class="mono">--verify-sources</span>.</div>
+</div>
+{% if action %}<div hx-get="/actions/output" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
+<div class="grid">
+<div class="card"><div class="k">Last run</div><div class="v s-{{ last.status if last else 'pending' }}">{{ last.status if last else '—' }}</div>
+<div class="small muted">{% if last %}<a href="/runs/{{ last.run_id }}">{{ last.started[:16].replace('T',' ') }}</a>{% else %}never{% endif %}</div></div>
+<div class="card"><div class="k">New items, last run</div><div class="v">{{ last.stages.fetch.get('items_new', 0) if last else 0 }}</div>
+<div class="small muted">{{ last.stages.fetch.get('sources_total', 0) if last else 0 }} sources, {{ last.stages.fetch.get('sources_failed', 0) if last else 0 }} failed</div></div>
+<div class="card"><div class="k">Items archived</div><div class="v">{{ total }}</div><div class="small muted">{{ n_sources }} verified sources</div></div>
+<div class="card"><div class="k">Latest briefing</div><div class="v">{% if briefings %}<a href="/briefings/{{ briefings[0] }}">{{ briefings[0] }}</a>{% else %}—{% endif %}</div>
+<div class="small muted">{{ 'not built yet' if not briefings else '' }}</div></div>
+<div class="card"><div class="k">Schedule</div><div class="v">manual</div><div class="small muted">launchd comes in Phase 4</div></div>
+</div>
+{% if last %}<h2>Last run stages</h2>
+<table><tr><th>Stage</th><th>Status</th><th>Time</th><th>Detail</th></tr>
+{% for name, s in last.stages.items() %}<tr><td>{{ name }}</td><td class="s-{{ s.status }}">{{ s.status }}</td>
+<td>{{ s.seconds ~ 's' if s.seconds is defined else '' }}</td>
+<td class="small">{% if s.error %}<span class="s-error">{{ s.error }}</span>{% elif s.reason %}<span class="muted">{{ s.reason }}</span>
+{% elif name == 'fetch' %}{{ s.items_new }} new since {{ (s.window_since or '')[:16].replace('T',' ') }} UTC
+{% elif name == 'filter' %}{{ s.items_in }} in → {{ s.kept }} kept, {{ s.dropped }} dropped · {{ s.model }}
+{% elif name == 'rank' %}{{ s.summarized }} summarized, {{ s.full_read }} FULL READ{% if s.failed %}, <span class="s-error">{{ s.failed }} failed</span>{% endif %} · {{ s.model }}
+{% elif name == 'critique' %}{{ s.critiqued }} critiqued {% for k, v in (s.verdicts or {}).items() %}· {{ k }} {{ v }} {% endfor %}· {{ s.model }}
+{% elif name == 'write' %}<a href="/briefings/{{ s.file.split('/')[-1][:-3] }}">{{ s.file }}</a> · {{ s['items'] }} items{% endif %}
+{% if s.errors %}<div class="s-error">{{ s.errors|join('; ')|short(300) }}</div>{% endif %}</td></tr>{% endfor %}</table>{% endif %}
+{% if failing %}<h2 class="s-error">Sources failing in last run</h2>
+<table><tr><th>Person</th><th>Kind</th><th>URL</th><th>Error</th></tr>
+{% for s in failing %}<tr><td>{{ s.person }}</td><td>{{ s.kind }}</td><td class="mono">{{ s.url }}</td><td class="s-error small">{{ s.error }}</td></tr>{% endfor %}</table>{% endif %}
+<div class="row">
+<div><h2>New items per day (last 14 days)</h2>
+{% if per_day %}<div class="card"><div class="bar">{% for d, n in per_day %}<div title="{{ d }}: {{ n }}" style="height:{{ (n / max_day * 100)|round }}%"></div>{% endfor %}</div>
+<div class="barlbl">{% for d, n in per_day %}<span>{{ d[5:] }}<br>{{ n }}</span>{% endfor %}</div></div>{% else %}<p class="muted">No items yet.</p>{% endif %}</div>
+<div><h2>Items by person</h2><table><tr><th>Person</th><th>Items</th></tr>
+{% for p, n in per_person %}<tr><td><a href="/items?person={{ p|urlencode }}">{{ p }}</a></td><td>{{ n }}</td></tr>{% endfor %}</table></div>
+</div>
+<h2>Recent runs</h2><table><tr><th>Run</th><th>Status</th><th>New</th><th>Failed sources</th></tr>
+{% for r in runs %}<tr><td><a href="/runs/{{ r.run_id }}">{{ r.run_id }}</a></td><td class="s-{{ r.status }}">{{ r.status }}</td>
+<td>{{ r.stages.fetch.get('items_new', '') }}</td><td>{{ r.stages.fetch.get('sources_failed', '') }}</td></tr>{% endfor %}</table>
+<p class="muted small">Archive: <span class="mono">{{ git }}</span></p>
+{% endblock %}

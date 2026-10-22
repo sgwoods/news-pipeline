@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% block title %}Item{% endblock %}{% block body %}
+<p class="small"><a href="/items">← Items</a></p>
+<h1>{{ (it.title if it else row.title) or '(untitled)' }}</h1>
+<table style="max-width:820px">
+<tr><th style="width:140px">Source URL</th><td class="mono"><a href="{{ row.url|safe_href }}" target="_blank" rel="noopener">{{ row.url }}</a></td></tr>
+<tr><th>Person</th><td>{{ row.person }} {% if it and it.scrutiny %}<span class="pill scr">SCRUTINY</span>{% endif %}{% if it %}{% for f in it.flags %} <span class="pill flag">{{ f }}</span>{% endfor %}<span class="muted small"> {{ it.tier }}</span>{% endif %}</td></tr>
+<tr><th>Published</th><td>{{ row.published or 'unknown' }}</td></tr>
+<tr><th>First seen</th><td>{{ row.first_seen }} · run <a href="/runs/{{ row.run_id }}">{{ row.run_id }}</a></td></tr>
+{% if it %}<tr><th>Fetched from</th><td class="mono">{{ it.source_kind }} · {{ it.source_url }}</td></tr>
+{% if it.author %}<tr><th>Author</th><td>{{ it.author }}</td></tr>{% endif %}{% endif %}
+<tr><th>Item id</th><td class="mono">{{ row.id }} · <span class="muted">{{ row.raw }}</span></td></tr>
+<tr><th>In briefings</th><td>{% for b in used_in %}<a href="/briefings/{{ b }}">{{ b }}</a> {% else %}<span class="muted">none yet</span>{% endfor %}</td></tr>
+</table>
+<h2>Analysis <span class="muted small">every version is kept; newest last</span></h2>
+{% for s in summaries %}<div class="card" style="max-width:820px;margin-bottom:8px">
+<div class="small muted">{{ s.get('created', '')[:16].replace('T', ' ') }} · run <a href="/runs/{{ s.run_id }}">{{ s.run_id }}</a>
+· {% for k, v in (s.get('models') or {}).items() %}{{ k }}={{ v }} {% endfor %}
+· prompts {% for k, v in (s.get('prompt_versions') or {}).items() %}{{ k }}:{{ v }} {% endfor %}</div>
+{% if not s.get('keep', True) %}<p><span class="pill">filtered out</span> {{ s.get('filter_reason', '') }}</p>
+{% else %}<p>{% if s.get('tag') %}<span class="pill {{ 'flag' if s.tag == 'FULL READ' }}">{{ s.tag }}</span>{% endif %}
+importance <b>{{ s.get('importance', '?') }}</b> · {{ s.get('novelty', '') }}{% if s.get('topics') %} · {{ s.topics|join(', ') }}{% endif %}
+<span class="muted small">· filter: {{ s.get('filter_reason', '') }}</span></p>
+{% for k, lbl in [('claim', 'Claim'), ('so_what', 'So what'), ('agenda_flag', 'Agenda'), ('critique', 'Critical pass')] %}{% if s.get(k) %}<p><b>{{ lbl }}:</b> {{ s[k] }}</p>{% endif %}{% endfor %}{% endif %}
+</div>{% else %}<p class="muted">Not analyzed yet. It will be picked up by the next run (or use “Analyze pending” on Status).</p>{% endfor %}
+<h2>Fetched text <span class="muted small">{{ it.text_chars if it else 0 }} chars, shown as plain text</span></h2>
+{% if it and it.description %}<p class="muted" style="max-width:820px">{{ it.description }}</p>{% endif %}
+<div class="text">{{ it.text if it else '(raw item not found)' }}</div>
+{% endblock %}

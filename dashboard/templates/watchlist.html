@@ -1,0 +1,38 @@
+{% extends "base.html" %}{% block title %}Watchlist{% endblock %}{% block body %}
+<h1>Watchlist <span class="muted small">companies, their key people and competitors · public news and mentions, last {{ days }} days · private · also <span class="mono">./np watchlist</span></span></h1>
+<p class="small muted">Found four ways: fetched items that name the company, a key person or a competitor (feeds, newsletters, Bluesky, Slack) or come from the company's own site; posts by key people on Bluesky; a daily news search (GDELT); a weekly web search by Claude (links checked live). Competitors of board companies also feed the briefing's Board seat labels, alongside <span class="mono">conflicts.yaml</span>.
+{% for d in [7, 30, 90] %} <a class="pill {{ 'flag' if d == days }}" href="/watchlist?days={{ d }}">{{ d }} days</a>{% endfor %}</p>
+<form method="post" action="/api/watchlist/add" class="small" style="margin-bottom:14px"><input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="text" name="name" placeholder="company" maxlength="80" style="width:160px" required>
+<select name="relation">{% for r in relations %}<option>{{ r }}</option>{% endfor %}</select>
+<input type="text" name="aliases" placeholder="aliases, comma-separated" maxlength="300" style="width:200px">
+<input type="text" name="site" placeholder="site (e.g. example.com)" maxlength="80" style="width:150px">
+<input type="text" name="query" placeholder='news search (default: "name")' maxlength="200" style="width:200px">
+<button>Add</button> <span class="muted">then use Edit to add people and competitors</span></form>
+{% for c in companies %}{% set ms = by[c.name] %}{% set own = ms|rejectattr('competitor')|list %}{% set comp = ms|selectattr('competitor')|list %}
+<div class="card" id="c-{{ c.name|replace(' ', '-')|replace('.', '-') }}" style="margin-bottom:10px">
+<b>{{ c.name }}</b> <span class="pill {{ 'flag' if c.relation == 'board' }}">{{ c.relation }}</span>
+<span class="small muted"> · {{ own|length }} mention(s){% if comp %}, {{ comp|length }} competitor item(s){% endif %} in {{ days }} days{% if c.site %} · {{ c.site }}{% endif %} · search: <span class="mono">{{ query_of(c) }}</span></span>
+<form class="inline" method="post" action="/api/watchlist/remove" onsubmit="return confirm('Remove {{ c.name }} from the watchlist?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="name" value="{{ c.name }}"><button class="mini">✕ remove</button></form>
+<div class="small" style="margin:4px 0">
+{% if c.people %}<span class="muted">People:</span> {% for p in c.people %}<span class="pill">{{ p.name }}{% if p.role %} · {{ p.role }}{% endif %}{% if p.bluesky %} · bsky @{{ p.bluesky }}{% endif %}{% if p.x %} · X @{{ p.x }}{% endif %}</span> {% endfor %}{% else %}<span class="muted">No key people yet.</span>{% endif %}<br>
+{% if c.competitors %}<span class="muted">Competitors:</span> {% for k in c.competitors %}<span class="pill">{{ k }}</span> {% endfor %}{% else %}<span class="muted">No competitors yet.</span>{% endif %}
+</div>
+<details class="small"><summary>Edit</summary>
+<form method="post" action="/api/watchlist/update" style="margin:8px 0"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="name" value="{{ c.name }}">
+<label>Relation <select name="relation">{% for r in relations %}<option {{ 'selected' if r == c.relation }}>{{ r }}</option>{% endfor %}</select></label>
+<label> Site <input type="text" name="site" value="{{ c.site or '' }}" style="width:160px"></label>
+<label> News search <input type="text" name="query" value="{{ c.query or '' }}" placeholder='"{{ c.name }}"' style="width:280px"></label><br>
+<label>Aliases (comma-separated)<br><input type="text" name="aliases" value="{{ (c.aliases or [])|join(', ') }}" style="width:96%"></label><br>
+<label>Key people, one per line: <span class="mono">Name | role | Bluesky handle | X handle | site</span> (later fields optional)<br>
+<textarea name="people" rows="4" style="width:96%">{{ people_text(c) }}</textarea></label><br>
+<label>Competitors that matter (one per line or comma-separated)<br><textarea name="competitors" rows="3" style="width:96%">{{ (c.competitors or [])|join('\n') }}</textarea></label><br>
+<button>Save</button></form></details>
+{% for m in own[:12] %}<div class="small" style="margin:4px 0 0 4px">{{ (m.published or m.found)[:10] }} · <span class="pill">{{ m.source }}</span>{% if m.person %} <span class="pill flag">{{ m.person }}</span>{% endif %}
+<a href="{{ m.url|safe_href }}" target="_blank" rel="noopener">{{ m.title or m.url }}</a> <span class="muted">{{ m.via }}</span>
+{% if m.snippet and m.source not in ['company site'] %}<div class="muted" style="margin-left:4px">{{ m.snippet }}</div>{% endif %}</div>{% else %}<div class="small muted">No mentions yet.</div>{% endfor %}
+{% if comp %}<details class="small" style="margin-top:6px"><summary>Competitor news ({{ comp|length }})</summary>
+{% for m in comp[:20] %}<div style="margin:4px 0 0 4px">{{ (m.published or m.found)[:10] }} · <span class="pill">{{ m.competitor }}</span>
+<a href="{{ m.url|safe_href }}" target="_blank" rel="noopener">{{ m.title or m.url }}</a> <span class="muted">{{ m.via }}</span></div>{% endfor %}</details>{% endif %}
+</div>{% endfor %}
+{% endblock %}

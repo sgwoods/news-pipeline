@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Run {{ run.run_id }}{% endblock %}{% block body %}
+<p class="small"><a href="/runs">← Runs</a></p>
+<h1>Run {{ run.run_id }} <span class="s-{{ run.status }}">{{ run.status }}</span></h1>
+<p class="muted small">{{ run.started }} → {{ run.ended or '…' }} · LLM {{ run.llm.backend }} {{ run.llm.model }}</p>
+<table><tr><th>Stage</th><th>Status</th><th>Time</th><th>Detail</th></tr>
+{% for name, s in run.stages.items() %}<tr><td>{{ name }}</td><td class="s-{{ s.status }}">{{ s.status }}</td><td>{{ s.seconds ~ 's' if s.seconds is defined else '' }}</td>
+<td class="small">{{ s.error or s.reason or '' }}{% if name == 'fetch' and s.items_new is defined %}{{ s.items_new }} new items{% if s.raw_file %} → <span class="mono">{{ s.raw_file }}</span>{% endif %}{% endif %}</td></tr>{% endfor %}</table>
+{% if run.stages.fetch.per_source %}<h2>Fetch, per source</h2>
+<table><tr><th>Person</th><th>Kind</th><th>Status</th><th>New</th><th>Detail</th></tr>
+{% for s in run.stages.fetch.per_source %}<tr><td>{{ s.person }}</td><td>{{ s.kind }}</td><td class="s-{{ s.status }}">{{ s.status }}</td><td>{{ s.get('new', '') }}</td>
+<td class="small">{% if s.error %}<span class="s-error">{{ s.error }}</span>{% else %}
+{% if s.entries is defined %}{{ s.entries }} entries, {{ s.in_window }} in window{% endif %}
+{% if s.urls_found is defined %}{{ s.urls_found }} urls, {{ s.new_urls }} unseen{% endif %}
+{% if s.note %} · {{ s.note }}{% endif %}{% if s.deferred %} · {{ s.deferred }} deferred{% endif %}
+{% if s.page_errors %}<div class="s-error">{{ s.page_errors|join('; ') }}</div>{% endif %}{% endif %}</td></tr>{% endfor %}</table>{% endif %}
+<h2>Log <span class="muted small mono">{{ run.log }}</span></h2><pre>{{ log }}</pre>
+{% endblock %}

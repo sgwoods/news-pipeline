@@ -1,0 +1,26 @@
+# secrets
+.env
+# python
+.venv/
+__pycache__/
+*.pyc
+# operational logs (the archive in data/ IS committed)
+logs/
+# macOS
+.DS_Store
+data/run_current.json
+data/*.tmp
+sources.new.yaml
+site/
+.publish/
+# audio is large: kept on disk + iCloud, the script is committed
+briefings/*.mp3
+briefings/voice-samples/
+.venv.old-*/
+# experiment audio (previews) is large too
+briefings/experiments/**/*.mp3
+# LinkedIn (and other) data exports: the zip holds messages and contacts; only Shares.csv/Articles are read
+data/inbox/
+
+# the public code export (./np push-code builds it; its own git repo)
+.public/

@@ -1,0 +1,37 @@
+{% extends "base.html" %}{% block title %}Public record{% endblock %}{% block body %}
+<p class="small"><a href="/lens">← Lens</a> · archive: <a href="https://sgwoods.github.io/public/steven-woods-research.html" target="_blank" rel="noopener">steven-woods-research</a> ({{ n_manifest }} sources in its manifest)</p>
+<h1>Your public record <span class="muted small">new appearances and mentions, and your views in your own words</span></h1>
+{% if action %}<div hx-get="/actions/output" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
+{% set busy = action and action.running %}
+<p>
+<form class="inline" method="post" action="/actions/record-search"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/record"><button {{ 'disabled' if busy }} title="Claude searches the web for appearances / mentions not yet in the archive; links checked live (~3-8 min)">Search for new mentions</button></form>
+<form class="inline" method="post" action="/actions/record-words"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/record"><button {{ 'disabled' if busy }} title="Reads the archive's sources (and transcripts it can find) and extracts views you have stated, with quotes (~3-8 min)">Extract my own words</button></form>
+<span class="small muted">{% if last.at %}last search {{ last.at[:16].replace('T', ' ') }} ({{ last.queued }} new){% else %}never searched{% endif %} · also runs weekly from the daily job</span></p>
+
+<h2>To review <span class="muted small">{{ pending|length }}</span></h2>
+{% if not pending %}<p class="muted">Nothing waiting.</p>{% endif %}
+<div class="q" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px">
+{% for c in pending %}<div class="card"><div class="k">{{ c.type }}{% if c.subtype %} · {{ c.subtype }}{% endif %} · {{ c.date or 'undated' }} · {{ c.origin }}</div>
+<h3 style="margin:4px 0;font-size:15px"><a href="{{ c.url|safe_href }}" target="_blank" rel="noopener">{{ c.title }}</a></h3>
+<div class="small muted">{{ c.outlet }}{% if c.company_context %} · {{ c.company_context }}{% endif %}</div>
+{% if c.summary %}<p class="small">{{ c.summary }}</p>{% endif %}
+{% if c.quote %}<p class="small"><i>"{{ c.quote }}"</i></p>{% endif %}
+<form class="inline" method="post" action="/api/record/{{ c.id }}/accept"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Accept</button></form>
+<form class="inline" method="post" action="/api/record/{{ c.id }}/deny"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="text" name="note" placeholder="why not (e.g. different Steven Woods)" maxlength="300"><button>Deny</button></form>
+</div>{% endfor %}</div>
+{% if accepted %}<p class="small">{{ accepted|length }} accepted · <a href="/record/manifest-candidates.json">download manifest-candidates.json</a> to merge into the archive (status "candidate").</p>{% endif %}
+{% if denied %}<details class="small"><summary>Denied ({{ denied|length }})</summary><ul>{% for c in denied %}<li>{{ c.title }} <span class="muted">{{ c.note }}</span></li>{% endfor %}</ul></details>{% endif %}
+
+<h2>In my own words <span class="muted small">proposed section for About you</span></h2>
+{% if own_html %}<p class="small muted">{{ own_meta.views }} views from {{ own_meta.with_text }}/{{ own_meta.sources }} sources with text · {{ (own_meta.at or '')[:16].replace('T', ' ') }}{% if own_applied %} · a version is already in About you (adding replaces it){% endif %}</p>
+<div class="md card">{{ own_html|safe }}</div>
+<form method="post" action="/api/record/apply-words"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Add to About you</button> <span class="small muted">You can edit it on the Lens page afterwards.</span></form>
+{% else %}<p class="muted">Not extracted yet. Use "Extract my own words".</p>{% endif %}
+
+<h2>Mentions in the daily feed <span class="muted small">you, your board companies, people in your Lens</span></h2>
+<p class="small muted">Watching: you ({{ watch.self|join(', ') }}) · board ({{ watch.board|join(', ') }}) · people ({{ watch.people|join(', ') }}). Edit the lists in config.yaml <span class="mono">record.watch</span>.</p>
+{% if mentions %}<table><tr><th>Day</th><th>Who</th><th>Item</th><th>Source</th></tr>
+{% for m in mentions %}<tr><td class="small">{{ m.day }}</td><td><span class="pill {{ 'scr' if m.kind == 'self' else 'flag' }}">{{ m.kind }}</span> {{ m.terms|join(', ') }}</td>
+<td><a href="{{ m.url|safe_href }}" target="_blank" rel="noopener">{{ m.title|short(80) }}</a></td><td class="small">{{ m.source }}</td></tr>{% endfor %}</table>
+{% else %}<p class="muted">None logged yet. The next daily run starts logging.</p>{% endif %}
+{% endblock %}

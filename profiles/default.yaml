@@ -1,0 +1,40 @@
+# Tuning profile 'default'. Edited on the dashboard Tuning page; safe to hand-edit.
+# Activate with config.yaml tuning.profile, or 'Make active' on the Tuning page.
+description: Default. The original briefing plus open questions and developing-story links.
+briefing:
+  max_must_read: 5
+  max_worth_knowing: 5
+  max_in_brief: 8
+  max_stories_per_source: 2
+  max_items_per_source: 3
+  max_words: 1500
+  top_of_mind: 4
+  open_questions: 3
+  threads: true
+  thread_days: 7
+editorial:
+  audience: an early-stage (seed to Series A) AI investor
+  focus: what it means for an early-stage AI investor, a question worth exploring in diligence, or where we read the source differently
+  tone: Your own judgement, plain and direct.
+audio:
+  minutes: 10                # target about 10 minutes; cap 12 (Steven, 2026-10-18; was 8/10)
+  format: spec               # spec = 4 main stories, 3 quick hits, close with the diligence question (format review 10-13)
+  max_minutes: 12            # hard cap: quick hits, then the last story, are left out to fit
+  max_stories: 4
+  max_quick_hits: 3
+  persona: plain
+  persona_custom: ''
+  depth: analysis
+  speak_critical: true
+  speak_editor: true
+  sections:
+  - intro
+  - must
+  - worth
+  - outro
+  must_share: 65
+  voice: am_michael
+  host_name: Michael
+  deepdive_voice: af_bella   # changeable on the Tuning page; samples at /voices
+  deepdive_host: Bella
+  speed: 1.0

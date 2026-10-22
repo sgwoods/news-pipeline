@@ -1,0 +1,20 @@
+# Copy to owner.yaml and fill in (owner.yaml is private: keep it out of any public repo).
+# Read by pipeline/owner.py; without owner.yaml these placeholder values are used.
+name: the editor
+account: you@example.com
+briefing_account: briefing@example.com
+addresses:
+- you@example.com
+forwarders:
+- you@example.com
+share_addresses:
+- briefing+briefing@example.com
+extra_personal:
+- you+briefing@example.com
+- briefing@example.com
+org: your firm
+org_domains:
+- example-firm.com
+site:
+  name: Steven Woods
+  role: Investing Partner & CTO, your firm

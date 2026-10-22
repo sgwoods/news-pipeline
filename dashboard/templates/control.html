@@ -1,0 +1,53 @@
+{% extends "base.html" %}{% block title %}Control{% endblock %}{% block body %}
+<h1>Control panel</h1>
+{% set busy = action and action.running %}
+{% macro btn(name, label, title='', day=False) -%}
+<form class="inline" method="post" action="/actions/{{ name }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/control">
+{% if day %}<input type="text" name="day" value="{{ latest_day }}" size="10" pattern="\d{4}-\d{2}-\d{2}">{% endif %}
+<button {{ 'disabled' if busy }} title="{{ title }}">{{ label }}</button></form>
+{%- endmacro %}
+{% if action %}<div hx-get="/actions/output" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
+
+<h2>Services</h2>
+<div class="grid">
+{% for k, title in [('daily', 'Daily run'), ('dashboard', 'Dashboard')] %}{% set v = s[k] %}
+<div class="card"><div class="k">{{ title }}</div>
+<div class="v {{ 's-ok' if v.get('state') == 'running' or (k == 'daily' and v.loaded) else ('s-partial' if v.installed else 's-error') }}">
+{{ v.get('state') or ('loaded' if v.loaded else ('paused' if v.installed else 'not installed')) }}</div>
+<div class="small muted">{% if v.get('times') %}at {{ v.times|join(', ') }} · {% endif %}{% if v.get('last_exit') %}last exit {{ v.last_exit }} · {% endif %}{% if v.get('runs') %}{{ v.runs }} runs{% endif %}</div></div>
+{% endfor %}
+<div class="card"><div class="k">Ollama (local model)</div><div class="v {{ 's-ok' if s.ollama.reachable else 's-error' }}">{{ 'up' if s.ollama.reachable else 'down' }}</div>
+<div class="small muted">{{ s.ollama.models|join(', ') or s.ollama.get('error', '') }}</div></div>
+<div class="card"><div class="k">Claude Code</div><div class="v {{ 's-ok' if s.claude.installed and not s.claude.api_key_set else 's-error' }}">{{ 'ready' if s.claude.installed else 'missing' }}</div>
+<div class="small muted">{{ s.claude.get('version', '') }}{% if s.claude.get('api_key_set') %} · ANTHROPIC_API_KEY is set (would bill the API){% endif %}</div></div>
+<div class="card"><div class="k">Last run</div><div class="v s-{{ last.status if last else 'pending' }}">{{ last.status if last else '—' }}</div>
+<div class="small muted">{% if last %}<a href="/runs/{{ last.run_id }}">{{ last.started[:16].replace('T', ' ') }}</a>{% endif %}</div></div>
+</div>
+{% if not s.launchctl %}<p class="small s-error">launchctl not available here: service controls only work on the Mac itself.</p>{% endif %}
+
+<h2>Service controls</h2>
+<p>{{ btn('service-install', 'Install / update services', 'Writes both launchd agents for this checkout and loads them') }}
+{{ btn('run-daily-job', 'Run the daily job now', 'Same environment as the 06:30 run') }}
+{% if s.daily.loaded %}{{ btn('pause-daily', 'Pause schedule') }}{% elif s.daily.installed %}{{ btn('resume-daily', 'Resume schedule') }}{% endif %}
+<form class="inline" method="post" action="/actions/restart-dashboard"><input type="hidden" name="csrf" value="{{ csrf }}"><button title="Restarts this web app (service mode only)">Restart dashboard</button></form>
+{{ btn('restart-ollama', 'Restart Ollama', 'brew services restart ollama') }}
+{{ btn('doctor', 'Run checks', './np doctor') }}</p>
+
+<h2>Pipeline</h2>
+<p>{{ btn('run', 'Run now (fetch → briefing → audio)') }} {{ btn('stages', 'Analyze pending') }} {{ btn('verify', 'Re-verify sources') }}</p>
+<p>{{ btn('rebrief', 'Rebuild briefing', 'Cluster + editorial + write from existing analyses (~2 min)', day=True) }}</p>
+<p>{{ btn('reprocess', 'Re-analyze day', 'Full LLM re-run for a day (~15 min)', day=True) }}</p>
+<p>{{ btn('audio', 'Rebuild audio', 'Script + TTS + MP3 for a day', day=True) }} {{ btn('voices', 'Make voice samples') }}
+<span class="small muted">voice: <span class="mono">{{ voice }}</span> · <a href="/voices">listen to samples</a></span></p>
+
+<h2>Publishing & backup</h2>
+<div class="grid">
+<div class="card"><div class="k">Public site + podcast</div><div class="v">{{ 'auto' if publish.get('auto') else 'manual' }}</div>
+<div class="small muted">{% if publish.get('site_url') %}<a href="{{ publish.site_url }}" target="_blank" rel="noopener">{{ publish.site_url }}</a><br>feed: <span class="mono">{{ podcast_url }}</span>{% endif %}</div></div>
+<div class="card"><div class="k">Private backup</div><div class="v {{ 's-ok' if backup_remote else 's-partial' }}">{{ 'set up' if backup_remote else 'not set up' }}</div>
+<div class="small muted">{{ cfg_archive.get('remote_repo', '') }} · push after runs: {{ 'on' if cfg_archive.get('push') else 'off' }}</div></div>
+<div class="card"><div class="k">Archive</div><div class="v">{{ archive_mb }} MB</div><div class="small muted mono">{{ git[:60] }}</div></div>
+</div>
+<p>{{ btn('publish', 'Publish site + podcast now') }} {{ btn('backup', 'Push backup now') }}</p>
+<p class="muted small">One-time setup in Terminal: <span class="mono">gh auth login</span>, <span class="mono">./np publish setup</span>, <span class="mono">./np backup setup</span>. Everything here runs the same commands as <span class="mono">./np</span>; output appears above and in <span class="mono">logs/</span>.</p>
+{% endblock %}

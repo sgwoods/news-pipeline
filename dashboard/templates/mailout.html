@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Mail-out {{ day }}{% endblock %}{% block body %}
+<p class="small"><a href="/briefings/{{ day }}">← Briefing {{ day }}</a></p>
+<h1>Mail-out draft {{ day }}</h1>
+<p class="muted small">Top of mind plus only the stories you commented on, with your notes. Edit the commentary on the briefing page; this updates automatically.</p>
+<div class="toolbar"><button type="button" id="copy">Copy as Markdown</button> <a class="small" href="?raw=1">raw</a> <span id="copied" class="small muted"></span></div>
+<div class="md">{{ html|safe }}</div>
+<textarea id="src" hidden>{{ md }}</textarea>
+<script>
+document.getElementById("copy").onclick = async () => {
+  await navigator.clipboard.writeText(document.getElementById("src").value);
+  document.getElementById("copied").textContent = "copied";
+};
+</script>
+{% endblock %}

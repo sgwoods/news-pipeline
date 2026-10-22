@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# news-pipeline shortcuts.  Usage: ./np <command> [args]
+#
+# Every command saves its full output to logs/cmd-<command>-<time>.txt (and logs/last-command.txt)
+# and ends with a short report saved to logs/last-report.md. Claude can read those files directly
+# from this folder, so after a command you can just say "ran ./np test". If Claude can't reach
+# your Mac, paste the block between ===== REPORT ===== and ===== END REPORT =====.
+set -o pipefail
+cd "$(dirname "$0")" || exit 1
+if [ -f .venv/bin/activate ]; then source .venv/bin/activate; fi
+PY=python; command -v python >/dev/null 2>&1 || PY=python3
+cmd="${1:-help}"; [ $# -gt 0 ] && shift
+mkdir -p logs
+ts=$(date +%Y%m%dT%H%M%S)
+out="logs/cmd-${cmd}-${ts}.txt"
+
+run() {
+  echo "\$ $*  [$(date '+%Y-%m-%d %H:%M:%S')]" | tee "$out"
+  "$@" 2>&1 | tee -a "$out"
+  local code=${PIPESTATUS[0]}
+  cp "$out" logs/last-command.txt
+  $PY run.py --report --cmd "$cmd${ARGS:+ $ARGS}" --exit-code "$code" --output-file "$out"
+  return "$code"
+}
+ARGS="$*"
+
+
+case "$cmd" in
+  setup)     # newest Python available (Kokoro needs 3.10+); ./np setup --rebuild recreates .venv
+             BASE=""; for c in python3.12 python3.11 python3.10 python3; do command -v $c >/dev/null 2>&1 && { BASE=$c; break; }; done
+             if [ "${1:-}" = "--rebuild" ] && [ -d .venv ]; then mv .venv ".venv.old-$ts"; echo "old venv moved to .venv.old-$ts"; fi
+             [ -d .venv ] || "$BASE" -m venv .venv; source .venv/bin/activate; PY=python
+             echo "Python: $(python --version)"
+             pip install -q --upgrade pip            # not via run(): the report needs packages installed first
+             run pip install -q -r requirements.txt ;;
+  doctor)    run $PY run.py --doctor ;;
+  run)       run $PY run.py "$@" ;;                         # full daily run
+  fetch)     run $PY run.py --no-llm "$@" ;;                # fetch + archive only
+  test)      run $PY run.py --stages-only --limit "${1:-10}" ;;
+  analyze)   run $PY run.py --stages-only "$@" ;;           # all pending items, no fetch
+  reprocess) run $PY run.py --reprocess "${1:?usage: ./np reprocess YYYY-MM-DD}" ;;
+  rebrief)   run $PY run.py --rebrief "${1:?usage: ./np rebrief YYYY-MM-DD}" ;;   # briefing only, from existing analyses
+  verify)    run $PY run.py --verify-sources "$@" ;;
+  sources)   run $PY run.py --sources "${@:-list}" ;;          # list | suggest [N] | find "Name" [note] | accept ID [URL..] | deny ID [why] | remove URL | restore URL | recheck ID
+  suggest)   run $PY run.py --sources suggest "${1:-10}" ;;     # refresh the suggestion queue (Claude + web search)
+  preview)   run $PY run.py --preview "${1:?usage: ./np preview DAY [PROFILE]}" ${2:+--profile "$2"} ;;   # try a tuning profile on DAY
+  x)         run $PY run.py --x "${@:-status}" ;;                   # X via Nitter mirrors: status | fetch [HOURS]
+  todo)      $PY run.py --todo "${@:-list}" ;;                       # list | seed | done ID | reopen ID | add "title" [group]
+  bluesky)   run $PY run.py --bluesky "${@:-status}" ;;             # status (list members) | fetch [HOURS]
+  newsletters) run $PY run.py --newsletters "${@:-status}" ;;     # status | test | fetch [DAYS] | label [DAY]  (Gmail label -> items; day labels)
+  email)     run $PY run.py --email "${@:-status}" ;;            # status | list | add EMAIL [--confirmed] | remove EMAIL | test [EMAIL] [DAY] | send [DAY] | catchup [DAY]
+  rebuild-history) run $PY run.py --rebuild-history "$@" ;;    # [FROM [TO]] every day's briefing + audio with the current profile
+  record)    run $PY run.py --record "${@:-list}" ;;            # public record: list | search | words | apply-words | accept ID | deny ID | export
+  dive)      run $PY run.py --dive "${1:?usage: ./np dive DAY STORY}" "${2:?usage: ./np dive DAY STORY (number or key)}" ;;
+  tests)     run $PY -m unittest discover -s tests ;;
+  daily)     CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"   # keep the Mac awake for the run
+             run $CAF $PY run.py --daily ;;                 # what the schedule calls
+  service)   run $PY run.py --service "${@:-status}" ;;          # install|status|restart|run|pause|resume|remove [daily|dashboard|ollama]
+  schedule)  case "${1:-status}" in                                 # kept for muscle memory: maps to `service ... daily`
+               install) run $PY run.py --service install daily ;;
+               test)    run $PY run.py --service run daily ;;
+               remove)  run $PY run.py --service remove daily ;;
+               *)       run $PY run.py --service status ;;
+             esac ;;
+  backup)    run $PY run.py --backup "${1:-push}" ;;             # ./np backup setup (once) creates the PRIVATE repo
+  read)      day="${1:-$(ls briefings/????-??-??.md 2>/dev/null | sort | tail -1 | xargs -n1 basename 2>/dev/null | sed 's/\.md$//')}"
+             f="briefings/$day.md"; [ -f "$f" ] || { echo "No briefing for '$day'. Available:"; ls briefings/????-??-??.md | xargs -n1 basename; exit 1; }
+             if [ -t 1 ]; then less -R "$f"; else cat "$f"; fi ;;
+  listen)    day="${1:-$(ls briefings/*.mp3 2>/dev/null | sort | tail -1 | xargs -n1 basename 2>/dev/null | sed 's/\.mp3$//')}"
+             f="briefings/$day.mp3"; [ -f "$f" ] || { echo "No audio yet${day:+ for $day} (Phase 2)."; exit 1; }
+             open "$f" 2>/dev/null || afplay "$f" ;;
+  open)      open "http://127.0.0.1:8765/briefings/latest" ;;
+  audio)     run $PY run.py --audio "${1:-}" ;;                 # (re)build the MP3 for DAY (default latest)
+  script-preview) run $PY run.py --script-preview "$@" ;;      # DAY [tts]: audio script (+MP3) into briefings/experiments/DAY/
+  release-check) run $PY run.py --release-check "$@" ;;         # [live] | approve "note" | install-hooks: the release gate
+  secrets)   run $PY run.py --secrets "${@:-status}" ;;          # status | migrate: secrets in the macOS Keychain
+  note)      run $PY run.py --note "${@:-preview}" ;;            # preview | send [DAY]: your private note on tomorrow's deep dive
+  watchlist) run $PY run.py --watchlist "${@:-list}" ;;          # list | fetch | weekly | backfill [DAYS] | add NAME | remove NAME | test
+  deepdive)  run $PY run.py --deepdive "$@" ;;                   # [DAY] [--topic "..."] [--force]: topical deep-dive episode
+  quality)   run $PY run.py --quality "$@" ;;                    # [DAY|all] | rate DAY SCORE [note]: scorecard
+  review)    run $PY run.py --review "${@:-weekly}" ;;             # weekly [DAY]: quality review from local files
+  preflight) run $PY run.py --preflight ;;                     # evening: is the release gate approval current? (notifies)
+  remaster)  run $PY run.py --remaster "${1:?usage: ./np remaster YYYY-MM-DD}" ;;   # DAY's podcast in the current style, then publish
+  factcheck) run $PY run.py --factcheck "$@" ;;                 # [DAY] | probe "sentence" FIGURE: fact check + search-before-cut, dry run
+  reader)    run $PY run.py --reader "${@:-check}" ;;             # check [DAYS]: article reader on past items (dry run)
+  profiles)  run $PY run.py --profiles "$@" ;;                   # [DAYS] sites/sources not yet in source_profiles.yaml
+  relink)    run $PY run.py --relink "${1:?usage: ./np relink YYYY-MM-DD}" ;;   # links + labels in an existing briefing, no model/audio
+  feedback)  run $PY run.py --feedback "${@:-list}" ;;           # list | fetch [DAYS] | triage | set ID STATUS | todo ID
+  linkedin)  run $PY run.py --linkedin "${@:-list}" ;;           # import [PATH] | list [N]: own posts from LinkedIn's export (data/inbox/)
+  slack)     run $PY run.py --slack "${@:-test}" ;;              # test | fetch [HOURS]: links Steven shares in Slack
+  say)       run $PY run.py --say "${1:?usage: ./np say \"text\"}" ;;   # hear TEXT with pronunciations.yaml
+  voices)    run $PY run.py --voices ;;                         # sample clip per candidate voice
+  site)      run $PY run.py --site ;;                       # build the public site locally (site/)
+  publish)   run $PY run.py --publish "${1:-run}" ;;           # ./np publish setup (once), then ./np publish
+  go-live)   bash scripts/go-live.sh ;;                       # one-time: backup + site + podcast + auto publish
+  report)    $PY run.py --report ;;
+  dash)      $PY run.py --dashboard ;;
+  *) cat <<'HELP'
+./np setup              create/refresh .venv and install requirements
+./np doctor             check Python, packages, Ollama + model, sources, git
+./np run                full daily run: fetch -> filter -> rank -> critique -> briefing
+./np fetch              fetch + archive only (no LLM)
+./np test [N]           analyze N pending items (default 10), no fetch
+./np analyze            analyze all pending items, no fetch
+./np reprocess DAY      re-analyze items first seen on DAY (adds new versions)
+./np rebrief DAY        rebuild only DAY's briefing from existing analyses (~2 min)
+./np verify             re-verify all sources
+./np suggest [N]        refresh the source suggestion queue with N new suggestions (default 10)
+./np preview DAY [PROF] rebuild DAY's briefing + audio with a tuning profile into briefings/experiments/ (real one untouched)
+./np x                  X accounts (x.yaml) via Nitter-style mirrors: status | fetch [HOURS]
+./np todo               the shared to-do list (also /todo in the dashboard): done ID | reopen ID | add "title"
+./np bluesky            Steven's Bluesky list + own posts: status (members) | fetch [HOURS]
+./np newsletters        Gmail newsletters as a source: status | test (IMAP login) | fetch [DAYS] (read now)
+./np email status       email subscribers: setup check, counts; also list | add | remove | test [EMAIL] | send [DAY]
+                        | catchup [DAY] (send DAY to subscribers who missed it) | key [new] (shared key -> clipboard)
+./np note preview|send  your private note (daily run, after the email): tomorrow's deep dive (one-click picks), queue page link, watchlist
+./np deepdive [DAY]     topical deep-dive episode; --topic "..." to set it, --force to redo
+./np watchlist          companies you track: list | fetch | weekly | backfill [DAYS] | add NAME | remove NAME | test
+./np quality [DAY|all]  scorecard; also: rate DAY SCORE [note] | pull (star ratings from the subscriber Sheet)
+./np review weekly      weekly quality review (benchmarks, house rules) from local files
+./np remaster DAY       rebuild DAY's podcast in the current style (deep dive + briefing + combined episode), then publish
+./np factcheck [DAY]    fact-check dry run on a saved briefing (traces figures, searches before cutting); probe "sentence" FIG
+./np reader check [N]   try the article reader on the last N days' critiqued items (dry run)
+./np profiles [DAYS]    sites/sources seen recently with no source profile
+./np relink DAY         re-run links + labels on an existing briefing (no model, no audio)
+./np feedback           reader replies: list | fetch [DAYS] | triage | set ID STATUS | todo ID
+./np slack test|fetch   links you share in Slack;  ./np linkedin import|list   your own LinkedIn posts
+./np release-check      the release gate: [live] | approve "note" (Steven only) | install-hooks
+./np preflight          evening check that the release approval is current (the 20:30 service runs it)
+./np secrets status     secrets in the macOS Keychain; set NAME (hidden prompt) | migrate
+./np rebuild-history    rebuild every day's briefing + audio with the current profile (older versions kept)
+./np record search      find new appearances / mentions of you on the web -> review queue (also weekly in the daily job)
+./np record words       extract your stated views from the public-record archive -> proposed "In my own words"
+./np script-preview DAY [tts]  the audio script (and MP3 with tts) for DAY with the current settings, real episode untouched
+./np say "TEXT"          hear how the voice says TEXT with pronunciations.yaml
+./np dive DAY N         deep dive on story N of DAY's briefing (cited, with earlier coverage; ~2-4 min)
+./np sources            show the queue; also: find "Name" [note] | accept ID [URL..] | deny ID [why] | reconsider ID
+                        | recheck ID | remove URL [why] | restore URL   (same as the dashboard Sources page)
+./np tests              run unit tests
+./np daily              once-a-day run + Mac notification (what the schedule calls)
+./np service install    install the background services: daily run (05:00, retries 06:30, 07:30), dashboard (always on),
+                        evening preflight (20:30)
+./np service status     services, Ollama, Claude Code at a glance
+./np service restart dashboard | run daily | pause daily | resume daily | restart ollama | remove
+./np backup setup       once: create the PRIVATE GitHub repo for this project and push; then ./np backup
+./np schedule ...       old name for the daily service (install | test | status | remove)
+./np read [DAY]         read a briefing in the terminal (default: latest)
+./np listen [DAY]       play a briefing's MP3 (once audio exists)
+./np open               open the latest briefing in the browser (dashboard must be running)
+./np audio [DAY]        (re)build the spoken MP3 for a day (default: latest)
+./np voices             make a ~45-second sample in each candidate voice; listen at /voices
+./np setup --rebuild    recreate .venv with the newest Python (needed once for Kokoro: Python 3.10+)
+./np site               build the public site into site/ (open site/index.html to preview)
+./np publish setup      once: create the public GitHub repo (needs: brew install gh; gh auth login)
+./np publish            build + push the site to GitHub Pages
+./np go-live            one-time: GitHub login, private backup, public site + podcast feed, auto publish (re-runnable)
+./np report             print the last report again
+./np dash               start the dashboard at http://127.0.0.1:8765
+HELP
+  ;;
+esac

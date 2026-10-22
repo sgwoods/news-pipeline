@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% block title %}Feedback{% endblock %}{% block body %}
+<h1>Feedback <span class="muted small">replies to the daily email · {{ c.open }} open · {{ c.high }} high · {{ c.new }} not triaged{% if triaged_at %} · triaged {{ triaged_at[:16].replace('T', ' ') }}{% endif %} · also <span class="mono">./np feedback</span></span></h1>
+<p class="small">{% for s in ['open', 'all'] %}<a href="/feedback?show={{ s }}" class="pill {{ 'flag' if s == show }}">{{ s }}</a> {% endfor %}
+{% for k, n in cats %}<span class="pill">{{ k }} {{ n }}</span> {% endfor %}</p>
+{% if not c.total %}<div class="card small">No replies yet. Readers reply to the daily email; a Gmail filter files them under
+<span class="mono">AI-Briefing/Feedback</span> (docs/FEEDBACK.md) and the daily run collects and triages them.</div>{% endif %}
+{% if themes %}<h2>Themes</h2>
+{% for t in themes %}<div class="card" style="margin-bottom:8px"><b>{{ t.theme }}</b> <span class="muted small">{{ t.count }} repl{{ 'y' if t.count == 1 else 'ies' }}</span>
+<div class="small">{{ t.suggestion }}</div>
+<div class="small muted">{% for i in t.ids %}<a href="#f-{{ i }}">{{ i }}</a> {% endfor %}</div></div>{% endfor %}{% endif %}
+{% if rows %}<h2>Replies</h2>{% endif %}
+{% for r in rows %}{% set t = r.triage or {} %}<div class="card" id="f-{{ r.id }}" style="margin-bottom:10px;{% if r.status in ['done', 'wontfix'] %}opacity:.55{% endif %}">
+<div class="small">{% if t.severity %}<span class="pill {{ 'scr' if t.severity == 'high' else ('flag' if t.severity == 'medium' else '') }}">{{ t.severity }}</span>{% endif %}
+<span class="pill">{{ t.category or 'not triaged' }}</span>{% if t.area %} <span class="pill">{{ t.area }}</span>{% endif %}
+<span class="pill">{{ r.status }}</span>
+<span class="muted">{{ r.received[:16].replace('T', ' ') }} · {{ 'you' if r.from_editor else (r.name or 'reader') }} · reader {{ r.sender[:6] }}
+{% if r.day %} · on <a href="/briefings/{{ r.day }}">{{ r.day }}</a>{% endif %}</span></div>
+{% if t.summary %}<div style="margin:6px 0"><b>{{ t.summary }}</b></div>{% endif %}
+{% if t.refers_to %}<div class="small muted">About: {{ t.refers_to }}</div>{% endif %}
+<details{% if not t.summary %} open{% endif %}><summary class="small muted">their words</summary><div class="small" style="white-space:pre-wrap;margin:6px 0">{{ r.text }}</div></details>
+{% if t.action %}<div class="small">Next: {{ t.action }}</div>{% endif %}
+{% if r.note %}<div class="small muted">Note: {{ r.note }}</div>{% endif %}
+<div class="small" style="margin-top:6px">{% for s in ['acting', 'done', 'wontfix', 'triaged'] %}{% if s != r.status %}
+<form class="inline" method="post" action="/api/feedback/{{ r.id }}/{{ s }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="show" value="{{ show }}"><button class="mini">{{ {'acting': 'working on it', 'done': 'done', 'wontfix': "won't fix", 'triaged': 'reopen'}[s] }}</button></form>{% endif %}{% endfor %}
+{% if r.status not in ['done', 'wontfix'] %}<form class="inline" method="post" action="/api/feedback/{{ r.id }}/todo"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="show" value="{{ show }}"><button class="mini">→ to-do</button></form>{% endif %}</div>
+</div>{% endfor %}
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Compare {{ day }}{% endblock %}{% block body %}
+<style>.cmp{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:900px){.cmp{grid-template-columns:1fr}}.cmp>div{min-width:0}</style>
+<h1>Compare · {{ day }}</h1>
+<form method="get" class="small"><input type="hidden" name="day" value="{{ day }}">
+<select name="a">{% for o in options %}<option {{ 'selected' if o == an }}>{{ o }}</option>{% endfor %}</select> vs
+<select name="b">{% for o in options %}<option {{ 'selected' if o == bn }}>{{ o }}</option>{% endfor %}</select> <button>Compare</button></form>
+<div class="cmp">{% for s in [a, b] %}<div>{% if s %}
+<h2>{{ s.label }}</h2><p class="small muted">{{ s.words }} words · sections: {{ s.sections|join(' · ') }}{% if s.script_words %} · audio script {{ s.script_words }} words (~{{ (s.script_words / 150)|round(1) }} min){% endif %}</p>
+{% if s.audio %}<audio controls preload="none" src="{{ s.audio }}" style="width:100%"></audio>{% endif %}
+<details><summary class="small">spoken script</summary><div class="text small">{{ s.script }}</div></details>
+<div class="md">{{ s.html|safe }}</div>{% else %}<p class="muted">Pick something to compare.</p>{% endif %}</div>{% endfor %}</div>
+{% endblock %}

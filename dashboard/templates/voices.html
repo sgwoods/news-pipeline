@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Voices{% endblock %}{% block body %}
+<h1>Voice samples</h1>
+<p class="muted small">Same text in each voice. In use now: <b class="mono">{{ current }}</b>. Your choice applies from the next audio build
+(the next daily run, or <b>Rebuild audio</b> on the Control page). Make new samples with <span class="mono">./np voices</span>.</p>
+{% for f in files %}{% set key = f[:-4].replace('-', ':', 1) %}
+<div class="card" style="margin-bottom:10px;max-width:640px">
+<b>{{ key }}</b>{% if key == current or (key == 'say:default' and current.startswith('say:')) %} <span class="pill flag">in use</span>{% endif %}
+<audio controls preload="none" src="/voices/{{ f }}" style="width:100%;margin-top:6px"></audio>
+{% if key != current %}<form method="post" action="/api/voice" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="voice" value="{{ key }}"><button>Use this voice</button></form>{% endif %}
+</div>{% else %}<p class="muted">No samples yet. Run <span class="mono">./np voices</span>.</p>{% endfor %}
+{% endblock %}

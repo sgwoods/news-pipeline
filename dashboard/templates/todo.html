@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block title %}To do{% endblock %}{% block body %}
+<h1>To do <span class="muted small">{{ n_open }} open · shared between you and Claude · also <span class="mono">./np todo</span></span></h1>
+<p class="small">{% for s in ['open', 'all'] %}<a href="/todo?show={{ s }}" class="pill {{ 'flag' if s == show }}">{{ s }}</a> {% endfor %}</p>
+<form method="post" action="/api/todo/add" class="small" style="margin-bottom:14px"><input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="text" name="title" placeholder="add a to-do" maxlength="160" style="width:360px" required>
+<select name="group">{% for g in groups %}<option>{{ g }}</option>{% endfor %}</select>
+<select name="owner"><option>steven</option><option>claude</option></select> <button>Add</button></form>
+{% for g, rows in groups.items() %}{% set vis = rows if show == 'all' else rows|rejectattr('status', 'equalto', 'done')|list %}{% if vis %}
+<h2>{{ g }} <span class="muted small">{{ vis|length }}</span></h2>
+{% for r in vis|sort(attribute='created') %}<div class="card" id="t-{{ r.id }}" style="margin-bottom:8px;{% if r.status == 'done' %}opacity:.55{% endif %}">
+<form class="inline" method="post" action="/api/todo/{{ r.id }}/{{ 'reopen' if r.status == 'done' else 'done' }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="show" value="{{ show }}">
+<button class="mini" title="{{ 'reopen' if r.status == 'done' else 'mark done' }}">{{ '↩' if r.status == 'done' else '✓' }}</button></form>
+<b>{{ r.title }}</b> <span class="pill {{ 'flag' if r.owner == 'claude' }}">{{ r.owner }}</span>
+{% if r.url %} · <a href="{{ r.url|safe_href }}" target="_blank" rel="noopener">open ↗</a>{% endif %}
+{% if r.detail %}<div class="small muted" style="margin-left:34px">{{ r.detail }}</div>{% endif %}
+{% if r.status == 'done' %}<div class="small muted" style="margin-left:34px">done {{ (r.done_at or '')[:16].replace('T', ' ') }}{% if r.note %} · {{ r.note }}{% endif %}</div>{% endif %}
+</div>{% endfor %}{% endif %}{% endfor %}
+{% endblock %}

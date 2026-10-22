@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}Threads{% endblock %}{% block body %}
+<h1>Threads <span class="muted small">stories that developed over more than one briefing</span></h1>
+<p class="small">{% if all %}<a href="/threads">only multi-day threads</a>{% else %}<a href="/threads?all=1">show single-day stories too</a>{% endif %}</p>
+{% if not rows %}<p class="muted">No developing stories yet. Threads are linked from today on; each new briefing checks the last days' stories.</p>{% endif %}
+<table><tr><th>Latest headline</th><th>Days</th><th>Span</th></tr>
+{% for r in rows %}<tr><td><a href="/threads/{{ r.id }}">{{ r.headline }}</a>{% if r.first != r.headline %}<div class="small muted">first: {{ r.first }}</div>{% endif %}</td>
+<td>{{ r.n }}</td><td class="small">{{ r.days[0] }} → {{ r.last }}</td></tr>{% endfor %}</table>
+{% endblock %}

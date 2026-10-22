@@ -1,0 +1,8 @@
+feedparser>=6.0
+httpx>=0.27
+PyYAML>=6.0
+python-dotenv>=1.0
+anthropic>=0.40   # only for llm.backend: claude_api
+flask>=3.0        # local dashboard
+markdown>=3.5     # briefing rendering in the dashboard
+kokoro>=0.9      # local text-to-speech (Python 3.10+; also: brew install espeak-ng ffmpeg)

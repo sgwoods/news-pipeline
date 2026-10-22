@@ -1,0 +1,32 @@
+# Topical deep dives
+
+A separate episode of about ten minutes (`deepdive.minutes` 10, up to `max_minutes` 13 when an important story needs
+the context), also published as a readable article on its own page (site: `<day>/deep-dive/`, and the front page's
+Deep dives section), after the daily briefing, on the day's focal point: a
+breakthrough and its controversy, a concept suddenly everywhere (the "third scaling law": scaling compute
+at inference time), a change in the trajectory of the field, or a story that has matured over several days.
+
+- **Who decides:** Claude picks the topic from today's briefing, the past week and recent deep dives, and may
+  say there is none today. One a day (`deepdive.max_per_week` 7, since 2026-10-19), no repeat within 21 days unless something
+  material is new. `./np deepdive --topic "..."` sets the topic yourself.
+- **How it is written:** an explainer for the ear, in six parts: why today → the idea plainly → what is
+  established vs claimed → how the AGI-forward / AI-realist / market / policy readings differ (only where the
+  facts allow) → our read and one diligence question → what would settle it. Claude may search the web for
+  the paper, the lab's post and the strongest critique.
+- **Checks before it airs:** every source link is opened (dead ones dropped; fewer than 2 live → no episode);
+  quotation marks survive only around words found in the archived or fetched text; sentences with a $ or %
+  figure found in no source are cut; private names are removed; markup or banned words fail the episode.
+- **In the podcast (2026-10-19):** the deep dive follows the briefing in the same episode. The briefing host
+  ("I'm Michael" in the first line) closes by promoting today's deep dive and where to find it (the web page, with
+  the written edition and every past episode), hands off to Bella, and the deep dive's sign-off closes the episode.
+  The feed carries one file per day (`briefings/<day>.podcast.mp3`, "… · with deep dive: <title>"); the web page
+  keeps separate players for the briefing and the deep dive. If the briefing audio was made without the hand-off
+  (a deep dive made later by hand), the deep dive stays a separate bonus episode.
+- **Where it goes:** briefings/deepdives/<day>.md (show notes + sources), .script.md, .mp3. The podcast feed
+  lists it as a bonus episode "Deep dive: <title>" right after that day's briefing; the day's page links to it.
+- **When:** planned during the morning run before the briefing audio (so the briefing hands off to it), written and voiced right after, then published and mentioned in the email.
+- **Picking from the evening note:** your private note (sent by the daily run after the subscriber email) lists the suggestions with a one-click "Make this next"
+  for each, and a link to a private queue page to reorder, dismiss or suggest a topic (signed owner links, 8-day expiry).
+- **Queue:** dashboard /deep-dives: Claude adds up to 4 suggestions each morning; queue, reorder, dismiss or add your own. Up next goes first; otherwise the day's best (strength 4+). One a day; Up next is never left empty (the best suggestion is moved up if you queued nothing).
+- **Voices:** briefing am_michael ("Michael", ~131 words a minute), deep dive af_bella ("Bella", ~157), changeable on
+  the Tuning page. Script length is set from each voice's measured speed (`audio.voice_wpm`).

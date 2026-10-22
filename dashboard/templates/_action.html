@@ -1,0 +1,5 @@
+<div id="action" {% if st and st.running %}hx-get="/actions/output" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+{% if st %}<h2>Action: {{ st.action }} <span class="small {{ 's-running' if st.running else ('s-ok' if st.exit_code == 0 else 's-error') }}">
+{{ 'running…' if st.running else ('finished' if st.exit_code == 0 else 'exit code ' ~ st.exit_code) }}</span>
+<span class="muted small mono">{{ st.log }}</span></h2>
+<pre>{{ text or '(waiting for output)' }}</pre>{% endif %}</div>

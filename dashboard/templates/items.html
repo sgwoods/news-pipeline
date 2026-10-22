@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block title %}Items{% endblock %}{% block body %}
+<h1>Items <span class="muted small">{{ total }} matching</span></h1>
+<form method="get" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+<input type="text" name="q" value="{{ q }}" placeholder="Search title + text" size="30">
+<select name="person"><option value="">All people</option>{% for p in people %}<option {{ 'selected' if p == person }}>{{ p }}</option>{% endfor %}</select>
+<select name="kind"><option value="">All kinds</option>{% for k in kinds %}<option {{ 'selected' if k == kind }}>{{ k }}</option>{% endfor %}</select>
+<select name="tag"><option value="">All tags</option>{% for x in tags %}<option {{ 'selected' if x == tag }}>{{ x }}</option>{% endfor %}</select>
+<select name="day"><option value="">All days</option>{% for d in days %}<option {{ 'selected' if d == day }}>{{ d }}</option>{% endfor %}</select>
+<button>Filter</button> <a href="/items" class="small">clear</a></form>
+<table><tr><th>Published</th><th>Person</th><th>Title</th><th>Tag</th><th>Imp.</th><th>Source</th></tr>
+{% for r in rows %}<tr><td class="small">{{ (r.published or r.first_seen)[:16].replace('T',' ') }}</td>
+<td class="small">{{ r.person }}</td>
+<td><a href="/items/{{ r.id }}">{{ r.title|short(100) or '(untitled)' }}</a></td>
+<td class="small"><span class="pill {{ 'flag' if r._tag == 'FULL READ' }}">{{ r._tag }}</span>{% if r._verdict %} <span class="small {{ 's-error' if r._verdict in ['overstated', 'unsupported'] else 'muted' }}">{{ r._verdict }}</span>{% endif %}</td>
+<td class="small">{{ r._imp or '' }}</td>
+<td class="small"><a href="{{ r.url|safe_href }}" target="_blank" rel="noopener">{{ r.source_kind }} ↗</a></td></tr>
+{% else %}<tr><td colspan="6" class="muted">No items.</td></tr>{% endfor %}</table>
+{% if pages > 1 %}<p>{% for n in range(1, pages + 1) %}{% if n == page %}<b>{{ n }}</b>{% else %}
+<a href="?q={{ q|urlencode }}&person={{ person|urlencode }}&kind={{ kind }}&tag={{ tag|urlencode }}&day={{ day }}&page={{ n }}">{{ n }}</a>{% endif %} {% endfor %}</p>{% endif %}
+{% endblock %}

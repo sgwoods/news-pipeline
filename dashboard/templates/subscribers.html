@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% block title %}Email subscribers{% endblock %}{% block body %}
+<h1>Email subscribers <span class="muted small">the list lives in your Google Sheet, not in this repo</span></h1>
+{% if action %}<div hx-get="/actions/output" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
+{% if msg %}<p class="small {{ 's-error' if msg.startswith('Failed') else 's-ok' }}">{{ msg }}</p>{% endif %}
+{% if missing %}<div class="card"><div class="k">Not set up yet</div><p>{{ missing }}</p>
+<p class="small">Follow <span class="mono">docs/EMAIL-SETUP.md</span>: about 10 minutes, once. You can still preview the email below.</p></div>
+{% elif err %}<p class="s-error">{{ err }}</p>{% endif %}
+<div class="grid">
+<div class="card"><div class="k">Active</div><div class="v">{{ counts.active }}</div><div class="small muted">{{ counts.pending }} waiting to confirm · {{ counts.unsubscribed }} unsubscribed</div></div>
+<div class="card"><div class="k">Daily send</div><div class="v {{ 's-ok' if enabled else 's-partial' }}">{{ 'on' if enabled else 'off' }}</div><div class="small muted">config.yaml email.enabled · after each morning's publish</div></div>
+<div class="card"><div class="k">Gmail quota left today</div><div class="v">{{ quota if quota is not none else '—' }}</div><div class="small muted">about 100 recipients a day</div></div>
+</div>
+<h2>Add a subscriber</h2>
+<form method="post" action="/api/subscribers/add" class="small"><input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="email" name="email" required placeholder="name@example.com" maxlength="200" style="width:280px">
+<label><input type="checkbox" name="confirmed" value="1"> they already asked me for it (skip the confirmation email)</label>
+<button {{ 'disabled' if missing }}>Add</button></form>
+<p class="small muted">Without the tick they get a confirmation email first, which is the safest way to have consent on record.</p>
+<h2>Send</h2>
+<p><form class="inline" method="post" action="/actions/email-test"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/subscribers">
+<input type="text" name="day" value="{{ day }}" size="10" pattern="\d{4}-\d{2}-\d{2}"> <button {{ 'disabled' if missing or (action and action.running) }}>Send a test to me</button></form>
+<form class="inline" method="post" action="/actions/email-send" onsubmit="return confirm('Email this day\'s briefing to every active subscriber?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/subscribers">
+<input type="text" name="day" value="{{ day }}" size="10" pattern="\d{4}-\d{2}-\d{2}"> <button {{ 'disabled' if missing or (action and action.running) }}>Send to all subscribers</button></form>
+<a class="small" href="/email/preview/{{ day }}" target="_blank">preview the email</a></p>
+{% if subs %}<h2>Subscribers</h2><table><tr><th>Email</th><th>Status</th><th>Source</th><th>Since</th><th></th></tr>
+{% for x in subs|sort(attribute='status') %}<tr><td class="mono">{{ x.email }}</td><td><span class="s-{{ 'ok' if x.status == 'active' else ('pending' if x.status == 'pending' else 'error') }}">{{ x.status }}</span></td>
+<td class="small">{{ x.source }}</td><td class="small">{{ (x.confirmed or x.created or '')|string|truncate(10, True, '') }}</td>
+<td>{% if x.status != 'unsubscribed' %}<form class="inline" method="post" action="/api/subscribers/remove" onsubmit="return confirm('Unsubscribe {{ x.email }}?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="email" value="{{ x.email }}"><button class="mini">remove</button></form>{% endif %}</td></tr>{% endfor %}</table>{% endif %}
+{% if log %}<h2>Recent sends</h2><table><tr><th>When</th><th>Day</th><th>Sent</th><th>Failed</th><th>Subject</th></tr>
+{% for r in log %}<tr><td class="small">{{ r.at[:16].replace('T', ' ') }}{% if r.test %} <span class="pill">test</span>{% endif %}</td><td>{{ r.day }}</td><td>{{ r.sent }}</td><td>{{ r.failed }}</td><td class="small">{{ r.subject }}</td></tr>{% endfor %}</table>{% endif %}
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Questions{% endblock %}{% block body %}
+<h1>Open questions <span class="muted small">from the briefings; keep track of what got answered</span></h1>
+<p class="small">{% for s in ['open', 'answered', 'dropped', 'all'] %}<a href="/questions?show={{ s }}" class="pill {{ 'flag' if s == show }}">{{ s }}{% if s in counts %} ({{ counts[s] }}){% endif %}</a> {% endfor %}</p>
+{% if not qs %}<p class="muted">Nothing here. New briefings add open questions (count set on the Tuning page).</p>{% endif %}
+{% for q in qs %}<div class="card" id="q-{{ q.id }}" style="margin-bottom:10px">
+<div class="k">{{ q.day }} · <a href="/briefings/{{ q.day }}">briefing</a> · <span class="s-{{ 'ok' if q.status == 'answered' else ('pending' if q.status == 'open' else 'error') }}">{{ q.status }}</span>{% if q.updated %} · {{ q.updated[:10] }}{% endif %}</div>
+<h3 style="margin:4px 0">{{ q.q }}</h3>
+{% if q.why %}<p class="small">{{ q.why }}</p>{% endif %}
+{% if q.settle %}<p class="small"><b>Settled by:</b> {{ q.settle }}</p>{% endif %}
+{% for s in q.stories %}<div class="small muted">↳ #{{ s.n }} {{ s.headline }}{% if s.thread %} · <a href="/threads/{{ s.thread }}">thread</a>{% endif %}</div>{% endfor %}
+<form method="post" action="/api/questions/{{ q.id }}" class="small" style="margin-top:6px"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="show" value="{{ show }}">
+<input type="text" name="note" value="{{ q.note }}" placeholder="what you found (optional)" maxlength="500" style="width:60%">
+<button name="status" value="answered">Answered</button> <button name="status" value="dropped">Drop</button>{% if q.status != 'open' %} <button name="status" value="open">Reopen</button>{% endif %}</form>
+</div>{% endfor %}
+{% endblock %}

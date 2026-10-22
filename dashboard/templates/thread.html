@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Thread{% endblock %}{% block body %}
+<p class="small"><a href="/threads">← Threads</a></p>
+<h1>{{ xs[-1].headline }} <span class="muted small">{{ xs|length }} appearances</span></h1>
+{% for x in xs|reverse %}<div class="card" style="margin-bottom:10px">
+<div class="k">{{ x.day }} · {{ x.section }}{% if x.n %} #{{ x.n }}{% endif %} · <a href="/briefings/{{ x.day }}">briefing</a>
+{% if x.dive %} · <a href="/dives/{{ x.day }}/{{ x.key }}">deep dive</a>{% endif %}</div>
+<h3 style="margin:4px 0">{{ x.headline }}</h3>
+{% if x.what_happened %}<p>{{ x.what_happened }}</p>{% endif %}
+{% if x.critical_pass %}<p class="small"><b>Critical pass:</b> {{ x.critical_pass }}</p>{% endif %}
+{% if x.editor_view %}<p class="small"><b>Our read:</b> {{ x.editor_view }}</p>{% endif %}
+<p class="small muted">{{ x.names|join(' · ') }} · <a href="{{ x.lead_url|safe_href }}" target="_blank" rel="noopener">source</a></p>
+</div>{% endfor %}
+{% endblock %}

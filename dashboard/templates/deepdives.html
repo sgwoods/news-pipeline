@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block title %}Deep dives{% endblock %}{% block body %}
+{% macro btn(x, op, label, title='') %}<form class="inline" method="post" action="/api/deep-dives/{{ x.id }}/{{ op }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="mini" title="{{ title }}">{{ label }}</button></form>{% endmacro %}
+{% macro posform(x, n, total) %}<form class="inline" method="post" action="/api/deep-dives/{{ x.id }}/position"><input type="hidden" name="csrf" value="{{ csrf }}"><select name="pos" class="mini" onchange="this.form.submit()" title="move to position"><option value="">#{{ n }}</option>{% for i in range(1, total + 1) %}<option value="{{ i }}">to #{{ i }}</option>{% endfor %}</select></form>{% endmacro %}
+{% macro card(x, ops) %}<div class="card" style="margin-bottom:8px">
+<b>{{ x.topic }}</b> {% if x.kind %}<span class="pill">{{ x.kind }}</span>{% endif %}{% if x.strength %} <span class="pill {{ 'flag' if x.strength >= 4 }}">strength {{ x.strength }}</span>{% endif %}
+{% if x.origin == 'steven' %}<span class="pill flag">yours</span>{% endif %}
+<span class="small muted"> · suggested {{ x.source_day }}{% if x.for_day %} · scheduled for {{ x.for_day }}{% endif %}{% if x.done_day %} · aired {{ x.done_day }}{% endif %}</span>
+{{ ops }}
+{% if x.why_today %}<div class="small">{{ x.why_today }}</div>{% endif %}
+{% if x.angle and x.angle != x.topic %}<div class="small muted">{{ x.angle }}</div>{% endif %}
+{% if x.story_headlines %}<div class="small muted">From: {{ x.story_headlines|join(' · ') }}</div>{% endif %}
+{% if x.note %}<div class="small s-error">{{ x.note }}</div>{% endif %}
+</div>{% endmacro %}
+<h1>Deep dives <span class="muted small">topical episodes after the briefing · {{ week }}/{{ cap }} this week · Claude adds suggestions every morning · also <span class="mono">./np deepdive</span></span></h1>
+<p class="small muted">The morning run takes the first topic in <b>Up next</b>; if that's empty, Claude's strongest suggestion of the day (only if it rates 4+). Put a suggestion first with "air next", add it to the end of Up next, or reorder Up next with the arrows or the position menu; dismiss the rest.</p>
+<form method="post" action="/api/deep-dives/add" class="small" style="margin-bottom:14px"><input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="text" name="topic" placeholder="your own topic, e.g. what the third scaling law means for startups" maxlength="120" style="width:420px" required>
+<input type="text" name="angle" placeholder="angle (optional)" maxlength="500" style="width:260px"> <button>Add to Up next</button></form>
+{% if g.scheduled %}<h2>Scheduled</h2>{% for x in g.scheduled %}{{ card(x, btn(x, 'queued', '↩ back to queue')) }}{% endfor %}{% endif %}
+<h2>Up next <span class="muted small">{{ g.queued|length }}</span></h2>
+{% for x in g.queued %}{{ card(x, posform(x, loop.index, g.queued|length) ~ btn(x, 'top', '⤒ next') ~ btn(x, 'up', '↑') ~ btn(x, 'down', '↓') ~ btn(x, 'bottom', '⤓') ~ btn(x, 'suggested', 'unqueue') ~ btn(x, 'dismissed', '✕ dismiss')) }}{% else %}<p class="small muted">Empty: Claude will pick the day's strongest suggestion.</p>{% endfor %}
+<h2>Suggested <span class="muted small">{{ g.suggested|length }}</span></h2>
+{% for x in g.suggested %}{{ card(x, btn(x, 'top', '⤒ air next') ~ btn(x, 'queued', '＋ add to Up next') ~ btn(x, 'dismissed', '✕ dismiss')) }}{% else %}<p class="small muted">No suggestions yet: they arrive with each morning's run.</p>{% endfor %}
+{% if g.done %}<h2>Aired</h2>{% for x in g.done %}{{ card(x, '') }}{% endfor %}{% endif %}
+{% if g.dismissed %}<details><summary class="small muted">Dismissed ({{ g.dismissed|length }})</summary>{% for x in g.dismissed %}{{ card(x, btn(x, 'suggested', 'restore')) }}{% endfor %}</details>{% endif %}
+{% endblock %}

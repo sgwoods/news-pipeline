@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}Runs{% endblock %}{% block body %}
+<h1>Runs <span class="muted small">{{ runs|length }} recorded</span></h1>
+<table><tr><th>Run</th><th>Status</th><th>Stages</th><th>New items</th><th>Failed sources</th><th>LLM</th></tr>
+{% for r in runs %}<tr><td><a href="/runs/{{ r.run_id }}">{{ r.run_id }}</a></td><td class="s-{{ r.status }}">{{ r.status }}</td>
+<td class="small">{% for n, s in r.stages.items() %}<span class="s-{{ s.status }}" title="{{ s.status }}">{{ n }}</span> {% endfor %}</td>
+<td>{{ r.stages.fetch.get('items_new', '') }}</td><td>{{ r.stages.fetch.get('sources_failed', '') }}</td>
+<td class="small muted">{{ r.llm.backend }} {{ r.llm.model }}</td></tr>{% endfor %}</table>
+{% endblock %}
