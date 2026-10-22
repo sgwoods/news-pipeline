@@ -80,8 +80,10 @@ def check_tests(root: Path = ROOT) -> tuple:
     (root / "logs").mkdir(exist_ok=True)
     (root / "logs" / "release-tests.txt").write_text(out, "utf-8")
     failed = re.findall(r"^(?:FAIL|ERROR): (\S+) \(([^)]+)\)", out, re.M)
-    tail = out.strip().splitlines()[-1:] if out.strip() else []
-    detail = " ".join(tail) + (" · " + ", ".join(f"{c}.{t}" for t, c in failed[:6]) if failed else "") \
+    ran = re.findall(r"^Ran \d+ tests?.*$", r.stderr or "", re.M)        # unittest's own summary, not test output
+    verdict = re.findall(r"^(?:OK|FAILED)\b.*$", r.stderr or "", re.M)
+    tail = (ran[-1:] + verdict[-1:]) or (out.strip().splitlines()[-1:] if out.strip() else [])
+    detail = " · ".join(tail) + (" · " + ", ".join(f"{c}.{t}" for t, c in failed[:6]) if failed else "") \
         + (" · full output: logs/release-tests.txt" if r.returncode else "")
     return r.returncode == 0, detail[:400]
 

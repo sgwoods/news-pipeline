@@ -87,6 +87,7 @@ footer{max-width:1100px;margin:28px auto 0;padding:0 20px 40px;font-size:13px;co
 .panel{padding:20px 18px;border-radius:22px}main{padding:18px 16px 30px;border-radius:22px;margin:12px 10px 0}
 .bio{flex-direction:column}.lead{font-size:17px}
 .bar{gap:6px}.bar button,.bar .button{padding:7px 11px;font-size:13px;letter-spacing:.02em}.baracts{gap:6px}}
+.doc img{max-width:100%;height:auto;margin:12px 0}.doc table{border-collapse:collapse;width:100%;font-size:14px;margin:10px 0}.doc td,.doc th{border:1px solid #d9dde3;padding:6px 8px;text-align:left;vertical-align:top}.doc pre{overflow:auto;padding:10px;background:rgba(127,127,127,.08)}.doc code{font-size:.92em}
 '''
 
 LISTEN_JS = """
@@ -262,6 +263,7 @@ def _version_links(rel: str, cfg: dict, sc: dict) -> str:
     from .version import short
     code = cfg.get("code_repo") or ""
     return (f'<br><span class="small"><a href="{rel}releases/index.html">{htmllib.escape(short())}</a>'
+            + f' · <a href="{rel}docs/index.html">Docs</a>'
             + (f' · <a href="https://github.com/{htmllib.escape(code)}">Code</a>' if code else "")
             + (f' · <a href="{htmllib.escape(sc["home_url"])}">{htmllib.escape(sc["home_label"] or "All projects")}</a>'
                if sc.get("home_url") else "") + "</span>")
@@ -413,6 +415,11 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
                                           cfg=cfg, bare=True), "utf-8")
     (out / "releases").mkdir(exist_ok=True)
     (out / "releases" / "index.html").write_text(releases_page(cfg), "utf-8")
+    try:                                         # <site>/docs/: the public documentation (pipeline/docs.py)
+        from . import docs
+        docs.build(root, cfg, out, _page)
+    except Exception as e:  # noqa: BLE001 - docs never block a publish
+        print(f"docs skipped: {e}"[:200])
     (out / "feed.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>AI Briefing</title>'
         f'<link>{base_url or "./"}</link><description>Daily AI briefing for early-stage investors</description>'

@@ -168,7 +168,7 @@ def page(m: dict, cfg: dict, root: Path) -> str:
              ("Get it by email", site + "#email" if site else ""),
              ("Release notes", site + "releases/index.html" if site else ""),
              ("Public code", m["repo_url"]),
-             ("Architecture", m["repo_url"] + "/blob/main/docs/ARCHITECTURE.md")]
+             ("Documentation", site + "docs/index.html" if site else m["repo_url"] + "/blob/main/docs/ARCHITECTURE.md")]
     btns = "\n".join(f'      <a class="button" href="{e(u)}">{e(t)}</a>' for t, u in links if u)
     dive = (f'\n      <li>Deep dive the same day: <a href="{e(site)}{e(lt["deep_dive"])}/deep-dive/index.html">read or '
             f'listen</a></li>' if lt["deep_dive"] and site else "")
@@ -270,13 +270,19 @@ def build(root: Path, cfg: dict, remote_check: bool = True) -> dict:
     src = source(root, cfg, remote_check=remote_check)
     m = manifest(root, cfg, src)
     files = {ALLOW[0]: dumps(m), ALLOW[1]: page(m, cfg, root)}
-    from . import export
     from .owner import get as owner
+    from .scrub import scan
+    o = owner(root)
+    try:
+        from .export import private_terms                # the private repo: the full private-term list
+        terms = private_terms(root, o)
+    except ImportError:
+        terms = [t for t in (*o.get("addresses", []), o.get("account", ""), o.get("org", "")) if t]
     with tempfile.TemporaryDirectory() as tmp:          # the same privacy scan as the public code export
         for rel, txt in files.items():
             (Path(tmp) / rel).parent.mkdir(parents=True, exist_ok=True)
             (Path(tmp) / rel).write_text(txt, "utf-8")
-        hits = export.scan(Path(tmp), export.private_terms(root, owner(root)) + ["127.0.0.1", "localhost"])
+        hits = scan(Path(tmp), terms + ["127.0.0.1", "localhost"])
     if hits:
         raise HubExportError("private terms in the hub files: " + "; ".join(hits[:5]))
     for rel, txt in files.items():                      # kept here too, as the record of what was exported

@@ -6,6 +6,15 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.1.3-beta · 2026-10-22
+- Documentation on the site at `/docs/`, rebuilt at every publish from the same markdown as the public code, with
+  the diagrams embedded. Each page shows the running version and when it last changed. Linked from the footer and
+  the hub page.
+- Generated sections in the architecture document: current facts and a component table built from each module's
+  own description. Drift tests fail a release if the document names a module that no longer exists, or doesn't
+  name the current version.
+- Release check: the tests line shows unittest's own summary.
+
 ## v0.1.2-beta · 2026-10-22
 - Staging mode: a development checkout (marked by an untracked `.staging` file) can build everything but can't
   reach readers. The release gate refuses every outbound action there. The mailer allows only reads and review

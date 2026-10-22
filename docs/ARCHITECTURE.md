@@ -10,6 +10,14 @@ This page describes the design as of **v0.1 beta**. Release notes: `CHANGELOG.md
 
 ![System overview](img/system-overview.svg)
 
+## Current facts
+_Generated at build time._
+
+- **Release:** v0.1.3-beta (2026-10-22)
+- **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
+- **Local model:** qwen3:30b
+- **Modules:** 54 in `pipeline/`
+
 ## Contents
 - Design principles
 - The daily run
@@ -19,6 +27,7 @@ This page describes the design as of **v0.1 beta**. Release notes: `CHANGELOG.md
 - Repositories and public surfaces
 - Releases
 - Operations
+- Component reference
 - Running your own instance
 
 ## Design principles
@@ -122,6 +131,66 @@ perspective, takes) isn't code and is edited in production at any time.
 - **Outside view:** a cloud watchdog checks the public site after the send window, and the project hub compares
   the exported release with the public code.
 - **Commands:** `./np help`. Every command saves its full output under `logs/`.
+
+## Component reference
+_Generated from each module's own description at build time._
+
+| Module | Purpose |
+|---|---|
+| `alerts.py` | Action-needed email to Steven when the daily edition can't go out (Steven, 2026-10-19 |
+| `archive.py` | Append-only archive on plain files. |
+| `audio.py` | Phase 2 |
+| `bluesky.py` | Bluesky lists and Steven's own posts as sources, via the public AT Protocol API (no key, no login). |
+| `deepdive.py` | Topical deep dive |
+| `dive.py` | Deep dive on one story |
+| `docs.py` | Public documentation on the site |
+| `editor_note.py` | Steven's private evening note |
+| `editorial.py` | Briefing v2 |
+| `env.py` | Production or staging. |
+| `episodes.py` | Which days are published |
+| `factcheck.py` | Claim-to-source trace for the written edition (fact review 2026-10-18, P1-1). |
+| `factsearch.py` | Look for a figure before the fact check cuts it (Steven, 2026-10-18 |
+| `feedback.py` | Reader feedback |
+| `fetch.py` | Fetch new items from every verified source. |
+| `hub.py` | AI Briefing on Steven's public project hub (sgwoods.github.io/public) |
+| `linkedin.py` | Steven's own LinkedIn posts, from LinkedIn's data export (and from Slack, when he shares one there). |
+| `links.py` | Make every citation point at the real article (runs in the write stage; never fails the briefing). |
+| `llm.py` | LLM backends behind one tiny interface |
+| `mailer.py` | Daily email to subscribers, sent through Steven's Google Apps Script (scripts/apps-script/Code.gs). |
+| `mailguard.py` | The only way the pipeline talks to Gmail |
+| `mailsource.py` | Newsletters as a source |
+| `netguard.py` | Requests to URLs that came from content (links in posts, newsletters, model output) may only reach the public internet |
+| `numbers.py` | Number check for one edition |
+| `owner.py` | Who runs this instance |
+| `pages.py` | Sources without RSS |
+| `perspective.py` | Read-only parser for perspective.md. |
+| `profiles.py` | Source profiles (source_profiles.yaml) |
+| `publish.py` | Push the static site (site/) to a separate public GitHub repo served by GitHub Pages. |
+| `quality.py` | Daily quality scorecard |
+| `questions.py` | Open questions from the briefings (editorial.open_questions), with a status you keep on the Questions page. |
+| `reader.py` | Read the article behind a thin item before its evidence check. |
+| `record.py` | Public record |
+| `release.py` | Release gate |
+| `report.py` | Compact, paste-friendly status report → logs/last-report.md. |
+| `review.py` | Weekly quality review, run on the Mac from local files only (no web, no tools, no mailbox). |
+| `runlog.py` | Records every run |
+| `scrub.py` | Scrubbing shared by the public code export and the public docs |
+| `service.py` | Background services on macOS (launchd user agents) + health of what the pipeline depends on. |
+| `settings.py` | Change single values in config.yaml without disturbing comments or layout. |
+| `site.py` | Static, phone-friendly public site |
+| `slacksource.py` | Links Steven shares in an internal Slack channel, as a source (read-only, Slack Web API, free). |
+| `sources.py` | Resolve and verify RSS/Atom feeds for every tracked person. |
+| `speech.py` | The speech layer |
+| `stages.py` | LLM stages |
+| `suggest.py` | Source suggestions |
+| `textutil.py` | HTML → text, page metadata, URL ids, and date parsing. |
+| `todos.py` | A shared to-do list for Steven and Claude |
+| `tuning.py` | Tuning profiles |
+| `vault.py` | Secrets |
+| `version.py` | The running version |
+| `watchlist.py` | Company watchlist |
+| `xdigest.py` | Weekly X digest by Claude web search, for the accounts in x.yaml no mirror can reach. |
+| `xsource.py` | X / Twitter accounts via Nitter-style mirrors (public RSS), never via X's paid API. |
 
 ## Running your own instance
 See the README: copy `owner.example.yaml` and `source_profiles.example.yaml`, write your own `config.yaml`,
