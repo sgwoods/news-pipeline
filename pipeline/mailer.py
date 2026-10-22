@@ -431,4 +431,10 @@ def send_day(root: Path, cfg: dict, day: str, to: str = "", force: bool = False)
            "sent": out.get("sent", 0), "failed": len(out.get("failed") or []), "quota_left": out.get("quota"),
            "test": bool(to), "subject": msg["subject"]}
     append_jsonl(root / LOG, [rec])
+    if rec["ok"] and not to:                       # the edition is now SHIPPED: it must not break (pipeline/shipped.py)
+        try:
+            from . import shipped
+            shipped.record(root, day)
+        except Exception as e:  # noqa: BLE001 - the send already happened
+            print(f"shipped record skipped: {e}"[:200])
     return rec

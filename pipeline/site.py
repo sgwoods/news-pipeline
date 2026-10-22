@@ -324,7 +324,7 @@ def site_cfg(cfg: dict) -> dict:
     }
 
 
-def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", audio_days: int = 14) -> dict:
+def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", audio_days: int = 30) -> dict:
     paths = cfg.get("paths", {})
     bdir = root / paths.get("briefings", "briefings")
     out = out or root / "site"
@@ -378,6 +378,14 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
                '<select id="rate"><option>0.9</option><option selected>1</option><option>1.15</option><option>1.3</option></select>'
                f'</span></div>{audio_tag}')
         body_html = _with_takes(_md_to_html(md), notes)
+        try:                                     # a shipped edition that was corrected says so (pipeline/shipped.py)
+            from .shipped import corrections
+            fixes = corrections(root, day)
+        except Exception:  # noqa: BLE001
+            fixes = []
+        if fixes:
+            body_html = "".join(f'<p class="small muted"><b>Corrected {htmllib.escape(c["at"][:10])}:</b> '
+                                f'{htmllib.escape(c["note"])}</p>' for c in fixes) + body_html
         day_url = f"{base_url.rstrip('/')}/{day}/" if base_url else ""
         what = "this episode" if has_audio else "this briefing"
         bar = bar.replace('</span></div>', '</span>' + _bar_actions(day_url, title, "../", cfg) + '</div>', 1)

@@ -39,8 +39,8 @@ case "$cmd" in
   fetch)     run $PY run.py --no-llm "$@" ;;                # fetch + archive only
   test)      run $PY run.py --stages-only --limit "${1:-10}" ;;
   analyze)   run $PY run.py --stages-only "$@" ;;           # all pending items, no fetch
-  reprocess) run $PY run.py --reprocess "${1:?usage: ./np reprocess YYYY-MM-DD}" ;;
-  rebrief)   run $PY run.py --rebrief "${1:?usage: ./np rebrief YYYY-MM-DD}" ;;   # briefing only, from existing analyses
+  reprocess) run $PY run.py --reprocess "${1:?usage: ./np reprocess YYYY-MM-DD}" "${@:2}" ;;   # shipped day: --correct "note"
+  rebrief)   run $PY run.py --rebrief "${1:?usage: ./np rebrief YYYY-MM-DD}" "${@:2}" ;;   # briefing only, from existing analyses
   verify)    run $PY run.py --verify-sources "$@" ;;
   sources)   run $PY run.py --sources "${@:-list}" ;;          # list | suggest [N] | find "Name" [note] | accept ID [URL..] | deny ID [why] | remove URL | restore URL | recheck ID
   suggest)   run $PY run.py --sources suggest "${1:-10}" ;;     # refresh the suggestion queue (Claude + web search)
@@ -96,7 +96,7 @@ case "$cmd" in
   staging)   run $PY run.py --staging "${@:-status}" ;;            # sync | run [DAY] [--email] [--force] | reset | status (dev checkout)
   release)   run $PY run.py --release "$@" ;;                     # VERSION "reviewed: ...": promote dev to production (one approval)
   rollback)  run $PY run.py --rollback "$@" ;;                    # "reviewed: why": production back to the previous release
-  remaster)  run $PY run.py --remaster "${1:?usage: ./np remaster YYYY-MM-DD}" ;;   # DAY's podcast in the current style, then publish
+  remaster)  run $PY run.py --remaster "${1:?usage: ./np remaster YYYY-MM-DD}" "${@:2}" ;;   # DAY's podcast in the current style, then publish
   factcheck) run $PY run.py --factcheck "$@" ;;                 # [DAY] | probe "sentence" FIGURE: fact check + search-before-cut, dry run
   reader)    run $PY run.py --reader "${@:-check}" ;;             # check [DAYS]: article reader on past items (dry run)
   profiles)  run $PY run.py --profiles "$@" ;;                   # [DAYS] sites/sources not yet in source_profiles.yaml
@@ -107,7 +107,7 @@ case "$cmd" in
   say)       run $PY run.py --say "${1:?usage: ./np say \"text\"}" ;;   # hear TEXT with pronunciations.yaml
   voices)    run $PY run.py --voices ;;                         # sample clip per candidate voice
   site)      run $PY run.py --site ;;                       # build the public site locally (site/)
-  publish)   run $PY run.py --publish "${1:-run}" ;;           # ./np publish setup (once), then ./np publish
+  publish)   run $PY run.py --publish "${1:-run}" ;;           # ./np publish setup (once), then ./np publish; ./np publish restore
   go-live)   bash scripts/go-live.sh ;;                       # one-time: backup + site + podcast + auto publish
   report)    $PY run.py --report ;;
   dash)      $PY run.py --dashboard ;;

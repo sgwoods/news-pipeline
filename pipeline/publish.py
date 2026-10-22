@@ -89,6 +89,20 @@ def push(root: Path, site: Path, repo: str, message: str, cfg: dict | None = Non
         pub.mkdir(exist_ok=True)
         _run(["git", "init", "-q", "-b", "main"], cwd=pub)
         _run(["git", "remote", "add", "origin", f"https://github.com/{repo}.git"], cwd=pub)
+    if not staging_site:                             # shipped editions don't break (pipeline/shipped.py)
+        from . import shipped
+        days = int(((cfg or {}).get("publish") or {}).get("audio_days", 30))
+        if not shipped.load(root):
+            shipped.backfill(root, live=pub)
+        carried = shipped.carry_audio(root, site, pub, days)
+        problems = shipped.guard(root, site, pub, days)
+        if problems:
+            raise RuntimeError("publish guard: this would break something readers already have, nothing published: "
+                               + "; ".join(problems[:8]))
+        if carried:
+            print(f"kept {len(carried)} shipped MP3(s) from the live site: {', '.join(carried[:4])}")
+        if _run(["git", "rev-parse", "-q", "--verify", "refs/heads/main"], cwd=pub, check=False).returncode == 0:
+            _run(["git", "branch", "-f", "previous", "main"], cwd=pub)   # the live site, kept for ./np publish restore
     for p in pub.iterdir():
         if p.name != ".git":
             shutil.rmtree(p) if p.is_dir() else p.unlink()
@@ -103,19 +117,39 @@ def push(root: Path, site: Path, repo: str, message: str, cfg: dict | None = Non
           "commit", "-q", "-m", message], cwd=pub)
     _run(["git", "branch", "-D", "main"], cwd=pub, check=False)
     _run(["git", "branch", "-m", "main"], cwd=pub)
-    _run(["git", "config", "http.postBuffer", "524288000"], cwd=pub, check=False)   # MP3s: big pushes
+    # One huge buffered POST (http.postBuffer=500 MB) is what GitHub answers with HTTP 408 on a slow uplink:
+    # push in the default chunked mode instead; a push that stalls fails after 60 s below 1 KB/s rather than
+    # hanging the morning run; the retry also falls back to HTTP/1.1.
+    _run(["git", "config", "--unset-all", "http.postBuffer"], cwd=pub, check=False)
+    stall = ["-c", "http.lowSpeedLimit=1000", "-c", "http.lowSpeedTime=60"]
     try:
-        _run(["git", "push", "-q", "-f", "origin", "main"], cwd=pub)
-    except Exception:  # noqa: BLE001 - GitHub sometimes times out a large push (HTTP 408): one retry
+        _run(["git", *stall, "push", "-q", "-f", "origin", "main"], cwd=pub)
+    except Exception:  # noqa: BLE001 - one retry after a pause, over HTTP/1.1
         import time
         time.sleep(30)
-        _run(["git", "push", "-q", "-f", "origin", "main"], cwd=pub)
+        _run(["git", *stall, "-c", "http.version=HTTP/1.1", "push", "-q", "-f", "origin", "main"], cwd=pub)
+    if not staging_site and _run(["git", "rev-parse", "-q", "--verify", "refs/heads/previous"], cwd=pub,
+                                 check=False).returncode == 0:
+        _run(["git", "push", "-q", "-f", "origin", "previous"], cwd=pub, check=False)
     # Enable Pages once (ignored if already on).
     if shutil.which("gh"):
         _run(["gh", "api", "-X", "POST", f"repos/{repo}/pages", "-f", "source[branch]=main", "-f", "source[path]=/"],
              check=False)
     owner, name = repo.split("/", 1)
     return f"https://{owner.lower()}.github.io/{name}/"
+
+
+def restore(root: Path, cfg: dict | None = None) -> str:
+    """Put the previous live site back (the one before the last publish): ./np publish restore."""
+    from .env import staging
+    if staging(root):
+        raise RuntimeError("restore runs in production only")
+    pub = root / ".publish"
+    if _run(["git", "rev-parse", "-q", "--verify", "refs/heads/previous"], cwd=pub, check=False).returncode:
+        raise RuntimeError("no previous site kept yet (it is kept from the next publish on)")
+    _run(["git", "push", "-q", "-f", "origin", "previous:main"], cwd=pub)
+    _run(["git", "checkout", "-q", "-B", "main", "previous"], cwd=pub)
+    return "previous site restored: " + _run(["git", "log", "-1", "--format=%h %s"], cwd=pub).stdout.strip()
 
 
 # ---------- private backup of this working repo ----------

@@ -13,10 +13,10 @@ This page describes the design as of **v0.1 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.1.6-beta (2026-10-22)
+- **Release:** v0.1.7-beta (2026-10-22)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 58 in `pipeline/`
+- **Modules:** 59 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -114,6 +114,14 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
 | sgwoods/ai-briefing | the public site, RSS and podcast feed, release notes | `publish`, after the gate and the site scan |
 | [sgwoods/public](https://github.com/sgwoods/public) | the project hub's status file and page for AI Briefing | `./np hub push`: two files only, and only for the released public code |
 
+## Shipped editions don't break
+Once a day's email has gone out, that day is shipped (`shipped.py`). Every production publish is checked against
+what readers already have. Shipped pages and deep dives must still be there, a shipped edition's text changes
+only through a visible correction, shipped audio inside the retention window keeps its URL (a remaster adds a
+file and keeps the old one), and the feeds can't shrink. After the push, the newest shipped pages, both feeds and
+the latest MP3 must answer, or the previous site is put back and the email waits. A failed publish never sends
+the email.
+
 ## Releases
 ![Release flow](img/release-flow.svg)
 
@@ -194,6 +202,7 @@ _Generated from each module's own description at build time._
 | `scrub.py` | Scrubbing shared by the public code export and the public docs |
 | `service.py` | Background services on macOS (launchd user agents) + health of what the pipeline depends on. |
 | `settings.py` | Change single values in config.yaml without disturbing comments or layout. |
+| `shipped.py` | Shipped editions don't break (v0.1.7). |
 | `site.py` | Static, phone-friendly public site |
 | `slacksource.py` | Links Steven shares in an internal Slack channel, as a source (read-only, Slack Web API, free). |
 | `sources.py` | Resolve and verify RSS/Atom feeds for every tracked person. |

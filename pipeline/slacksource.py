@@ -4,7 +4,8 @@ The channel is internal, the briefing is not. So only the LINKS travel: each art
 an item (tier "follow closely", flag SHARED) whose text is the article's own preview (Slack's unfurl), and
 whose source note tells the model the article is the source. Nothing written in Slack (Steven's comment,
 anyone else's message, thread replies, the channel's name) is stored as text or reaches any output.
-Messages by anyone other than Steven are ignored entirely.
+With `links_from: anyone` (Steven, 2026-10-22) links posted by any member count too, as the same kind of
+item, credited to the linked source; who posted them is never stored (names in his network stay private).
 
 Setup (docs/SLACK.md): accept the Slack Connect invite with you+briefing@example.com, create a Slack app
 in that free workspace with user scopes channels:history, groups:history, channels:read, groups:read, install
@@ -46,7 +47,8 @@ class SlackError(RuntimeError):
 
 
 def scfg(cfg: dict) -> dict:
-    return {"enabled": False, "channel": "", "authors": [], "lookback_hours": 48, **(cfg.get("slack") or {})}
+    return {"enabled": False, "channel": "", "authors": [], "links_from": "authors", "lookback_hours": 48,
+            **(cfg.get("slack") or {})}
 
 
 def token() -> str:
@@ -127,10 +129,12 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_hours: int | None = 
         if not who:
             raise SlackError("slack.authors is empty or could not be resolved: only Steven's own posts are read")
         d = _call(client, "conversations.history", channel=ch["id"], oldest=f"{since.timestamp():.6f}", limit=200)
-        msgs = [m for m in d.get("messages", []) if m.get("user") in who
-                and m.get("subtype") in (None, "thread_broadcast", "file_share")]
+        anyone = s.get("links_from") == "anyone"
+        msgs = [m for m in d.get("messages", []) if (m.get("user") in who or (anyone and m.get("user")))
+                and m.get("subtype") in (None, "thread_broadcast", "file_share") and not m.get("bot_id")]
         for m in msgs:
             when = dt.datetime.fromtimestamp(float(m.get("ts", "0")), UTC)
+            mine = m.get("user") in who
             for url, title, preview, site in _links(m):
                 if private_link(url):                 # a deck or doc shared with the team stays in Slack
                     continue
@@ -138,10 +142,13 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_hours: int | None = 
                 items.append({
                     "id": item_id(url), "url": url, "title": title or url, "author": site or "",
                     "published": iso(when), "text": text, "text_chars": len(text),
-                    "person": "Shared by Steven", "tier": "follow closely", "flags": ["SHARED"], "scrutiny": False,
+                    "person": "Shared by Steven" if mine else "Shared in Steven's team channel",
+                    "tier": "follow closely", "flags": ["SHARED"], "scrutiny": False,
                     "source_kind": "shared", "source_url": "slack", "source_label": "",
-                    "source_note": "Steven shared this link with his team as worth reading. The article itself is the "
-                                   "source: cite its publisher, never this note, and never mention where it was shared.",
+                    "source_note": ("Steven shared this link with his team as worth reading. " if mine else
+                                    "Someone on Steven's team shared this link as worth reading. ") +
+                                   "The article itself is the source: cite its publisher, never this note, never who "
+                                   "shared it, and never mention where it was shared.",
                     "fetched_at": iso(now), "run_id": run_id})
         from . import linkedin                       # his own LinkedIn posts are his words, not news
         own = [it for it in items if linkedin.is_own_post(it, cfg)]

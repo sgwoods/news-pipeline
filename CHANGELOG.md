@@ -6,6 +6,31 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.1.7-beta · 2026-10-22
+Shipped editions don't break. Once a day's email has gone out, that day is shipped (`pipeline/shipped.py`), and:
+- **Publish guard:** before every production publish, the new site is checked against what readers already have.
+  It refuses (the live site is untouched and the owner is emailed) if any of these hold:
+  - a shipped day page or deep dive is missing;
+  - a shipped edition's text changed without a correction;
+  - a shipped MP3 inside the retention window is missing;
+  - the home page or a feed is missing, or the podcast feed would shrink.
+- **Corrections are explicit:** rebuilding a shipped day (`rebrief`, `reprocess`, `remaster`) needs
+  `--correct "what changed"`, and the page shows "Corrected <date>: …".
+- **Remasters keep the old audio:** the earlier MP3 is carried over from the live site, so no audio URL breaks.
+- **After-publish check:** once the site is live, the newest shipped pages, both feeds and the latest MP3 must
+  answer. If not, the previous site is put back automatically, the email is held, and the owner is emailed.
+  `./np publish restore` does the same by hand.
+- **The email waits for a good publish:** if the publish fails or the after-publish check fails, no subscriber
+  email goes out. Before, it went anyway.
+- **Audio retention:** 30 days on the site and in the podcast feed, up from 14. 60 days would be about 1 GB, the
+  GitHub Pages limit.
+- **Slack:** links any member posts in the team channel now count, links only. Who posted is never stored, and
+  their text is never used.
+- **Staging preview:** carries only the newest day's audio. The first full preview push timed out.
+- **Site pushes are sturdier:** a push that stalls (under 1 KB/s for 60 s) fails and is retried once over
+  HTTP/1.1, instead of hanging the morning run. Pushes no longer use one huge buffered upload, which is what
+  GitHub was timing out with HTTP 408.
+
 ## v0.1.6-beta · 2026-10-22
 - Development preview: `./np staging publish [setup]` publishes the dev checkout's site to its own Pages repo
   (sgwoods/ai-briefing-staging). The preview has a banner on every page linking back to the published site, is

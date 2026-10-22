@@ -849,9 +849,9 @@ def cmd_staging(cfg: dict, argv: list) -> int:
             if "setup" in rest:
                 print(publish.setup(ROOT, srepo))
                 print("Then turn on Pages: GitHub repo Settings -> Pages -> Deploy from branch main, / (root)")
-            if not (ROOT / "site" / "index.html").exists():
-                print("No preview built yet: ./np staging run")
-                return 1
+            # the preview carries the newest day's audio only: a full set of MP3s makes GitHub time out (HTTP 408)
+            res = site.build(ROOT, site.staging_cfg(cfg), base_url=site.staging_site_url(cfg), audio_days=1)
+            print(f"Built the preview: {res['days']} briefings, {res['audio']} MP3")
             print(publish.push(ROOT, ROOT / "site", srepo, f"Preview {dt.datetime.now():%Y-%m-%d %H:%M}", cfg,
                                staging_site=True))
             print(f"Development preview: {site.staging_site_url(cfg)}")
@@ -870,8 +870,7 @@ def cmd_staging(cfg: dict, argv: list) -> int:
             print(f"Staging run: rebuilding {day} with the dev code (outbound off)")
             code = cmd_run(cfg, rebrief_day=day, commit=False)
             from pipeline import site
-            res = site.build(ROOT, site.staging_cfg(cfg), base_url=site.staging_site_url(cfg),
-                             audio_days=(cfg.get("publish") or {}).get("audio_days", 14))
+            res = site.build(ROOT, site.staging_cfg(cfg), base_url=site.staging_site_url(cfg), audio_days=1)
             print(f"Built the development preview in site/: {res['days']} briefings. Publish it: ./np staging publish")
             if "--email" in rest:
                 from pipeline import mailer
@@ -1891,6 +1890,29 @@ def _wait_live(cfg: dict, day: str) -> None:
         print(f"site check skipped: {e}")
 
 
+def _publish_and_verify(cfg: dict, today: str, alert: bool = True) -> bool:
+    """Publish, wait until live, then check that readers' pages, feeds and audio answer. False = don't email:
+    if the live check fails the previous site is put back first (shipped editions never break)."""
+    if cmd_publish(cfg):
+        if alert:
+            _alert(cfg, "publish", detail="See logs/last-command.txt for the error. The live site was not changed.",
+                   next_try=_next_try(cfg))
+        return False
+    _wait_live(cfg, today)
+    from pipeline import publish, shipped
+    bad = shipped.verify_live(ROOT, (cfg.get("publish") or {}).get("site_url", ""))
+    if not bad:
+        return True
+    try:
+        msg = publish.restore(ROOT, cfg)
+    except Exception as e:  # noqa: BLE001
+        msg = f"restore failed: {e}"
+    print(f"After-publish check failed ({'; '.join(bad[:4])}); {msg}")
+    _alert(cfg, "publish", detail=f"After publishing, these didn't answer: {'; '.join(bad[:6])}. {msg}. "
+                                  "The email is held until a publish passes.", next_try=_next_try(cfg))
+    return False
+
+
 def _alert(cfg: dict, kind: str, **kw) -> None:
     try:
         from pipeline import alerts
@@ -1923,11 +1945,9 @@ def _retry_outbound(cfg: dict, today: str) -> int:
         _gate_alert(cfg, str(e))
         return 0
     print("Sending what the release gate held back...")
-    if cfg.get("publish", {}).get("auto"):
-        if cmd_publish(cfg):
-            _alert(cfg, "publish", detail="See the latest logs/cmd-daily-*.txt for the error.")
-        else:
-            _wait_live(cfg, today)
+    if cfg.get("publish", {}).get("auto") and not _publish_and_verify(cfg, today):
+        print("Email held: the site isn't safely published.")
+        return 0
     if cmd_email(cfg, ["send", today]):
         _alert(cfg, "email", detail="See the latest logs/cmd-daily-*.txt for the error.")
     if (cfg.get("email") or {}).get("editor_note", True):
@@ -2042,13 +2062,12 @@ def cmd_daily(cfg: dict) -> int:
                     Archive(ROOT, cfg["paths"]).git_commit(f"deep dive {today}: recorded", paths=(deepdive.DIR, deepdive.LOG, "data/episodes.json"))
         except Exception as e:  # noqa: BLE001
             print(f"deep dive skipped: {e}")
+    published = True
     if w.get("status") == "ok" and cfg.get("publish", {}).get("auto"):
-        if cmd_publish(cfg):
-            if not gate_blocked:
-                _alert(cfg, "publish", detail="See logs/last-command.txt for the error.", next_try=_next_try(cfg))
-        elif not gate_blocked:
-            _wait_live(cfg, today)
-    if w.get("status") == "ok" and (cfg.get("email") or {}).get("enabled"):
+        published = _publish_and_verify(cfg, today, alert=not gate_blocked)
+    if w.get("status") == "ok" and (cfg.get("email") or {}).get("enabled") and not published:
+        print("Email held: the site isn't safely published (it goes out once a publish passes).")
+    elif w.get("status") == "ok" and (cfg.get("email") or {}).get("enabled"):
         print("Emailing subscribers...")
         if cmd_email(cfg, ["send", today]) and not gate_blocked:
             _alert(cfg, "email", detail="See logs/last-command.txt for the error.", next_try=_next_try(cfg))
@@ -2187,7 +2206,10 @@ def cmd_publish(cfg: dict, sub: str = "run") -> int:
     try:
         if sub == "setup":
             print(publish.setup(ROOT, repo))
-        res = site.build(ROOT, cfg, base_url=pc.get("site_url", ""), audio_days=pc.get("audio_days", 14))
+        if sub == "restore":                     # put the previous live site back
+            print(publish.restore(ROOT, cfg))
+            return 0
+        res = site.build(ROOT, cfg, base_url=pc.get("site_url", ""), audio_days=pc.get("audio_days", 30))
         url = publish.push(ROOT, ROOT / "site", repo, f"Publish {dt.datetime.now():%Y-%m-%d %H:%M}", cfg)
         try:                                     # after a publication: the public hub's status (pipeline/hub.py)
             from pipeline import hub
@@ -2215,6 +2237,8 @@ def main() -> int:
     ap.add_argument("--stages-only", action="store_true", help="skip fetch; run LLM stages on pending items")
     ap.add_argument("--reprocess", metavar="YYYY-MM-DD", help="re-run LLM stages for items first seen that day "
                     "(appends new versions; nothing is overwritten)")
+    ap.add_argument("--correct", metavar="NOTE", help="with --rebrief/--reprocess/--remaster on a shipped day: what the "
+                                                    "correction changes (shown on the page)")
     ap.add_argument("--rebrief", metavar="YYYY-MM-DD", help="rebuild only the briefing for a day (cluster, merge, "
                     "editorial, write) from existing analyses; fast, for tuning")
     ap.add_argument("--limit", type=int, help="process at most N items (for testing)")
@@ -2223,7 +2247,7 @@ def main() -> int:
     ap.add_argument("--service", nargs="+", metavar="ARG", help="install|remove|status|restart|run|pause|resume [daily|dashboard|ollama]")
     ap.add_argument("--backup", nargs="?", const="push", choices=["push", "setup"], help="push this repo to its private GitHub remote")
     ap.add_argument("--site", action="store_true", help="build the static public site into site/")
-    ap.add_argument("--publish", nargs="?", const="run", choices=["run", "setup"],
+    ap.add_argument("--publish", nargs="?", const="run", choices=["run", "setup", "restore"],
                     help="build + push the site to the public GitHub repo (setup: create the repo first)")
     ap.add_argument("--audio", nargs="?", const="", metavar="YYYY-MM-DD", help="(re)build only the spoken MP3 for a day")
     ap.add_argument("--script-preview", nargs="*", metavar="ARG", help="DAY [tts]: write DAY's audio script (and MP3) "
@@ -2322,6 +2346,21 @@ def main() -> int:
         return cmd_release(cfg, args.release)
     if args.rollback is not None:
         return cmd_release(cfg, args.rollback, rollback=True)
+    changed_day = args.remaster or args.rebrief or args.reprocess
+    if changed_day:                              # a shipped edition changes only as a visible correction
+        from pipeline import env, shipped
+        if not env.staging(ROOT) and shipped.is_shipped(ROOT, changed_day):
+            if not (args.correct or "").strip():
+                print(f"{changed_day} has shipped (its email went out). Change it only as a correction, shown on the "
+                      f"page:\n  add --correct \"what this changes\"")
+                return 1
+            before = shipped._sha(ROOT / "briefings" / f"{changed_day}.md")
+            code = cmd_remaster(cfg, args.remaster) if args.remaster else cmd_run(
+                cfg, args.lookback_hours, commit=not args.no_commit, reprocess_day=args.reprocess,
+                rebrief_day=args.rebrief)
+            if code == 0:
+                print("correction recorded:", shipped.correct(ROOT, changed_day, args.correct, before)["note"])
+            return code
     if args.remaster:
         return cmd_remaster(cfg, args.remaster)
     if args.factcheck is not None:
