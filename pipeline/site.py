@@ -238,7 +238,29 @@ def _bar_actions(url: str, title: str, rel: str, cfg: dict) -> str:
             f'data-title="{e(title)}">Share</a>{sub}</span>')
 
 
+def staging_site_url(cfg: dict) -> str:
+    pc = cfg.get("publish") or {}
+    return pc.get("staging_site_url") or "https://sgwoods.github.io/ai-briefing-staging/"
+
+
+def staging_cfg(cfg: dict) -> dict:
+    """The staging site: no subscribe forms (no email script), its own base URL."""
+    return {**cfg, "email": {**(cfg.get("email") or {}), "script_url": ""}}
+
+
+def _staging_banner(cfg: dict) -> str:
+    from .version import full
+    prod = ((cfg.get("publish") or {}).get("site_url") or "").rstrip("/") + "/"
+    return (f'<div style="background:#7a4b00;color:#fff;padding:8px 16px;font:14px/1.4 system-ui,sans-serif;'
+            f'text-align:center">Development preview · v{htmllib.escape(full())} · not the published edition · '
+            f'<a style="color:#fff;text-decoration:underline" href="{htmllib.escape(prod)}">Go to the published site</a></div>')
+
+
 def _page(title: str, body: str, rel: str = "", cfg: dict | None = None, bare: bool = False) -> str:
+    from .env import staging
+    if staging():
+        body = _staging_banner(cfg or {}) + body
+        title = f"[Preview] {title}"
     sc = site_cfg(cfg or {})
     head_link = (f'<header class="site"><a href="{rel}index.html">AI Briefing</a><a class="home" href="{htmllib.escape(sc["home_url"])}">'
                  f'{htmllib.escape(sc["home_label"])} ↗</a></header>')
@@ -248,6 +270,7 @@ def _page(title: str, body: str, rel: str = "", cfg: dict | None = None, bare: b
             f'<meta name="description" content="{htmllib.escape(sc["tagline"])}">'
             f'<meta property="og:title" content="{htmllib.escape(title)}"><meta property="og:description" content="{htmllib.escape(sc["tagline"])}">'
             f'<meta property="og:image" content="{htmllib.escape(sc["photo"])}">'
+            + ('<meta name="robots" content="noindex,nofollow">' if _is_staging() else '') +
             f'<link rel="alternate" type="application/rss+xml" title="AI Briefing" href="{rel}feed.xml"></head><body>'
             + (body if bare else f'{head_link}<main>{body}</main>') + f'<script src="{rel}share.js"></script>' +
             f'<footer>Daily AI briefing for early-stage investors, curated by {htmllib.escape(sc["name"])}. Analysis is machine-generated '
@@ -256,6 +279,11 @@ def _page(title: str, body: str, rel: str = "", cfg: dict | None = None, bare: b
             + f'<a href="{rel}index.html#listen">Add the podcast</a> · '
             f'<a href="{rel}feed.xml">RSS</a> · <a href="{rel}podcast.xml">Podcast feed</a>'
             + _version_links(rel, cfg or {}, sc) + '</footer></body></html>')
+
+
+def _is_staging() -> bool:
+    from .env import staging
+    return staging()
 
 
 def _version_links(rel: str, cfg: dict, sc: dict) -> str:
@@ -305,6 +333,8 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
     (out / "audio").mkdir(parents=True)
     (out / "style.css").write_text(CSS, "utf-8")
     (out / "listen.js").write_text(LISTEN_JS, "utf-8")
+    if _is_staging():                                    # the development preview stays out of search engines
+        (out / "robots.txt").write_text("User-agent: *\nDisallow: /\n", "utf-8")
     (out / "share.js").write_text(SHARE_JS, "utf-8")
     (out / ".nojekyll").write_text("", "utf-8")
     from .episodes import audio_file, guid, hidden_days
@@ -409,7 +439,7 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
         pass
     podcast_url = ""
     if episodes:
-        podcast_url = build_podcast(root, cfg, out, episodes, base_url)
+        podcast_url = "" if _is_staging() else build_podcast(root, cfg, out, episodes, base_url)
     (out / "index.html").write_text(_page(cfg.get("podcast", {}).get("title", "AI Briefing"),
                                           landing(cfg, latest, rows, podcast_url, bool(episodes), base_url, dives),
                                           cfg=cfg, bare=True), "utf-8")

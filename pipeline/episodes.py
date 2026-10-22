@@ -40,7 +40,8 @@ def delete_audio(root: Path, cfg: dict, day: str, icloud: bool = False) -> list:
     if mp3.is_file():
         mp3.unlink()
         removed.append(str(mp3.relative_to(root)))
-    if icloud:
+    from .env import staging
+    if icloud and not staging():
         d = os.path.expanduser((cfg.get("audio") or {}).get("icloud_dir", ""))
         f = Path(d) / f"{day}.mp3" if d else None
         if f and f.is_file():

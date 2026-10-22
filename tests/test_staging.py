@@ -65,6 +65,15 @@ class StagingMode(unittest.TestCase):
         self.assertEqual(sent[-1]["subject"], "AI Briefing · [STAGING] Thu: x")
         self.assertEqual(len(sent), 2)
 
+    def test_preview_needs_every_check_but_the_production_approval(self):
+        os.environ["NP_ENV"] = "staging"
+        rec = {"passed": False, "checks": {"tests": {"ok": True, "detail": ""}, "approval": {"ok": False, "detail": "x"}}}
+        with mock.patch.object(release, "run", lambda *a, **k: rec):
+            release.require(self.root, {}, "site publish", staging_ok=True)      # approval alone doesn't block it
+            rec["checks"]["tests"] = {"ok": False, "detail": "1 failed"}
+            with self.assertRaises(release.ReleaseBlocked):
+                release.require(self.root, {}, "site publish", staging_ok=True)
+
     def test_production_is_unchanged(self):
         os.environ["NP_ENV"] = "production"
         self.assertEqual(env.label(self.root), "")

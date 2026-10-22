@@ -26,7 +26,8 @@ def commit(cwd, msg):
 
 class Releases(unittest.TestCase):
     def setUp(self):
-        os.environ.pop("NP_ENV", None)
+        self._env = os.environ.pop("NP_ENV", None)
+        self.addCleanup(lambda: os.environ.__setitem__("NP_ENV", self._env) if self._env is not None else None)
         for k in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
             os.environ.setdefault(k, "t")
         for k in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):

@@ -6,6 +6,18 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.1.6-beta · 2026-10-22
+- Development preview: `./np staging publish [setup]` publishes the dev checkout's site to its own Pages repo
+  (sgwoods/ai-briefing-staging). The preview has a banner on every page linking back to the published site, is
+  kept out of search engines (noindex, robots.txt), and has no subscribe form and no podcast feed. Staging can
+  publish only there, and production never publishes there.
+- `./np staging compare [DAY]`: staging against production for the same day: sections, counts, words, source
+  links, the evidence mix, fact-check counts and audio length, plus the privacy scan of the preview and a diff of
+  the edition. Writes `logs/compare-DAY.md` and flags what needs review.
+- Fix: a staging run no longer copies its MP3 into the owner's iCloud folder. The first staging run had
+  overwritten that day's copy. It no longer deletes iCloud files either.
+- Tests always run as production (`NP_ENV=production`), in either checkout.
+
 ## v0.1.5-beta · 2026-10-22
 - Fix: the scheduled jobs had been firing exactly one hour early every day (the 05:00 run started at 04:00, the
   20:30 preflight at 19:30). launchd now only ticks every half hour, and the Mac's own local clock decides when a

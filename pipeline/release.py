@@ -74,8 +74,9 @@ def _read(p: Path) -> str:
 # ---------- checks: each returns (ok, detail) ----------
 
 def check_tests(root: Path = ROOT) -> tuple:
+    import os                                            # tests describe production behaviour, in either checkout
     r = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests"], cwd=root,
-                       capture_output=True, text=True, timeout=600)
+                       capture_output=True, text=True, timeout=600, env={**os.environ, "NP_ENV": "production"})
     out = (r.stderr or "") + (r.stdout or "")
     (root / "logs").mkdir(exist_ok=True)
     (root / "logs" / "release-tests.txt").write_text(out, "utf-8")
@@ -314,6 +315,12 @@ def require(root: Path, cfg: dict, action: str, log=print, staging_ok: bool = Fa
         return
     log(f"Release gate: code changed since the last check; checking before {action}...")
     rec = run(root, cfg, log=log)
+    if staging(root) and staging_ok:                     # the dev preview: every check but the production approval
+        bad = {k: v for k, v in rec["checks"].items() if not v["ok"] and k != "approval"}
+        if bad:
+            raise ReleaseBlocked(f"{action} blocked by the release gate: " +
+                                 "; ".join(f"{k}: {v['detail']}" for k, v in bad.items())[:500])
+        return
     if not rec["passed"]:
         bad = "; ".join(f"{k}: {v['detail']}" for k, v in rec["checks"].items() if not v["ok"])
         raise ReleaseBlocked(f"{action} blocked by the release gate: {bad}"[:600])

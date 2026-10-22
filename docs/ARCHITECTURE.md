@@ -13,10 +13,10 @@ This page describes the design as of **v0.1 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.1.5-beta (2026-10-22)
+- **Release:** v0.1.6-beta (2026-10-22)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 57 in `pipeline/`
+- **Modules:** 58 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -128,10 +128,12 @@ perspective, takes) isn't code and is edited in production at any time.
 | `./np dev setup` | production | creates the development checkout (branch `dev`, staging) |
 | `./np staging sync` | dev | brings in production's latest data and fixes |
 | `./np staging run [DAY]` | dev | rebuilds an edition with the dev code; outbound off, review email to the owner only |
+| `./np staging compare [DAY]` | dev | staging vs production for the same day; flags what needs review |
+| `./np staging publish` | dev | the development preview at sgwoods.github.io/ai-briefing-staging/ (banner, noindex) |
 | `./np release VERSION "reviewed: ..."` | production | merges dev with one approval, then tags it and updates the public code, backup and hub |
 | `./np rollback "reviewed: ..."` | production | returns the code to the previous release |
 
-Modules: `env.py` (production or staging), `devenv.py` (the development checkout), `releaser.py` (release and
+Modules: `env.py` (production or staging), `devenv.py` (the development checkout), `compare.py` (staging vs production), `releaser.py` (release and
 rollback), `release.py` (the gate).
 
 ## Operations
@@ -152,6 +154,7 @@ _Generated from each module's own description at build time._
 | `archive.py` | Append-only archive on plain files. |
 | `audio.py` | Phase 2 |
 | `bluesky.py` | Bluesky lists and Steven's own posts as sources, via the public AT Protocol API (no key, no login). |
+| `compare.py` | Staging against production for the same day |
 | `deepdive.py` | Topical deep dive |
 | `devenv.py` | The development checkout |
 | `dive.py` | Deep dive on one story |

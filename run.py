@@ -829,7 +829,7 @@ def cmd_dev(cfg: dict, argv: list) -> int:
 
 
 def cmd_staging(cfg: dict, argv: list) -> int:
-    """./np staging sync | run [DAY] [--email] [--force] | reset | status: the dev checkout's own runs."""
+    """./np staging sync | run [DAY] [--email] [--force] | compare [DAY] | publish [setup] | reset | status (dev checkout)."""
     from pipeline import devenv, env
     sub, rest = (argv or ["status"])[0], (argv or [])[1:]
     try:
@@ -842,13 +842,37 @@ def cmd_staging(cfg: dict, argv: list) -> int:
         if sub == "reset":
             print(devenv.reset(ROOT))
             return 0
+        if sub == "publish":                     # the development preview: sgwoods.github.io/ai-briefing-staging/
+            devenv._need_staging(ROOT)
+            from pipeline import publish, site
+            srepo = (cfg.get("publish") or {}).get("staging_repo") or "sgwoods/ai-briefing-staging"
+            if "setup" in rest:
+                print(publish.setup(ROOT, srepo))
+                print("Then turn on Pages: GitHub repo Settings -> Pages -> Deploy from branch main, / (root)")
+            if not (ROOT / "site" / "index.html").exists():
+                print("No preview built yet: ./np staging run")
+                return 1
+            print(publish.push(ROOT, ROOT / "site", srepo, f"Preview {dt.datetime.now():%Y-%m-%d %H:%M}", cfg,
+                               staging_site=True))
+            print(f"Development preview: {site.staging_site_url(cfg)}")
+            return 0
+        if sub == "compare":
+            from pipeline import compare
+            day = next((a for a in rest if not a.startswith("--")), "") or devenv.latest_day(ROOT)
+            r = compare.write(ROOT, devenv.production_root(ROOT), day)
+            print(r["summary"])
+            print(f"Full report: {r['file']}")
+            return 0 if not r["review"] else 3
         if sub == "run":
             devenv._need_staging(ROOT)
             devenv.check_window("--force" in rest)
             day = next((a for a in rest if not a.startswith("--")), "") or devenv.latest_day(ROOT)
             print(f"Staging run: rebuilding {day} with the dev code (outbound off)")
             code = cmd_run(cfg, rebrief_day=day, commit=False)
-            cmd_site(cfg)
+            from pipeline import site
+            res = site.build(ROOT, site.staging_cfg(cfg), base_url=site.staging_site_url(cfg),
+                             audio_days=(cfg.get("publish") or {}).get("audio_days", 14))
+            print(f"Built the development preview in site/: {res['days']} briefings. Publish it: ./np staging publish")
             if "--email" in rest:
                 from pipeline import mailer
                 print(mailer.send_day(ROOT, cfg, day, to=(cfg.get("email") or {}).get("test_to") or _owner()["account"],

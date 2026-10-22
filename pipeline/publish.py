@@ -70,9 +70,17 @@ def scan_site(root: Path, site: Path) -> list:
     return problems
 
 
-def push(root: Path, site: Path, repo: str, message: str, cfg: dict | None = None) -> str:
+def push(root: Path, site: Path, repo: str, message: str, cfg: dict | None = None, staging_site: bool = False) -> str:
+    """Publish SITE to REPO. From a staging checkout only the staging site may be published (staging_site=True and
+    REPO = publish.staging_repo), never the production site; production never publishes to the staging repo."""
+    from .env import staging
     from .release import require
-    require(root, cfg or {}, "site publish")
+    srepo = ((cfg or {}).get("publish") or {}).get("staging_repo") or "sgwoods/ai-briefing-staging"
+    if staging(root) and (not staging_site or repo != srepo):
+        raise RuntimeError(f"staging can publish only the development preview ({srepo}), not {repo}")
+    if staging_site and (not staging(root) or repo == ((cfg or {}).get("publish") or {}).get("repo")):
+        raise RuntimeError("the development preview is published only from the dev checkout, to its own repo")
+    require(root, cfg or {}, "site publish", staging_ok=staging_site)
     bad = scan_site(root, site)
     if bad:
         raise RuntimeError("privacy scan of the site failed, nothing published: " + "; ".join(bad[:8]))

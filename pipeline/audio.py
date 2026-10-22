@@ -582,6 +582,9 @@ def combine(parts_mp3: list, out_mp3: Path, title: str = "", bitrate: str = "64k
 
 
 def deliver(cfg: dict, mp3: Path, log) -> str:
+    from .env import staging
+    if staging():                                       # never overwrite the owner's iCloud copy from a dev run
+        return "staging: not delivered"
     target = os.path.expanduser(cfg.get("audio", {}).get("icloud_dir", ""))
     if not target:
         return "no delivery folder configured"

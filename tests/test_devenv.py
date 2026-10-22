@@ -19,7 +19,8 @@ def git(cwd, *a):
 
 class DevCheckout(unittest.TestCase):
     def setUp(self):
-        os.environ.pop("NP_ENV", None)
+        self._env = os.environ.pop("NP_ENV", None)
+        self.addCleanup(lambda: os.environ.__setitem__("NP_ENV", self._env) if self._env is not None else None)
         base = Path(tempfile.mkdtemp())
         self.prod = base / "news-pipeline"
         (self.prod / "briefings").mkdir(parents=True)
