@@ -42,6 +42,10 @@ SECRET_PATTERNS = [
 ]
 
 
+OUTBOUND = [("pipeline/publish.py", "push"), ("pipeline/publish.py", "backup_push"), ("pipeline/mailsource.py", "label_day"),
+            ("pipeline/hub.py", "push"), ("pipeline/export.py", "push"), ("pipeline/mailer.py", "call")]
+
+
 class ReleaseBlocked(RuntimeError):
     pass
 
@@ -180,6 +184,20 @@ def check_invariants(root: Path = ROOT) -> tuple:
         # publish.py names the file only to refuse publishing it; release.py names it to check this rule
         if rel not in ("pipeline/stages.py", "pipeline/publish.py", "pipeline/release.py") and "author-private" in _read(p):
             bad.append(f"{rel} reads author-private.md")
+    # 9 staging can't reach readers: every outbound function goes through require() (refused in staging), and the
+    #   mailer keeps its staging branch (docs/plans/release-process.md, pipeline/env.py)
+    import ast
+    for rel, fn in OUTBOUND:
+        t = _read(root / rel)
+        if not t:
+            continue
+        node = next((n for n in ast.walk(ast.parse(t)) if isinstance(n, ast.FunctionDef) and n.name == fn), None)
+        calls = {getattr(c.func, "id", getattr(c.func, "attr", "")) for c in ast.walk(node) if isinstance(c, ast.Call)} \
+            if node else set()
+        if "require" not in calls:
+            bad.append(f"{rel}:{fn} does not pass the release gate (require), so staging could reach readers")
+    if "staging(_root)" not in _read(root / "pipeline/mailer.py"):
+        bad.append("the mailer has lost its staging guard")
     return not bad, "; ".join(bad) or "all invariants hold"
 
 
@@ -278,8 +296,13 @@ def approve(root: Path, cfg: dict, note: str, who: str = "Steven", log=print, in
     return run(root, cfg, log=log)
 
 
-def require(root: Path, cfg: dict, action: str, log=print) -> None:
-    """Call before anything outbound. Re-runs the gate (without the slow live check) when the code changed."""
+def require(root: Path, cfg: dict, action: str, log=print, staging_ok: bool = False) -> None:
+    """Call before anything outbound. Re-runs the gate (without the slow live check) when the code changed.
+    In a staging checkout (pipeline/env.py) every outbound action is refused, except the few that pass staging_ok
+    (owner-only review sends)."""
+    from .env import staging
+    if staging(root) and not staging_ok:
+        raise ReleaseBlocked(f"{action} is switched off in staging (this is a development checkout)")
     try:
         rec = json.loads(_read(root / STATE) or "{}")
     except json.JSONDecodeError:

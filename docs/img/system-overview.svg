@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" width="960" height="560" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <title>AI Briefing: system overview</title>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b6472"/></marker>
+  </defs>
+  <rect width="960" height="560" fill="#ffffff"/>
+  <text x="24" y="36" font-size="20" font-weight="700" fill="#1d2330">AI Briefing · system overview</text>
+  <text x="24" y="58" font-size="13" fill="#5b6472">Sources come in, one Mac runs the daily pipeline, and four public surfaces go out. Everything private stays below the dashed line.</text>
+
+  <!-- inputs -->
+  <text x="24" y="96" font-size="12" font-weight="700" fill="#5b6472" letter-spacing="1">SOURCES</text>
+  <g font-size="13" fill="#1d2330">
+    <rect x="24" y="106" width="190" height="40" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="38" y="131">RSS feeds and sitemaps</text>
+    <rect x="24" y="154" width="190" height="40" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="38" y="179">Bluesky lists</text>
+    <rect x="24" y="202" width="190" height="40" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="38" y="227">Newsletters (Gmail label)</text>
+    <rect x="24" y="250" width="190" height="40" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="38" y="275">Slack links, forwards</text>
+    <rect x="24" y="298" width="190" height="40" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="38" y="323">Watchlist news search</text>
+  </g>
+
+  <!-- the Mac -->
+  <rect x="262" y="86" width="420" height="300" rx="14" fill="#f7f8fa" stroke="#c9cfd8"/>
+  <text x="282" y="112" font-size="12" font-weight="700" fill="#5b6472" letter-spacing="1">THE MAC · DAILY RUN (launchd)</text>
+  <g font-size="12.5" fill="#1d2330">
+    <rect x="282" y="124" width="120" height="34" rx="7" fill="#fff" stroke="#c9cfd8"/><text x="294" y="146">1 fetch + archive</text>
+    <rect x="412" y="124" width="120" height="34" rx="7" fill="#fff" stroke="#c9cfd8"/><text x="424" y="146">2 filter, rank</text>
+    <rect x="542" y="124" width="120" height="34" rx="7" fill="#fff" stroke="#c9cfd8"/><text x="554" y="146">3 cluster stories</text>
+    <rect x="282" y="170" width="120" height="34" rx="7" fill="#fff" stroke="#c9cfd8"/><text x="294" y="192">4 critique, verify</text>
+    <rect x="412" y="170" width="120" height="34" rx="7" fill="#fff" stroke="#c9cfd8"/><text x="424" y="192">5 editorial, write</text>
+    <rect x="542" y="170" width="120" height="34" rx="7" fill="#fff" stroke="#c9cfd8"/><text x="554" y="192">6 fact check</text>
+    <rect x="282" y="216" width="120" height="34" rx="7" fill="#fff" stroke="#c9cfd8"/><text x="294" y="238">7 deep dive</text>
+    <rect x="412" y="216" width="120" height="34" rx="7" fill="#fff" stroke="#c9cfd8"/><text x="424" y="238">8 audio (Kokoro)</text>
+    <rect x="542" y="216" width="120" height="34" rx="7" fill="#fdf2e3" stroke="#e0a85a"/><text x="554" y="238" font-weight="700">9 release gate</text>
+  </g>
+  <g stroke="#5b6472" stroke-width="1.3" fill="none" marker-end="url(#a)">
+    <path d="M402 141 H410"/><path d="M532 141 H540"/>
+    <path d="M402 187 H410"/><path d="M532 187 H540"/>
+    <path d="M402 233 H410"/><path d="M532 233 H540"/>
+  </g>
+  <g font-size="12" fill="#5b6472">
+    <text x="282" y="282">Models: a local LLM (Ollama) for most stages;</text>
+    <text x="282" y="300">Claude for the critical pass and editing.</text>
+    <text x="282" y="326">Dashboard at 127.0.0.1 (private): sources, watchlist,</text>
+    <text x="282" y="344">tuning, takes, feedback, control.</text>
+    <text x="282" y="370">Evening preflight: is tomorrow's release approved?</text>
+  </g>
+
+  <!-- outputs -->
+  <text x="712" y="96" font-size="12" font-weight="700" fill="#5b6472" letter-spacing="1">PUBLIC SURFACES</text>
+  <g font-size="13" fill="#1d2330">
+    <rect x="712" y="106" width="232" height="54" rx="8" fill="#e9f6ee" stroke="#7fbf97"/><text x="726" y="128" font-weight="700">Site + podcast feed</text><text x="726" y="148" font-size="11.5" fill="#5b6472">GitHub Pages (sgwoods/ai-briefing)</text>
+    <rect x="712" y="170" width="232" height="54" rx="8" fill="#e9f6ee" stroke="#7fbf97"/><text x="726" y="192" font-weight="700">Subscriber email</text><text x="726" y="212" font-size="11.5" fill="#5b6472">Apps Script, once the site is live</text>
+    <rect x="712" y="234" width="232" height="54" rx="8" fill="#e9f6ee" stroke="#7fbf97"/><text x="726" y="256" font-weight="700">Project hub card</text><text x="726" y="276" font-size="11.5" fill="#5b6472">sgwoods/public · two files only</text>
+    <rect x="712" y="298" width="232" height="54" rx="8" fill="#e9f6ee" stroke="#7fbf97"/><text x="726" y="320" font-weight="700">Public code</text><text x="726" y="340" font-size="11.5" fill="#5b6472">sgwoods/news-pipeline · on approval</text>
+  </g>
+  <g stroke="#5b6472" stroke-width="1.3" fill="none" marker-end="url(#a)">
+    <path d="M214 230 H260"/>
+    <path d="M682 236 C695 236 695 133 710 133"/><path d="M682 236 C698 236 698 197 710 197"/>
+    <path d="M682 236 C698 236 698 261 710 261"/><path d="M682 236 C695 236 695 325 710 325"/>
+  </g>
+
+  <!-- private boundary -->
+  <line x1="24" y1="408" x2="936" y2="408" stroke="#b33a3a" stroke-width="1.2" stroke-dasharray="6 5"/>
+  <text x="24" y="430" font-size="12" font-weight="700" fill="#b33a3a" letter-spacing="1">PRIVATE · never published</text>
+  <g font-size="12.5" fill="#1d2330">
+    <rect x="24" y="442" width="216" height="92" rx="8" fill="#fbeeee" stroke="#d99"/><text x="38" y="464" font-weight="700">Private working repo</text><text x="38" y="484" font-size="12" fill="#5b6472">sgwoods/news-pipeline-data</text><text x="38" y="502" font-size="12" fill="#5b6472">code + archive + state,</text><text x="38" y="520" font-size="12" fill="#5b6472">backed up after each run</text>
+    <rect x="256" y="442" width="216" height="92" rx="8" fill="#fbeeee" stroke="#d99"/><text x="270" y="464" font-weight="700">Editorial inputs</text><text x="270" y="484" font-size="12" fill="#5b6472">perspective, author notes,</text><text x="270" y="502" font-size="12" fill="#5b6472">source lists, watchlist,</text><text x="270" y="520" font-size="12" fill="#5b6472">conflicts, owner.yaml</text>
+    <rect x="488" y="442" width="216" height="92" rx="8" fill="#fbeeee" stroke="#d99"/><text x="502" y="464" font-weight="700">People data</text><text x="502" y="484" font-size="12" fill="#5b6472">subscribers (Sheet),</text><text x="502" y="502" font-size="12" fill="#5b6472">reader feedback (hashed),</text><text x="502" y="520" font-size="12" fill="#5b6472">ratings</text>
+    <rect x="720" y="442" width="216" height="92" rx="8" fill="#fbeeee" stroke="#d99"/><text x="734" y="464" font-weight="700">Secrets</text><text x="734" y="484" font-size="12" fill="#5b6472">macOS Keychain and .env;</text><text x="734" y="502" font-size="12" fill="#5b6472">secret scan on every</text><text x="734" y="520" font-size="12" fill="#5b6472">commit and release</text>
+  </g>
+</svg>

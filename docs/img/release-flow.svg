@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 330" width="960" height="330" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <title>AI Briefing: release flow</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6472"/></marker></defs>
+  <rect width="960" height="330" fill="#ffffff"/>
+  <text x="24" y="36" font-size="20" font-weight="700" fill="#1d2330">Release flow (from v0.1 beta)</text>
+  <text x="24" y="58" font-size="13" fill="#5b6472">Changes are built and tested on a development branch, then reach production together, in a safe window, with one approval.</text>
+  <g font-size="12.5" fill="#1d2330">
+    <rect x="24" y="90" width="150" height="110" rx="10" fill="#eef3fb" stroke="#9db4d8"/><text x="38" y="114" font-weight="700">1 · Build on dev</text><text x="38" y="136" font-size="11.5" fill="#5b6472">development checkout,</text><text x="38" y="152" font-size="11.5" fill="#5b6472">staging: cannot send</text><text x="38" y="168" font-size="11.5" fill="#5b6472">CHANGELOG entry</text>
+    <rect x="198" y="90" width="170" height="110" rx="10" fill="#eef3fb" stroke="#9db4d8"/><text x="212" y="114" font-weight="700">2 · Verify</text><text x="212" y="136" font-size="11.5" fill="#5b6472">tests + gate checks</text><text x="212" y="152" font-size="11.5" fill="#5b6472">staging run on real inputs</text><text x="212" y="168" font-size="11.5" fill="#5b6472">compare with production</text><text x="212" y="184" font-size="11.5" fill="#5b6472">public export dry run</text>
+    <rect x="392" y="90" width="150" height="110" rx="10" fill="#fdf2e3" stroke="#e0a85a"/><text x="406" y="114" font-weight="700">3 · Candidate</text><text x="406" y="136" font-size="11.5" fill="#5b6472">tag vX-rcN</text><text x="406" y="152" font-size="11.5" fill="#5b6472">Steven reviews notes,</text><text x="406" y="168" font-size="11.5" fill="#5b6472">diff and staging output</text>
+    <rect x="566" y="90" width="170" height="110" rx="10" fill="#e9f6ee" stroke="#7fbf97"/><text x="580" y="114" font-weight="700">4 · Release</text><text x="580" y="136" font-size="11.5" fill="#5b6472">./np release vX</text><text x="580" y="152" font-size="11.5" fill="#5b6472">after the send, before 20:00</text><text x="580" y="168" font-size="11.5" fill="#5b6472">one approval · tag · public</text><text x="580" y="184" font-size="11.5" fill="#5b6472">code · hub status</text>
+    <rect x="760" y="90" width="176" height="110" rx="10" fill="#e9f6ee" stroke="#7fbf97"/><text x="774" y="114" font-weight="700">5 · Canary</text><text x="774" y="136" font-size="11.5" fill="#5b6472">next morning's run is the</text><text x="774" y="152" font-size="11.5" fill="#5b6472">first real test; report says</text><text x="774" y="168" font-size="11.5" fill="#5b6472">"running vX"</text>
+  </g>
+  <g stroke="#5b6472" stroke-width="1.3" fill="none" marker-end="url(#a)">
+    <path d="M174 145 H196"/><path d="M368 145 H390"/><path d="M542 145 H564"/><path d="M736 145 H758"/>
+    <path d="M848 200 V250 H120 V202" stroke="#b33a3a" stroke-dasharray="5 4"/>
+  </g>
+  <text x="300" y="244" font-size="12" fill="#b33a3a">if the canary fails: ./np rollback to the previous, already-approved release; fix on dev</text>
+  <g font-size="12" fill="#5b6472">
+    <text x="24" y="284" font-weight="700" fill="#1d2330">Outside releases</text>
+    <text x="24" y="304">Content (watchlist, sources, perspective, takes) is edited in production at any time; guarded content needs an approval. A hotfix branches from the release tag.</text>
+  </g>
+</svg>

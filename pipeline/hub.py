@@ -167,7 +167,8 @@ def page(m: dict, cfg: dict, root: Path) -> str:
              ("Podcast feed", site + "podcast.xml" if site else ""),
              ("Get it by email", site + "#email" if site else ""),
              ("Release notes", site + "releases/index.html" if site else ""),
-             ("Public code", m["repo_url"])]
+             ("Public code", m["repo_url"]),
+             ("Architecture", m["repo_url"] + "/blob/main/docs/ARCHITECTURE.md")]
     btns = "\n".join(f'      <a class="button" href="{e(u)}">{e(t)}</a>' for t, u in links if u)
     dive = (f'\n      <li>Deep dive the same day: <a href="{e(site)}{e(lt["deep_dive"])}/deep-dive/index.html">read or '
             f'listen</a></li>' if lt["deep_dive"] and site else "")
@@ -204,6 +205,7 @@ def page(m: dict, cfg: dict, root: Path) -> str:
     </ul>
   </section>
 
+{release_notes(root, site, e)}
   <section class="panel">
     <h2>How it is made</h2>
     <div class="grid">
@@ -231,6 +233,37 @@ def page(m: dict, cfg: dict, root: Path) -> str:
 </body>
 </html>
 """
+
+
+def release_notes(root: Path, site: str, e) -> str:
+    """The latest releases' notes (CHANGELOG.md), newest first, with a link to all of them."""
+    import re
+    from .version import releases
+    rel = releases(root)[:2]
+    if not rel:
+        return ""
+    def inline(t):
+        t = e(t)
+        t = re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
+        return re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", t)
+    parts = []
+    for head, body in rel:
+        items, cur = [], ""
+        for ln in body.splitlines():
+            if ln.startswith("- "):
+                if cur:
+                    items.append(cur)
+                cur = ln[2:].strip()
+            elif ln.strip() and cur:
+                cur += " " + ln.strip()
+            elif ln.strip():
+                items.append(ln.strip())
+        if cur:
+            items.append(cur)
+        lis = "\n".join(f"      <li>{inline(i)}</li>" for i in items)
+        parts.append(f"    <h3>{e(head)}</h3>\n    <ul>\n{lis}\n    </ul>")
+    more = f'\n    <p><a href="{e(site)}releases/index.html">All release notes</a></p>' if site else ""
+    return '  <section class="panel">\n    <h2>Release notes</h2>\n' + "\n".join(parts) + more + "\n  </section>\n"
 
 
 def build(root: Path, cfg: dict, remote_check: bool = True) -> dict:

@@ -26,3 +26,5 @@ data/inbox/
 .public/
 # clone of the public project hub (sgwoods/public), used by ./np hub push
 .hub/
+# marks a development checkout as staging (pipeline/env.py); never committed
+.staging

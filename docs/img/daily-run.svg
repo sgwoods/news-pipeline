@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <title>AI Briefing: the daily run</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6472"/></marker></defs>
+  <rect width="960" height="400" fill="#ffffff"/>
+  <text x="24" y="36" font-size="20" font-weight="700" fill="#1d2330">The daily run</text>
+  <text x="24" y="58" font-size="13" fill="#5b6472">Scheduled early each morning, with retries. Nothing leaves the Mac until the release gate passes; the email waits until the site is live.</text>
+
+  <!-- timeline -->
+  <line x1="40" y1="120" x2="920" y2="120" stroke="#c9cfd8" stroke-width="2"/>
+  <g font-size="12" fill="#5b6472" text-anchor="middle">
+    <circle cx="60" cy="120" r="5" fill="#5b6472"/><text x="60" y="104">start</text>
+    <circle cx="470" cy="120" r="5" fill="#e0a85a"/><text x="470" y="104">gate</text>
+    <circle cx="900" cy="120" r="5" fill="#5b6472"/><text x="900" y="104">done</text>
+  </g>
+
+  <g font-size="12.5" fill="#1d2330">
+    <!-- build -->
+    <text x="40" y="160" font-size="12" font-weight="700" fill="#5b6472" letter-spacing="1">BUILD (local, ~30 min)</text>
+    <rect x="40" y="172" width="96" height="48" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="52" y="192">fetch</text><text x="52" y="210" font-size="11" fill="#5b6472">~50 sources</text>
+    <rect x="144" y="172" width="96" height="48" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="156" y="192">filter</text><text x="156" y="210" font-size="11" fill="#5b6472">rules + model</text>
+    <rect x="248" y="172" width="96" height="48" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="260" y="192">rank</text><text x="260" y="210" font-size="11" fill="#5b6472">summaries</text>
+    <rect x="352" y="172" width="96" height="48" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="364" y="192">critique</text><text x="364" y="210" font-size="11" fill="#5b6472">claim checks</text>
+    <rect x="40" y="232" width="96" height="48" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="52" y="252">cluster</text><text x="52" y="270" font-size="11" fill="#5b6472">into stories</text>
+    <rect x="144" y="232" width="96" height="48" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="156" y="252">editorial</text><text x="156" y="270" font-size="11" fill="#5b6472">top of mind</text>
+    <rect x="248" y="232" width="96" height="48" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="260" y="252">fact check</text><text x="260" y="270" font-size="11" fill="#5b6472">trace + search</text>
+    <rect x="352" y="232" width="96" height="48" rx="8" fill="#eef3fb" stroke="#9db4d8"/><text x="364" y="252">audio</text><text x="364" y="270" font-size="11" fill="#5b6472">+ deep dive</text>
+
+    <!-- gate -->
+    <rect x="462" y="172" width="120" height="108" rx="10" fill="#fdf2e3" stroke="#e0a85a"/>
+    <text x="476" y="196" font-weight="700">Release gate</text>
+    <text x="476" y="216" font-size="11.5" fill="#5b6472">tests pass</text>
+    <text x="476" y="232" font-size="11.5" fill="#5b6472">no secrets</text>
+    <text x="476" y="248" font-size="11.5" fill="#5b6472">privacy invariants</text>
+    <text x="476" y="264" font-size="11.5" fill="#5b6472">changes approved</text>
+
+    <!-- ship -->
+    <text x="600" y="160" font-size="12" font-weight="700" fill="#5b6472" letter-spacing="1">SHIP</text>
+    <rect x="600" y="172" width="100" height="48" rx="8" fill="#e9f6ee" stroke="#7fbf97"/><text x="612" y="192">publish</text><text x="612" y="210" font-size="11" fill="#5b6472">site + feed</text>
+    <rect x="708" y="172" width="100" height="48" rx="8" fill="#e9f6ee" stroke="#7fbf97"/><text x="720" y="192">wait live</text><text x="720" y="210" font-size="11" fill="#5b6472">pages answer</text>
+    <rect x="816" y="172" width="100" height="48" rx="8" fill="#e9f6ee" stroke="#7fbf97"/><text x="828" y="192">email</text><text x="828" y="210" font-size="11" fill="#5b6472">subscribers</text>
+    <rect x="600" y="232" width="100" height="48" rx="8" fill="#e9f6ee" stroke="#7fbf97"/><text x="612" y="252">hub status</text><text x="612" y="270" font-size="11" fill="#5b6472">two files</text>
+    <rect x="708" y="232" width="100" height="48" rx="8" fill="#f7f8fa" stroke="#c9cfd8"/><text x="720" y="252">labels</text><text x="720" y="270" font-size="11" fill="#5b6472">Gmail sources</text>
+    <rect x="816" y="232" width="100" height="48" rx="8" fill="#f7f8fa" stroke="#c9cfd8"/><text x="828" y="252">backup</text><text x="828" y="270" font-size="11" fill="#5b6472">private repo</text>
+  </g>
+  <g stroke="#5b6472" stroke-width="1.3" fill="none" marker-end="url(#a)">
+    <path d="M136 196 H142"/><path d="M240 196 H246"/><path d="M344 196 H350"/>
+    <path d="M136 256 H142"/><path d="M240 256 H246"/><path d="M344 256 H350"/>
+    <path d="M448 226 H460"/><path d="M582 226 C592 226 590 196 598 196"/>
+    <path d="M700 196 H706"/><path d="M808 196 H814"/>
+  </g>
+  <g font-size="12" fill="#5b6472">
+    <text x="24" y="320" font-weight="700" fill="#1d2330">If something fails</text>
+    <text x="24" y="340">· The gate holds everything outbound and emails Steven what to do; approving re-sends what was held.</text>
+    <text x="24" y="358">· Retries later in the morning skip work already done; a cloud watchdog checks the site after the send window.</text>
+    <text x="24" y="376">· A hub or label failure is reported but never blocks the briefing.</text>
+  </g>
+</svg>

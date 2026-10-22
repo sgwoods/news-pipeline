@@ -6,6 +6,14 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.1.2-beta · 2026-10-22
+- Staging mode: a development checkout (marked by an untracked `.staging` file) can build everything but can't
+  reach readers. The release gate refuses every outbound action there. The mailer allows only reads and review
+  copies to the owner, marked [STAGING]. A new release-gate invariant keeps every outbound function behind the gate.
+- The hub project page shows the latest release notes and links to the architecture document.
+- Architecture document with four diagrams: system overview, the daily run, repositories and privacy boundaries,
+  and the release flow (`docs/ARCHITECTURE.md`).
+
 ## v0.1.1-beta · 2026-10-22
 - AI Briefing on the public project hub (sgwoods.github.io/public) as an exporting project: after each publish,
   `./np hub push` writes its status (19 fields, naming this released public commit) and its project page with the

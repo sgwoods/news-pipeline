@@ -49,18 +49,29 @@ def ready(cfg: dict) -> str:
     return ""
 
 
+READ_ACTIONS = ("list", "ratings", "ddactions", "companylist")   # Apps Script actions that change nothing
+
+
 def call(cfg: dict, action: str, _alert: bool = False, **params) -> dict:
     missing = ready(cfg)
     if missing:
         raise MailError(missing)
+    from .env import mark_subject, staging
+    from .release import ROOT as _root
+    owners = {a.strip().lower() for a in [ecfg(cfg).get("test_to") or ""] if a.strip()}
+    to_owner = action == "send" and str(params.get("to", "")).strip().lower() in owners
+    if staging(_root):                           # development checkout: reads, and review copies to the owner only
+        if action not in READ_ACTIONS and not to_owner:
+            raise MailError(f"email {action} is switched off in staging (only sends to the owner's own address)")
+        if "subject" in params:
+            params["subject"] = mark_subject(params["subject"])
     if _alert:                                   # pipeline/alerts.py: owner-only action-needed email, never gated
-        owners = {a.strip().lower() for a in [ecfg(cfg).get("test_to") or ""] if a.strip()}
-        if action != "send" or str(params.get("to", "")).strip().lower() not in owners:
+        if not to_owner:
             raise MailError("alert emails go to the owner address only")
-    elif action not in ("list", "ratings", "ddactions", "companylist"):   # anything that sends or changes: release gate first
-        from .release import ROOT as _root, ReleaseBlocked, require
+    elif action not in READ_ACTIONS:             # anything that sends or changes: release gate first
+        from .release import ReleaseBlocked, require
         try:
-            require(_root, cfg, f"email {action}")
+            require(_root, cfg, f"email {action}", staging_ok=to_owner)
         except ReleaseBlocked as e:
             raise MailError(str(e)) from e
     import httpx

@@ -6,6 +6,7 @@ feed, and emails subscribers.
 
 - Live site and podcast: https://sgwoods.github.io/ai-briefing/
 - Project page: https://sgwoods.github.io/public/ai-briefing.html
+- Architecture, with diagrams: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Status: **v0.1 beta**. A small number of outside readers; see `CHANGELOG.md` once releases begin.
 
 This repository is the code only. The working instance's content, its sources, the people it follows, the editor's
