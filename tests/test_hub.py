@@ -3,6 +3,9 @@ import os
 import subprocess
 import tempfile
 import unittest
+
+for _k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR"):   # GIT_LOCATION: a leaked GIT_DIR once
+    os.environ.pop(_k, None)                                                        # pointed temp-repo git at production
 from pathlib import Path
 
 from pipeline import hub

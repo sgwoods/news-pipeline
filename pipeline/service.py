@@ -48,16 +48,15 @@ def build_plist(kind: str, root: Path, cfg: dict) -> dict:
     env = {"PATH": _path_env(), "HOME": str(Path.home()), "PYTHONUNBUFFERED": "1"}
     base = {"Label": LABELS[kind], "WorkingDirectory": str(root), "EnvironmentVariables": env}
     if kind == "daily":
-        times = (cfg.get("schedule") or {}).get("times", ["06:30", "07:30"])
-        base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "daily"],
-                     "StartCalendarInterval": [{"Hour": int(t.split(":")[0]), "Minute": int(t.split(":")[1])}
-                                               for t in times],
+        from .schedule import TICK_MINUTES               # every half hour; ./np scheduled checks the local time
+        base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "scheduled", "daily"],
+                     "StartCalendarInterval": [{"Minute": m} for m in TICK_MINUTES],
                      "StandardOutPath": str(root / "logs" / "launchd.out.log"),
                      "StandardErrorPath": str(root / "logs" / "launchd.err.log"), "RunAtLoad": False})
     elif kind == "preflight":
-        t = str((cfg.get("schedule") or {}).get("preflight", "20:30"))
-        base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "preflight"],
-                     "StartCalendarInterval": [{"Hour": int(t.split(":")[0]), "Minute": int(t.split(":")[1])}],
+        from .schedule import TICK_MINUTES
+        base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "scheduled", "preflight"],
+                     "StartCalendarInterval": [{"Minute": m} for m in TICK_MINUTES],
                      "StandardOutPath": str(root / "logs" / "launchd.out.log"),
                      "StandardErrorPath": str(root / "logs" / "launchd.err.log"), "RunAtLoad": False})
     else:
@@ -70,8 +69,12 @@ def build_plist(kind: str, root: Path, cfg: dict) -> dict:
 
 def install(kind: str, root: Path, cfg: dict) -> str:
     from .env import staging
+    from .schedule import check
     if staging(root):
         raise RuntimeError("services are installed only in the production folder, never in the dev checkout")
+    off = check(cfg)
+    if off:
+        raise RuntimeError(f"schedule times must be on :00 or :30 (the half-hour tick): {', '.join(off)}")
     p = plist_path(kind)
     p.parent.mkdir(parents=True, exist_ok=True)
     (root / "logs").mkdir(exist_ok=True)

@@ -28,8 +28,14 @@ class DevError(RuntimeError):
     pass
 
 
+def _clean_env() -> dict:
+    """The environment without GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE: git here always acts on the repo at cwd."""
+    import os
+    return {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")}
+
+
 def _git(cwd: Path, *a, check=True) -> subprocess.CompletedProcess:
-    r = subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True)
+    r = subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True, env=_clean_env())
     if check and r.returncode:
         raise DevError(f"git {' '.join(a[:3])}: {(r.stderr or r.stdout).strip()[:300]}")
     return r

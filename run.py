@@ -1487,6 +1487,17 @@ def pending_items(cfg: dict, archive: Archive, day: str, reprocess_day=None, lim
     return items[:limit] if limit else items
 
 
+def llm_stage_names(acfg: dict, rebrief: bool = False) -> list:
+    """The model-backed stages a run needs. A rebrief reuses the filter and rank results but still needs the
+    critique model: the v2 verify stage (evidence check on every Must read) calls it (fixed in v0.1.5)."""
+    names = ["filter", "rank", "critique", "write"]
+    if acfg.get("briefing_format", "v2") == "v2":
+        names[3:3] = ["cluster", "merge", "editorial"]
+    if rebrief:
+        names = [s for s in names if s not in ("filter", "rank")]
+    return names
+
+
 def run_llm_stages(run: Run, cfg: dict, archive: Archive, reprocess_day=None, limit=None, rebrief_day=None,
                    experiment=None) -> str:
     """filter → summarize → critique → write. Returns 'ok', 'partial' or 'error'."""
@@ -1496,11 +1507,7 @@ def run_llm_stages(run: Run, cfg: dict, archive: Archive, reprocess_day=None, li
     briefings_log = ROOT / paths.get("briefings_log", "data/briefings.jsonl")
     persp = perspective.load(ROOT / paths["perspective"])
     system, sys_v = stages.system_prompt(persp.raw)
-    llm_stages = ["filter", "rank", "critique", "write"]
-    if acfg.get("briefing_format", "v2") == "v2":
-        llm_stages[3:3] = ["cluster", "merge", "editorial"]
-    if rebrief_day:
-        llm_stages = [s for s in llm_stages if s not in ("filter", "rank", "critique")]
+    llm_stages = llm_stage_names(acfg, bool(rebrief_day))
     backends = {s: llm.for_stage(cfg, s) for s in llm_stages}
     status = "ok"
 
@@ -2204,6 +2211,7 @@ def main() -> int:
     ap.add_argument("--watchlist", nargs="*", metavar="ARG", help="list | fetch | weekly | backfill [DAYS] | add NAME | remove NAME | test")
     ap.add_argument("--deepdive", nargs="*", metavar="ARG", help='[DAY] [--topic "..."] [--force] [--no-audio]: topical deep-dive episode')
     ap.add_argument("--review", nargs="*", metavar="ARG", help="weekly [DAY]: the weekly quality review")
+    ap.add_argument("--due", metavar="KIND", help="daily|preflight: exit 0 if a scheduled time just passed (local clock)")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
     ap.add_argument("--hub", nargs="*", metavar="ARG", help="status | push: status on the public project hub")
     ap.add_argument("--dev", nargs="*", metavar="ARG", help="setup: create the development checkout")
@@ -2251,6 +2259,9 @@ def main() -> int:
         return 0
     if args.doctor:
         return cmd_doctor(cfg)
+    if args.due:                                 # ./np scheduled: quiet, fast; launchd ticks every half hour
+        from pipeline.schedule import due
+        return 0 if due(cfg, args.due) else 1
     if args.daily:
         return cmd_daily(cfg)
     if args.audio is not None:

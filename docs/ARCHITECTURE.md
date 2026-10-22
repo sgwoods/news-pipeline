@@ -13,10 +13,10 @@ This page describes the design as of **v0.1 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.1.4-beta (2026-10-22)
+- **Release:** v0.1.5-beta (2026-10-22)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 56 in `pipeline/`
+- **Modules:** 57 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -187,6 +187,7 @@ _Generated from each module's own description at build time._
 | `report.py` | Compact, paste-friendly status report → logs/last-report.md. |
 | `review.py` | Weekly quality review, run on the Mac from local files only (no web, no tools, no mailbox). |
 | `runlog.py` | Records every run |
+| `schedule.py` | When the scheduled jobs actually run |
 | `scrub.py` | Scrubbing shared by the public code export and the public docs |
 | `service.py` | Background services on macOS (launchd user agents) + health of what the pipeline depends on. |
 | `settings.py` | Change single values in config.yaml without disturbing comments or layout. |

@@ -26,8 +26,14 @@ class ReleaseError(RuntimeError):
     pass
 
 
+def _clean_env() -> dict:
+    """The environment without GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE: git here always acts on the repo at cwd."""
+    import os
+    return {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")}
+
+
 def _git(root: Path, *a, check=True) -> subprocess.CompletedProcess:
-    r = subprocess.run(["git", *a], cwd=root, capture_output=True, text=True)
+    r = subprocess.run(["git", *a], cwd=root, capture_output=True, text=True, env=_clean_env())
     if check and r.returncode:
         raise ReleaseError(f"git {' '.join(a[:3])}: {(r.stderr or r.stdout).strip()[:300]}")
     return r
@@ -98,8 +104,9 @@ def promote(root: Path, cfg: dict, version: str, note: str, force: bool = False,
         raise ReleaseError(f"v{version} is already released")
     if _git(root, "rev-parse", "-q", "--verify", "refs/heads/dev", check=False).returncode:
         raise ReleaseError("there is no dev branch: ./np dev setup")
-    if _git(root, "ls-tree", "--name-only", "dev", "--", ".staging").stdout.strip():
-        raise ReleaseError("dev has the .staging marker committed: git rm --cached .staging on dev first")
+    for marker in (".staging", ".venv", ".env"):          # checkout-local files never travel in a release
+        if _git(root, "ls-tree", "--name-only", "dev", "--", marker).stdout.strip():
+            raise ReleaseError(f"dev has {marker} committed: git rm --cached {marker} on dev first")
     dev_version = _git(root, "show", "dev:VERSION").stdout.strip()
     if dev_version != version:
         raise ReleaseError(f"dev is at {dev_version or '(no VERSION)'}, not {version}: set VERSION on dev and commit")

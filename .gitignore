@@ -2,6 +2,7 @@
 .env
 # python
 .venv/
+.venv
 __pycache__/
 *.pyc
 # operational logs (the archive in data/ IS committed)

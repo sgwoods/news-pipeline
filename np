@@ -54,6 +54,16 @@ case "$cmd" in
   record)    run $PY run.py --record "${@:-list}" ;;            # public record: list | search | words | apply-words | accept ID | deny ID | export
   dive)      run $PY run.py --dive "${1:?usage: ./np dive DAY STORY}" "${2:?usage: ./np dive DAY STORY (number or key)}" ;;
   tests)     run $PY -m unittest discover -s tests ;;
+  scheduled) # launchd ticks every half hour; run only when this Mac's local clock says a scheduled time just passed
+             kind="${1:?usage: ./np scheduled daily|preflight}"
+             $PY run.py --due "$kind" >/dev/null 2>&1 || exit 0
+             cmd="$kind"; out="logs/cmd-${kind}-${ts}.txt"
+             if [ "$kind" = daily ]; then
+               CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"
+               run $CAF $PY run.py --daily
+             else
+               run $PY run.py --preflight
+             fi ;;
   daily)     CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"   # keep the Mac awake for the run
              run $CAF $PY run.py --daily ;;                 # what the schedule calls
   service)   run $PY run.py --service "${@:-status}" ;;          # install|status|restart|run|pause|resume|remove [daily|dashboard|ollama]

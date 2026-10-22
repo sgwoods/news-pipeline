@@ -18,6 +18,12 @@ import shutil
 import subprocess
 from pathlib import Path
 
+
+def _clean_env() -> dict:
+    """The environment without GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE: git here always acts on the repo at cwd."""
+    import os
+    return {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")}
+
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = [("ARCHITECTURE.md", "architecture", "Architecture", "How the pipeline is built: stages, components, privacy, repositories, releases."),
         ("FACT-CHECKING.md", "fact-checking", "Fact checking", "What is checked before anything goes out."),
@@ -75,7 +81,7 @@ def expand(text: str, root: Path = ROOT, cfg: dict | None = None) -> str:
 
 
 def last_changed(root: Path, rel: str) -> str:
-    r = subprocess.run(["git", "log", "-1", "--format=%cs", "--", rel], cwd=root, capture_output=True, text=True)
+    r = subprocess.run(["git", "log", "-1", "--format=%cs", "--", rel], cwd=root, env=_clean_env(), capture_output=True, text=True)
     return r.stdout.strip() or dt.date.today().isoformat()
 
 

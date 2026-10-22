@@ -50,7 +50,7 @@ class Preflight(unittest.TestCase):
     def test_evening_job_and_notice(self):
         pl = service.build_plist("preflight", Path("/x"), {"schedule": {"preflight": "21:15"}})
         self.assertEqual(pl["ProgramArguments"][-1], "preflight")
-        self.assertEqual(pl["StartCalendarInterval"], [{"Hour": 21, "Minute": 15}])
+        self.assertEqual(pl["StartCalendarInterval"], [{"Minute": 0}, {"Minute": 30}])  # v0.1.5: the hour is checked by ./np scheduled
         seen = []
         with mock.patch("pipeline.release.check_approval", lambda root: (False, "changed")), \
                 mock.patch("pipeline.release.changed_sensitive", lambda root: ["pipeline/site.py"]), \

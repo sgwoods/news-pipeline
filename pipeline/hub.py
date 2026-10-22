@@ -52,8 +52,14 @@ def _utc(t: dt.datetime | None = None) -> str:
     return t.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _clean_env() -> dict:
+    """The environment without GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE: git here always acts on the repo at cwd."""
+    import os
+    return {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")}
+
+
 def _git(cwd: Path, *a, check=True) -> subprocess.CompletedProcess:
-    r = subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True)
+    r = subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True, env=_clean_env())
     if check and r.returncode:
         raise HubExportError(f"git {' '.join(a[:3])} failed in {cwd.name}: {(r.stderr or r.stdout).strip()[:300]}")
     return r
@@ -79,7 +85,7 @@ def running_matches(root: Path, public: Path, ref: str) -> bool:
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "x"
         export.build(root, log=lambda *_: None, out=out)
-        r = subprocess.run(["git", "archive", "--format=tar", ref, "--", *CODE_PATHS], cwd=public, capture_output=True)
+        r = subprocess.run(["git", "archive", "--format=tar", ref, "--", *CODE_PATHS], cwd=public, env=_clean_env(), capture_output=True)
         if r.returncode:
             raise HubExportError(f"cannot read {ref} in the public export: {r.stderr.decode()[:200]}")
         released = {m.name: tarfile.open(fileobj=io.BytesIO(r.stdout)).extractfile(m).read()

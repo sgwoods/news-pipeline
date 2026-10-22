@@ -6,6 +6,21 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.1.5-beta · 2026-10-22
+- Fix: the scheduled jobs had been firing exactly one hour early every day (the 05:00 run started at 04:00, the
+  20:30 preflight at 19:30). launchd now only ticks every half hour, and the Mac's own local clock decides when a
+  scheduled time has come (`pipeline/schedule.py`, `./np scheduled`). Times must be on :00 or :30.
+- Releases refuse checkout-local files (`.venv`, `.env`, `.staging`) committed on dev; `.venv` is ignored as a
+  link too.
+- Fix: rebuilding an edition (`./np rebrief`, `./np staging run`) failed with KeyError 'critique', because the
+  evidence check on Must reads needs the critique model, and a rebuild had stopped loading it. Found by the
+  first staging run.
+- Git safety: every git call in the export, hub, dev and release code ignores GIT_DIR / GIT_WORK_TREE from the
+  environment, and the tests that build throwaway repositories clear them. A leaked GIT_DIR once pointed a test's
+  `git init` at the production repository and wrote a wrong `core.worktree` into its config. Caught and fixed
+  before any run used it.
+- The first release built on dev and promoted with `./np release`.
+
 ## v0.1.4-beta · 2026-10-22
 - Development checkout: `./np dev setup` creates a second working copy of the repository on branch `dev`, in
   staging mode. Inside it:
