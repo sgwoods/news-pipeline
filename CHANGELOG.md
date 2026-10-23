@@ -6,6 +6,10 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.1.13-beta · 2026-10-23
+- Fix: the run queue's launchd tick never started a job. Its quick idle check listed both queue folders with `ls`,
+  which fails whenever one of them is empty. It now checks each file, and a test runs the real `./np runner tick`.
+
 ## v0.1.12-beta · 2026-10-23
 - **Run queue:** releases, corrections and checks can be started from the Claude chat instead of pasted into a
   shell (`pipeline/runner.py`, `./np runner`, docs/plans/run-queue.md). Claude queues a named recipe and the Mac

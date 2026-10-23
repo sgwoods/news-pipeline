@@ -197,6 +197,30 @@ class Tiers(Base):
         self.assertEqual(self.calls, [])
 
 
+class NpTick(unittest.TestCase):
+    """The launchd tick goes through ./np runner tick: it must reach run.py whenever any job is queued."""
+    def _tick(self, files):
+        import shutil
+        import subprocess
+        d = Path(tempfile.mkdtemp())
+        shutil.copy(Path(__file__).resolve().parent.parent / "np", d / "np")
+        (d / "run.py").write_text("import sys\nopen('ran', 'w').write(' '.join(sys.argv[1:]))\n", "utf-8")
+        for f in files:
+            (d / f).parent.mkdir(parents=True, exist_ok=True)
+            (d / f).write_text("{}", "utf-8")
+        subprocess.run(["/bin/bash", str(d / "np"), "runner", "tick"], cwd=d, capture_output=True, timeout=30)
+        return (d / "ran").read_text("utf-8") if (d / "ran").exists() else ""
+
+    def test_tick_runs_with_only_pending_jobs(self):
+        self.assertEqual(self._tick(["data/queue/pending/a.json"]), "--runner tick")
+
+    def test_tick_runs_with_only_waiting_jobs(self):
+        self.assertEqual(self._tick(["data/queue/waiting/a.json"]), "--runner tick")
+
+    def test_tick_is_quiet_when_idle(self):
+        self.assertEqual(self._tick(["data/queue/done/a.json"]), "")
+
+
 class Presence(unittest.TestCase):
     def test_nothing_on_disk_grants_presence(self):
         with mock.patch("sys.stdin") as s:

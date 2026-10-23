@@ -92,7 +92,8 @@ case "$cmd" in
   review)    run $PY run.py --review "${@:-weekly}" ;;             # weekly [DAY]: quality review from local files
   preflight) run $PY run.py --preflight ;;                     # evening: is the release gate approval current? (notifies)
   runner)    if [ "${1:-}" = tick ]; then                        # launchd, every minute: quiet unless a job is queued
-               ls data/queue/pending/*.json data/queue/waiting/*.json >/dev/null 2>&1 || exit 0
+               found=""; for f in data/queue/pending/*.json data/queue/waiting/*.json; do [ -e "$f" ] && { found=1; break; }; done
+               [ -n "$found" ] || exit 0                         # (ls fails when either folder is empty: v0.1.12 bug)
                exec $PY run.py --runner tick >>logs/runner.log 2>&1
              fi
              run $PY run.py --runner "${@:-status}" ;;          # status | approve ID | reject ID | install | remove
