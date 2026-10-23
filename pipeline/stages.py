@@ -513,6 +513,11 @@ def run_summarize(llm: Backend, items: list, system: str, cfg: dict, log) -> tup
         try:
             s = _ask(llm, system, tmpl.replace("{{item}}", item_block(it, chars)), 900)
             out[it["id"]] = _norm_summary(s)
+            from .consistency import check_roles             # "X founder ..." needs the role in the item itself
+            src = " ".join(str(it.get(k) or "") for k in ("title", "text", "person", "author"))
+            out[it["id"]]["agenda_flag"], rn = check_roles(out[it["id"]]["agenda_flag"], src)
+            if rn:
+                out[it["id"]]["agenda_note"] = rn
             bad = unverified_quotes(" ".join([out[it["id"]]["claim"], out[it["id"]]["so_what"]]), it)
             if bad:
                 out[it["id"]]["unverified_quotes"] = bad

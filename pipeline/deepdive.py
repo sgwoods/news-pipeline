@@ -510,6 +510,18 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
         sections = [(s, t) for s, t in sections if s != drop]
         notes.append(f"over {cap} words: left out {drop}")
 
+    # 3b the lines readers see first (email, site) come from the CHECKED body, never from the suggestion text
+    from .consistency import check_header
+    body = " ".join(t for _, t in sections)
+    why_sec = next((t for s, t in sections if s == "why_today"), "")
+    hay_all = " ".join(corpus)
+    why_line, wn = check_header(" ".join(re.split(r"(?<=[.!?])\s+", why_sec)[:2]), body, hay_all)
+    summary, sn = check_header(str(out.get("summary", "")).strip(), body, hay_all)
+    if not summary:                              # nothing in the model's summary survived: use the checked opening
+        summary = why_line or " ".join(re.split(r"(?<=[.!?])\s+", body)[:2])
+    notes += wn + sn
+    rec["checks"] = notes
+
     # 4 publish files
     title = re.sub(r"\s+", " ", str(out.get("title") or pick["topic"])).strip()[:90]
     d = root / DIR
@@ -522,7 +534,7 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     from .links import scrub_output
     notes_md, _ = scrub_output(
         f"# Deep dive: {title}\n\n*AI Briefing · {day} · follows today's briefing · written and read by AI from public sources*\n\n"
-        f"{out.get('summary', '').strip()}\n\n**Why today.** {pick.get('why_today', '')}\n\n## Sources\n\n{src_md}\n", cfg)
+        f"{summary}\n\n" + (f"**Why today.** {why_line}\n\n" if why_line else "") + f"## Sources\n\n{src_md}\n", cfg)
     (d / f"{day}.md").write_text(notes_md, "utf-8")
     from .audio import script_markdown
     (d / f"{day}.script.md").write_text(script_markdown(f"Deep dive: {title}", parts, {"script_model": getattr(llm_write, "label", ""),

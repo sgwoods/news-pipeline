@@ -47,3 +47,10 @@ Claude says when an approval is needed and what to look at.
 
 Baseline: the first approval is Steven's, after reading `REVIEW-2026-10-15.md`. Until then every outbound
 step is blocked (the morning briefing is still produced locally).
+
+
+## Rules for tests (2026-10-23)
+- Tests describe the code, never the machine: no reading of real processes, the clock (pass `now`), the network,
+  or files outside a temp folder. Test runs set `NP_ENV=production` and `NP_TESTING=1`.
+- The full gate runs at release time and in the evening preflight. Mornings only confirm that the running code
+  is code that already passed and is approved (`release-passed.jsonl`), so a test can never block a send.

@@ -13,10 +13,10 @@ This page describes the design as of **v0.1 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.1.7-beta (2026-10-22)
+- **Release:** v0.1.11-beta (2026-10-23)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 59 in `pipeline/`
+- **Modules:** 60 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -163,6 +163,7 @@ _Generated from each module's own description at build time._
 | `audio.py` | Phase 2 |
 | `bluesky.py` | Bluesky lists and Steven's own posts as sources, via the public AT Protocol API (no key, no login). |
 | `compare.py` | Staging against production for the same day |
+| `consistency.py` | Short texts readers see first must agree with the checked text and the sources (2026-10-23). |
 | `deepdive.py` | Topical deep dive |
 | `devenv.py` | The development checkout |
 | `dive.py` | Deep dive on one story |

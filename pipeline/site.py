@@ -425,7 +425,14 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
             head = _dd_head(e["md"])
             if written:                                  # the article has its own "Why today" section
                 head = re.sub(r"(?m)^\*\*Why today\.\*\*.*\n?", "", head)
-            body = (_md_to_html(head) + f'<div id="listen">{player}</div>{nav}'
+            try:                                         # corrections to a shipped day show on its deep dive too
+                from .shipped import corrections
+                fixes = corrections(root, e["day"])
+            except Exception:  # noqa: BLE001
+                fixes = []
+            fix_html = "".join(f'<p class="small muted"><b>Corrected {htmllib.escape(c["at"][:10])}:</b> '
+                               f'{htmllib.escape(c["note"])}</p>' for c in fixes)
+            body = (fix_html + _md_to_html(head) + f'<div id="listen">{player}</div>{nav}'
                     + (f'<section id="read" class="ddread">{_md_to_html(written)}</section>' if written else "")
                     + _md_to_html(_dd_sources(e["md"]))
                     + _share_box(dd_url, e["title"], "../../", cfg, "this deep dive"))

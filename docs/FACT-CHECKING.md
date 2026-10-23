@@ -25,3 +25,19 @@ The scorecard (`./np quality`) reports "Figures in no source" (target 0) from th
 ./np factcheck probe "Harvey raised $300M at a $5B valuation." '$5B'    one live search
 ```
 Deep dives have their own checks (docs/DEEP-DIVES.md): links opened, quotes verified, unsourced $/% sentences cut.
+
+
+## The lines readers see first (v0.1.9, 2026-10-23)
+Summaries and "Why today" lines appear in the email, on the site and in the podcast notes before anyone reads
+the body, so they get their own check (`pipeline/consistency.py`), run against the already-checked body.
+A sentence is dropped if:
+- a figure in it isn't in the body;
+- it names none of the companies or people the body ties that figure to;
+- it says something was "not disclosed" when the body or a source gives it.
+
+The "Why today" line is written from the checked body, never copied from the previous day's topic suggestion.
+Agenda lines can claim a role ("founder", "CEO", "investor in") only when the item's own source says so.
+Otherwise they read: "The author's role and any stake aren't stated in the source."
+
+Corrections to shipped editions: `./np correct DAY "what changed"` after a hand edit. The note shows on the day
+page and the deep-dive page.

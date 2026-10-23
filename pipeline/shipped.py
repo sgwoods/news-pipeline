@@ -6,8 +6,9 @@
 
 Rules, enforced before every production publish (guard) and after it (verify_live):
   - every shipped page (day page, deep dive) is still in the new site, unless the owner hid the day;
-  - a shipped edition's text changes only through a correction (./np rebrief DAY --correct "what changed"),
-    which is shown on the page ("Corrected <date>: ...");
+  - a shipped edition's text (briefing or deep dive) changes only through a correction, which is shown on the
+    page ("Corrected <date>: ..."): ./np correct DAY "what changed" after a hand edit, or
+    ./np rebrief DAY --correct "what changed";
   - every shipped MP3 inside the retention window (publish.audio_days) still resolves: a remaster adds a new file
     and the old one is carried over from the live site, so no URL breaks;
   - the home page and both feeds exist, and no podcast episode inside the retention window leaves the feed;
@@ -86,12 +87,14 @@ def corrections(root: Path, day: str | None = None) -> list:
     return [r for r in rows if day is None or r.get("day") == day]
 
 
-def correct(root: Path, day: str, note: str, before: str) -> dict:
-    """Record a correction to a shipped edition (after it was rebuilt), and accept its new text."""
+def correct(root: Path, day: str, note: str, before: str = "") -> dict:
+    """Record a correction to a shipped edition (after it was rebuilt or edited by hand), and accept its new text
+    (briefing and deep dive). The note is shown on the day page and the deep-dive page."""
     note = note.strip()
     if not note:
         raise ValueError("say what the correction changes")
     d = load(root)
+    before = before or (d.get(day) or {}).get("md", "")
     after = _sha(root / "briefings" / f"{day}.md")
     row = {"day": day, "at": dt.datetime.now().isoformat(timespec="seconds"), "note": note[:300],
            "md_before": before, "md_after": after}
@@ -145,7 +148,10 @@ def guard(root: Path, site: Path, live: Path, audio_days: int, today: dt.date | 
                 bad.append(f"shipped page missing: {page}")
         now = _sha(root / "briefings" / f"{day}.md")
         if e.get("md") and now != e["md"]:
-            bad.append(f"{day}: shipped edition changed without a correction (./np rebrief {day} --correct \"...\")")
+            bad.append(f"{day}: shipped edition changed without a correction (./np correct {day} \"what changed\")")
+        dd_now = _sha(root / "briefings" / "deepdives" / f"{day}.md")
+        if e.get("dd") and dd_now != e["dd"]:
+            bad.append(f"{day}: shipped deep dive changed without a correction (./np correct {day} \"what changed\")")
         if day >= cutoff:
             for name in e.get("audio") or []:
                 if not (site / "audio" / name).exists():

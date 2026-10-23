@@ -42,8 +42,13 @@ class Releases(unittest.TestCase):
         git(self.prod, "init", "-q", "-b", "main")
         commit(self.prod, "init")
         git(self.prod, "tag", "-a", "v0.1.0-beta", "-m", "x")
-        with mock.patch.object(release, "install_hooks", lambda root: []):
-            devenv.setup(self.prod, {}, log=lambda *_: None)
+        hooks = mock.patch.object(release, "install_hooks", lambda root: [])   # no real hooks in throwaway repos
+        hooks.start()
+        self.addCleanup(hooks.stop)
+        idle = mock.patch.object(releaser, "run_in_progress", lambda root: False)   # never the real machine's runs
+        idle.start()
+        self.addCleanup(idle.stop)
+        devenv.setup(self.prod, {}, log=lambda *_: None)
         self.dev = devenv.dev_path(self.prod, {})
         (self.dev / "pipeline" / "code.py").write_text("x = 2\n")
         (self.dev / "VERSION").write_text("0.2.0-beta\n")

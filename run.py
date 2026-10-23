@@ -917,6 +917,28 @@ def cmd_release(cfg: dict, argv: list, rollback: bool = False) -> int:
     return 0
 
 
+def cmd_correct(cfg: dict, argv: list) -> int:
+    """./np correct DAY "what changed": record a hand edit to a shipped edition (briefing or deep dive) as a
+    correction. The note is shown on the day page and the deep-dive page; the next publish carries it."""
+    from pipeline import env, shipped
+    if len(argv) < 2 or not " ".join(argv[1:]).strip():
+        print(cmd_correct.__doc__)
+        return 2
+    day, note = argv[0], " ".join(argv[1:]).strip()
+    if env.staging(ROOT):
+        print("corrections are made in production")
+        return 1
+    if not shipped.is_shipped(ROOT, day):
+        print(f"{day} hasn't shipped: edit it freely, no correction needed")
+        return 1
+    print("correction recorded:", shipped.correct(ROOT, day, note)["note"])
+    if cfg.get("archive", {}).get("git_commit", True):
+        print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"correction {day}: {note[:60]}",
+                                                            paths=("briefings", shipped.FILE, shipped.CORRECTIONS)))
+    print("Publish it: ./np publish")
+    return 0
+
+
 def cmd_remaster(cfg: dict, day: str) -> int:
     """./np remaster DAY: rebuild DAY's podcast in the current style (deep dive re-recorded with the current opener and
     sign-off, briefing audio rebuilt with the hand-off, one combined episode), then publish. No email is re-sent."""
@@ -978,6 +1000,13 @@ def cmd_release_check(cfg: dict, argv: list) -> int:
     if "install-hooks" in argv:
         print("git hooks installed: " + ", ".join(release.install_hooks(ROOT)))
         return 0
+    if "require" in argv:                        # the pre-push hook: fast when this code already passed
+        try:
+            release.require(ROOT, cfg, "git push")
+            return 0
+        except release.ReleaseBlocked as e:
+            print(e)
+            return 1
     if "approve" in argv:
         i = argv.index("approve")
         note = " ".join(argv[i + 1:]).strip()
@@ -1982,7 +2011,17 @@ def cmd_preflight(cfg: dict) -> int:
     from pipeline import release
     ok, why = release.check_approval(ROOT)
     if ok:
-        print("Preflight: release gate approval is current; tomorrow's run can publish and email.")
+        fp, sfp = release.fingerprint(release.CODE, ROOT), release.fingerprint(release.SENSITIVE, ROOT)
+        if not release.passed_before(ROOT, fp, sfp):     # test it tonight, not at 05:00 during the run
+            print("Preflight: this code hasn't passed the full gate yet; running it now...")
+            rec = release.run(ROOT, cfg)
+            if not rec["passed"]:
+                bad = "; ".join(f"{k}: {v['detail']}" for k, v in rec["checks"].items() if not v["ok"])
+                _notify("News pipeline: fix before morning", "The release gate fails tonight: " + bad[:150])
+                _alert(cfg, "gate", day=(dt.date.today() + dt.timedelta(days=1)).isoformat(), detail=bad,
+                       when="evening")
+                return 1
+        print("Preflight: approved and tested; tomorrow's run can publish and email without re-testing.")
         return 0
     changed = release.changed_sensitive(ROOT) if hasattr(release, "changed_sensitive") else []
     print("Preflight: APPROVAL NEEDED before tomorrow's run. " + why)
@@ -2266,6 +2305,7 @@ def main() -> int:
     ap.add_argument("--staging", nargs="*", metavar="ARG", help="sync | run [DAY] [--email] | reset | status (dev checkout)")
     ap.add_argument("--release", nargs="*", metavar="ARG", help='VERSION "reviewed: ...": promote dev to production')
     ap.add_argument("--rollback", nargs="*", metavar="ARG", help='"reviewed: ...": back to the previous release')
+    ap.add_argument("--correct-day", nargs="*", metavar="ARG", help='DAY "what changed": record a hand edit to a shipped edition')
     ap.add_argument("--remaster", metavar="DAY", help="rebuild DAY's podcast in the current style and publish")
     ap.add_argument("--factcheck", nargs="*", metavar="ARG", help="[DAY] | probe SENTENCE FIGURE: fact-check dry run")
     ap.add_argument("--reader", nargs="*", metavar="ARG", help="check [DAYS]: try the article reader on past items")
@@ -2346,6 +2386,8 @@ def main() -> int:
         return cmd_release(cfg, args.release)
     if args.rollback is not None:
         return cmd_release(cfg, args.rollback, rollback=True)
+    if args.correct_day is not None:
+        return cmd_correct(cfg, args.correct_day)
     changed_day = args.remaster or args.rebrief or args.reprocess
     if changed_day:                              # a shipped edition changes only as a visible correction
         from pipeline import env, shipped

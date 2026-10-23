@@ -47,6 +47,9 @@ def run_in_progress(root: Path) -> bool:
         cur = {}
     if cur and not cur.get("ended"):
         return True
+    import os
+    if os.environ.get("NP_TESTING"):                     # tests never look at the machine's real processes
+        return False
     r = subprocess.run(["pgrep", "-f", "run.py (--daily|--rebrief|--reprocess)"], capture_output=True, text=True)
     return bool(r.stdout.strip())
 
@@ -120,6 +123,8 @@ def promote(root: Path, cfg: dict, version: str, note: str, force: bool = False,
         raise ReleaseError(f"merging dev failed (production unchanged): {(r.stderr or r.stdout).strip()[:300]}")
     _approve(root, cfg, f"release v{version}: {note}", pre, interactive, log)
     _git(root, "tag", "-a", f"v{version}", "-m", f"AI Briefing v{version}")
+    from .release import install_hooks
+    install_hooks(root)                                  # hooks change with releases too
     sha = _git(root, "rev-parse", "--short", "HEAD").stdout.strip()
     _record(root, {"at": dt.datetime.now().isoformat(timespec="seconds"), "kind": "release", "version": version,
                    "previous": previous, "commit": sha, "note": note[:300]})

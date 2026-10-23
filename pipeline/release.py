@@ -24,6 +24,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = "data/state/release.json"
+PASSED = "data/state/release-passed.jsonl"   # every code + sensitive-files fingerprint that passed the full gate
 APPROVALS = "docs/security/approvals.json"
 CODE = ["pipeline/**/*.py", "pipeline/prompts/*.md", "dashboard/**/*.py", "dashboard/templates/*.html",
         "scripts/**/*.gs", "run.py", "np", "requirements.txt"]
@@ -74,9 +75,10 @@ def _read(p: Path) -> str:
 # ---------- checks: each returns (ok, detail) ----------
 
 def check_tests(root: Path = ROOT) -> tuple:
-    import os                                            # tests describe production behaviour, in either checkout
-    r = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests"], cwd=root,
-                       capture_output=True, text=True, timeout=600, env={**os.environ, "NP_ENV": "production"})
+    import os                                            # tests describe production behaviour, in either checkout,
+    r = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests"], cwd=root,  # and never read the
+                       capture_output=True, text=True, timeout=600,                              # live machine's state
+                       env={**os.environ, "NP_ENV": "production", "NP_TESTING": "1"})
     out = (r.stderr or "") + (r.stdout or "")
     (root / "logs").mkdir(exist_ok=True)
     (root / "logs" / "release-tests.txt").write_text(out, "utf-8")
@@ -273,10 +275,28 @@ def run(root: Path, cfg: dict, live: bool = False, tests: bool = True, log=print
     p = root / STATE
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(rec, indent=1) + "\n", "utf-8")
+    if passed and tests and not passed_before(root, rec["fingerprint"], rec["sensitive"]):
+        with (root / PASSED).open("a", encoding="utf-8") as f:
+            f.write(json.dumps({k: rec[k] for k in ("at", "fingerprint", "sensitive", "commit")}) + "\n")
     for k, (ok, d) in checks.items():
         log(f"  {'PASS' if ok else 'FAIL'}  {k:11} {d}")
     log(f"Release gate: {'PASSED' if passed else 'BLOCKED'} for code {rec['fingerprint']} (commit {rec['commit']})")
     return rec
+
+
+def passed_before(root: Path, fp: str, sfp: str) -> bool:
+    """Has exactly this code and these sensitive files passed the full gate (tests included) before?"""
+    p = root / PASSED
+    if not p.exists():
+        return False
+    for ln in p.read_text("utf-8").splitlines():
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if r.get("fingerprint") == fp and r.get("sensitive") == sfp:
+            return True
+    return False
 
 
 def approve(root: Path, cfg: dict, note: str, who: str = "Steven", log=print, interactive=None) -> dict:
@@ -310,8 +330,12 @@ def require(root: Path, cfg: dict, action: str, log=print, staging_ok: bool = Fa
         rec = json.loads(_read(root / STATE) or "{}")
     except json.JSONDecodeError:
         rec = {}
-    if rec.get("passed") and rec.get("fingerprint") == fingerprint(CODE, root) and \
-            rec.get("sensitive") == fingerprint(SENSITIVE, root):
+    fp, sfp = fingerprint(CODE, root), fingerprint(SENSITIVE, root)
+    if rec.get("passed") and rec.get("fingerprint") == fp and rec.get("sensitive") == sfp:
+        return
+    # Code that already passed the full gate (tests included) and is approved never re-runs the tests: a morning
+    # publish must not depend on the test suite behaving the same while a run is in progress (2026-10-23).
+    if not staging(root) and passed_before(root, fp, sfp) and check_approval(root)[0]:
         return
     log(f"Release gate: code changed since the last check; checking before {action}...")
     rec = run(root, cfg, log=log)
@@ -335,9 +359,9 @@ HOOKS = {
                   "import subprocess; fs=[Path(f) for f in subprocess.run([\"git\",\"diff\",\"--cached\",\"--name-only\",\"--diff-filter=ACM\"],"
                   "capture_output=True,text=True).stdout.split()]; ok,d=r.check_secrets(Path(\".\").resolve(),[Path(\".\").resolve()/f for f in fs]); "
                   "print(\"secret scan:\", d); sys.exit(0 if ok else 1)'\n",
-    "pre-push": "#!/bin/sh\n# news-pipeline: the full release gate before anything is pushed\n"
+    "pre-push": "#!/bin/sh\n# news-pipeline: the release gate before anything is pushed (fast when this code already passed)\n"
                 "cd \"$(git rev-parse --show-toplevel)\" || exit 1\nPY=python3; [ -x .venv/bin/python ] && PY=.venv/bin/python\n"
-                "exec \"$PY\" run.py --release-check\n",
+                "exec \"$PY\" run.py --release-check require\n",
 }
 
 

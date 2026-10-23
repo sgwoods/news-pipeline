@@ -6,6 +6,48 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.1.11-beta · 2026-10-23
+- Fix: v0.1.10's public code push was refused again, correctly: a code comment and the changelog named a
+  portfolio company. Both are reworded, and the dev test now builds the whole public export and fails on any
+  private term, not only in test files.
+
+## v0.1.10-beta · 2026-10-23
+- Fix: v0.1.9's public code push was refused, correctly, because a new test used real portfolio names. The test
+  now uses made-up names, and a test fails in dev whenever any test file names a private term, so the release
+  can't be the first place it's caught.
+
+## v0.1.9-beta · 2026-10-23
+Fix: on 2026-10-23 the deep dive's body was correct, but its summary and "Why today" lines, which readers see first
+in the email, on the site and in the podcast notes, said a legal-AI company disclosed no ARR and that "a vendor"
+claimed a $21M saving. In fact the company disclosed ARR, and the $21M was an investor's post about a different
+company. The day before, an unsourced Agenda line had called that investor the other company's "founder".
+- **The why-today line comes from the checked body:** it's written from the deep dive's checked "why today"
+  section, no longer copied from the previous day's topic suggestion.
+- **A header check (`pipeline/consistency.py`) for the summary and why-today lines:** a sentence is dropped if a
+  figure isn't in the checked body, if it names none of the companies or people the body ties that figure to, or if
+  it says something wasn't disclosed when the body or a source gives it. Spelled-out figures in scripts count. If
+  nothing in the summary survives, the checked opening is used.
+- **Agenda lines can't assert unsourced roles:** "founder", "CEO", "investor in" and similar must appear in the
+  item's own source text; otherwise the line becomes neutral.
+- **Deep-dive text is guarded like the briefing:** a shipped deep dive changes only through a correction, and its
+  page shows the correction note.
+- **`./np correct DAY "what changed"`:** records a hand edit to a shipped edition as a correction, shown on the day
+  page and the deep-dive page.
+
+## v0.1.8-beta · 2026-10-23
+Fix: the 2026-10-23 edition was held at 05:26 and again at 06:30. The release gate re-ran the whole test suite
+during the morning run, and one release test that checks for a running daily run saw the real one and failed.
+The same check blocked the backup's git push.
+- **Released code isn't re-tested in the morning:** once a code and settings fingerprint has passed the full gate
+  (tests included) and is approved, later checks accept it without re-running the tests
+  (`data/state/release-passed.jsonl`). Changed code is still fully checked.
+- **Tests never read the live machine:** test runs set `NP_TESTING=1`, `run_in_progress` doesn't look at real
+  processes under it, and the release tests mock it too.
+- **The evening preflight tests tonight what runs tomorrow:** if the code hasn't passed the full gate yet, the
+  preflight runs it at 20:30 and emails the owner if it fails, instead of finding out at 05:00.
+- **The pre-push hook uses the same fast check** (`--release-check require`), and `./np release` reinstalls the
+  hooks.
+
 ## v0.1.7-beta · 2026-10-22
 Shipped editions don't break. Once a day's email has gone out, that day is shipped (`pipeline/shipped.py`), and:
 - **Publish guard:** before every production publish, the new site is checked against what readers already have.

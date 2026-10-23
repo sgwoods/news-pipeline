@@ -53,7 +53,7 @@ case "$cmd" in
   rebuild-history) run $PY run.py --rebuild-history "$@" ;;    # [FROM [TO]] every day's briefing + audio with the current profile
   record)    run $PY run.py --record "${@:-list}" ;;            # public record: list | search | words | apply-words | accept ID | deny ID | export
   dive)      run $PY run.py --dive "${1:?usage: ./np dive DAY STORY}" "${2:?usage: ./np dive DAY STORY (number or key)}" ;;
-  tests)     NP_ENV=production run $PY -m unittest discover -s tests ;;   # production behaviour, in either checkout
+  tests)     NP_ENV=production NP_TESTING=1 run $PY -m unittest discover -s tests ;;   # production behaviour, never the live machine
   scheduled) # launchd ticks every half hour; run only when this Mac's local clock says a scheduled time just passed
              kind="${1:?usage: ./np scheduled daily|preflight}"
              $PY run.py --due "$kind" >/dev/null 2>&1 || exit 0
@@ -96,6 +96,7 @@ case "$cmd" in
   staging)   run $PY run.py --staging "${@:-status}" ;;            # sync | run [DAY] [--email] [--force] | reset | status (dev checkout)
   release)   run $PY run.py --release "$@" ;;                     # VERSION "reviewed: ...": promote dev to production (one approval)
   rollback)  run $PY run.py --rollback "$@" ;;                    # "reviewed: why": production back to the previous release
+  correct)   run $PY run.py --correct-day "$@" ;;                 # DAY "what changed": a hand edit to a shipped edition, shown on the page
   remaster)  run $PY run.py --remaster "${1:?usage: ./np remaster YYYY-MM-DD}" "${@:2}" ;;   # DAY's podcast in the current style, then publish
   factcheck) run $PY run.py --factcheck "$@" ;;                 # [DAY] | probe "sentence" FIGURE: fact check + search-before-cut, dry run
   reader)    run $PY run.py --reader "${@:-check}" ;;             # check [DAYS]: article reader on past items (dry run)
