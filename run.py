@@ -682,6 +682,24 @@ def write_v2(run, cfg, backends, system, entries, day, dropped, meta, briefings_
                 run.log.info("number check: corrected %s", f_)
         except Exception as e:  # noqa: BLE001
             run.log.warning("number fix skipped: %s", e)
+        try:                                     # the lines readers see first agree with the checked body (v0.1.14)
+            from pipeline import consistency, factcheck
+            ids = [i for s_ in srec.get("stories", []) for i in s_.get("ids", [])]
+            md, hn = consistency.check_briefing(md, " ".join(factcheck.corpus(ROOT, ids)))
+            earlier = {}
+            for k in range(1, 15):
+                f_ = ROOT / cfg["paths"]["briefings"] / f"{(dt.date.fromisoformat(day) - dt.timedelta(days=k)).isoformat()}.md"
+                if f_.exists():
+                    earlier[f_.stem] = f_.read_text("utf-8")
+            xd = consistency.cross_day(md, earlier)
+            st["consistency"] = {"dropped": hn[:20], "cross_day": xd[:10]}
+            for n_ in hn:
+                run.log.warning("consistency: %s", n_)
+            for x_ in xd:
+                run.log.info("consistency: review: says %s wasn't disclosed, but %s gave it: %s", x_["term"],
+                             x_["earlier_day"], x_["earlier"][:120])
+        except Exception as e:  # noqa: BLE001
+            run.log.warning("consistency check skipped: %s", e)
         if experiment:
             out = experiment_dir(cfg, day)
             out.mkdir(parents=True, exist_ok=True)
@@ -1144,6 +1162,32 @@ def cmd_runner(cfg: dict, argv: list) -> int:
     print(f"waiting for Approve: {', '.join(st['waiting']) or '-'}")
     for j in st["last"]:
         print(f"  {j['ended']}  {j['id']}  {j['status']}  {j.get('detail') or ''}")
+    return 0
+
+
+def cmd_consistency(cfg: dict, argv: list) -> int:
+    """./np consistency [DAY|all]: dry run of the first-lines checks (day in brief, Top of mind, Agenda roles,
+    deep-dive summaries) and the cross-day check over published editions. Nothing is edited."""
+    from pipeline import consistency
+    days = None if not argv or argv[0] == "all" else [a for a in argv if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)]
+    r = consistency.audit(ROOT, days)
+    n = 0
+    for d in r["days"]:
+        for h in d["header"]:
+            print(f"{d['day']}  CHANGE  {h}")
+            n += 1
+        for h in d["roles"]:
+            print(f"{d['day']}  ROLE    unsourced role in an Agenda line: {h}")
+            n += 1
+        for x in d["cross_day"]:
+            print(f"{d['day']}  REVIEW  says {x['term']} wasn't disclosed; {x['earlier_day']} gave it: {x['earlier'][:120]}")
+            n += 1
+    for d in r["deepdives"]:
+        for h in d["header"]:
+            print(f"{d['day']}  DEEP DIVE  {h}")
+            n += 1
+    print(f"Checked {len(r['days'])} editions and {len(r['deepdives'])} deep dives: {n} finding(s). Nothing edited; "
+          f"to fix a shipped edition, edit it and ./np correct DAY \"what changed\".")
     return 0
 
 
@@ -2417,6 +2461,7 @@ def main() -> int:
     ap.add_argument("--due", metavar="KIND", help="daily|preflight: exit 0 if a scheduled time just passed (local clock)")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
     ap.add_argument("--runner", nargs="*", metavar="ARG", help="status | tick | approve ID | reject ID | install | remove")
+    ap.add_argument("--consistency", nargs="*", metavar="ARG", help="[DAY|all]: first-lines and cross-day checks, dry run")
     ap.add_argument("--hub", nargs="*", metavar="ARG", help="status | push: status on the public project hub")
     ap.add_argument("--dev", nargs="*", metavar="ARG", help="setup: create the development checkout")
     ap.add_argument("--staging", nargs="*", metavar="ARG", help="sync | run [DAY] [--email] | reset | status (dev checkout)")
@@ -2489,6 +2534,8 @@ def main() -> int:
         return cmd_deepdive(cfg, args.deepdive)
     if args.quality is not None:
         return cmd_quality(cfg, args.quality)
+    if args.consistency is not None:
+        return cmd_consistency(cfg, args.consistency)
     if args.runner is not None:
         return cmd_runner(cfg, args.runner)
     if args.preflight:

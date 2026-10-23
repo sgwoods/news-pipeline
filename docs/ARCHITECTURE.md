@@ -13,7 +13,7 @@ This page describes the design as of **v0.1 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.1.13-beta (2026-10-23)
+- **Release:** v0.1.14-beta (2026-10-23)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 62 in `pipeline/`
@@ -59,7 +59,7 @@ _Generated at build time._
 | critique / verify | Each claim gets a verdict: holds, mixed, overstated, unsupported, unverified. Every Must read gets an evidence check. | `stages.py`, `dive.py` |
 | editorial / write | Day in brief, Top of mind, Must read, Worth knowing, Open questions; citations point at the real article. | `editorial.py`, `links.py`, `questions.py` |
 | fact check | Figures traced to their source, searched before they are cut, flagged when unconfirmed; numbers cross-checked; quotes kept only if word for word. | `factcheck.py`, `factsearch.py`, `numbers.py` |
-| first lines | Summaries, "Why today" and Agenda lines checked against the checked body and the item's own source. | `consistency.py` |
+| first lines | The day in brief, Top of mind, deep-dive summaries, "Why today" and Agenda lines checked against the checked body and the item's own source; "not disclosed" claims compared with the last 14 editions. | `consistency.py` |
 | deep dive | A second segment on the day's focal topic, from a queue the owner curates. | `deepdive.py` |
 | audio | The script becomes speech (pronunciations, pacing), the briefing and the deep dive joined into one episode. | `audio.py`, `speech.py` |
 | release gate | Tests, a secret scan, privacy invariants, approval of security-sensitive changes. | `release.py` |

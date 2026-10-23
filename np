@@ -105,6 +105,7 @@ case "$cmd" in
   correct)   run $PY run.py --correct-day "$@" ;;                 # DAY "what changed": a hand edit to a shipped edition, shown on the page
   remaster)  run $PY run.py --remaster "${1:?usage: ./np remaster YYYY-MM-DD}" "${@:2}" ;;   # DAY's podcast in the current style, then publish
   factcheck) run $PY run.py --factcheck "$@" ;;                 # [DAY] | probe "sentence" FIGURE: fact check + search-before-cut, dry run
+  consistency) run $PY run.py --consistency "${@:-all}" ;;     # [DAY|all]: first lines vs body, cross-day; dry run
   reader)    run $PY run.py --reader "${@:-check}" ;;             # check [DAYS]: article reader on past items (dry run)
   profiles)  run $PY run.py --profiles "$@" ;;                   # [DAYS] sites/sources not yet in source_profiles.yaml
   relink)    run $PY run.py --relink "${1:?usage: ./np relink YYYY-MM-DD}" ;;   # links + labels in an existing briefing, no model/audio
@@ -142,6 +143,7 @@ case "$cmd" in
 ./np quality [DAY|all]  scorecard; also: rate DAY SCORE [note] | pull (star ratings from the subscriber Sheet)
 ./np review weekly      weekly quality review (benchmarks, house rules) from local files
 ./np remaster DAY       rebuild DAY's podcast in the current style (deep dive + briefing + combined episode), then publish
+./np consistency [DAY|all]  first lines (day in brief, Top of mind, Agenda, deep-dive summary) vs the body; cross-day; dry run
 ./np factcheck [DAY]    fact-check dry run on a saved briefing (traces figures, searches before cutting); probe "sentence" FIG
 ./np reader check [N]   try the article reader on the last N days' critiqued items (dry run)
 ./np profiles [DAYS]    sites/sources seen recently with no source profile

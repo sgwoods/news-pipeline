@@ -37,14 +37,26 @@ Every step runs in the morning run, before the email and the audio.
 | Quotes | `stages.verify_quotes` | Words in quotation marks must appear word for word in the source material. If they don't, the quotation marks come off and the words stay as a paraphrase. |
 | Speech | `pipeline/speech.py` | Prices, rates, ranges and model sizes are spoken correctly ("two dollars for input and ten for output"). |
 
-## 4. The lines readers see first (since v0.1.9)
-Summaries and "Why today" lines appear in the email, on the site and in the podcast notes before anyone reads
-the body, so they get their own check (`pipeline/consistency.py`). It runs against the already-checked body.
-A sentence is dropped if:
+## 4. The lines readers see first (deep dives since v0.1.9, the daily briefing since v0.1.14)
+Summaries and "Why today" lines, and the daily briefing's day in brief and Top of mind, appear in the email, on the
+site and in the podcast notes before anyone reads the body. So they get their own check (`pipeline/consistency.py`),
+which runs against the already-checked body. A figure belongs to its whole story there, so a line can name the
+company in its lead and give the figure in the next sentence. A sentence is dropped if:
 
 - a figure in it isn't in the body;
 - it names none of the companies or people the body ties that figure to;
-- it says something was "not disclosed" when the body or a source gives it.
+- it says something was "not disclosed" when the body or a source gives it for the same company (a question
+  asking for the figure, or a sentence saying it's lacking, doesn't count).
+
+A figure the body doesn't carry can still stand if a source sentence ties it to the same names. A Top of mind
+bullet whose lead fails, or whose every other sentence fails, is dropped whole.
+
+**Across days (flag, not cut).** A "not disclosed" claim is also compared with the previous 14 editions. If an
+earlier day gave that figure for the same company, the run log flags it for review. A day can be right about its
+own sources and still contradict the record, so this one is for a person to judge.
+
+`./np consistency [DAY|all]` runs all of this over published editions as a dry run. On 2026-10-23 it ran over all
+18 editions and 8 deep dives and found one misattributed figure (fixed by a correction) and two cross-day flags.
 
 The "Why today" line is written from the checked body, never copied from the previous day's topic suggestion.
 Agenda lines can claim a role ("founder", "CEO", "investor in") only when the item's own source says so.
@@ -76,6 +88,7 @@ the gate, the send is blocked.
 ./np factcheck              dry run on the latest edition: FOUND / CUT / FLAG, nothing edited
 ./np factcheck 2026-10-13   same for a day
 ./np factcheck probe "Harvey raised $300M at a $5B valuation." '$5B'    one live search
+./np consistency all        first lines vs the body, Agenda roles, cross-day flags over published editions (dry run)
 ./np correct DAY "note"     record a hand edit to a shipped edition (shown on its pages)
 ./np review weekly          the weekly quality review
 ```
@@ -83,7 +96,7 @@ Deep dives have their own checks (docs/DEEP-DIVES.md): links opened, quotes veri
 cut, and the summary and "Why today" lines checked as in section 4.
 
 ## Known gaps (next)
-- The daily briefing's day in brief and Top of mind lines aren't yet checked against the body the way deep-dive
-  summaries are.
-- Disagreements across days (one day says a figure wasn't disclosed, the next day cites it) are caught by the
-  weekly review, not at send time.
+- Only "not disclosed" claims are compared across days. Other contradictions between days (different figures for
+  the same thing) are left to the weekly review.
+- The check matches names, not meaning: a sentence that names the right company but gets its role in the story
+  wrong can still pass.

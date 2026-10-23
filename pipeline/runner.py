@@ -50,6 +50,7 @@ RECIPES = {
     "compare": {"tier": "auto", "args": {"day": "day?"}, "steps": [("dev", ["staging", "compare", "{day}"])]},
     "doctor":  {"tier": "auto", "args": {}, "steps": [("prod", ["doctor"])]},
     "gate":    {"tier": "auto", "args": {}, "steps": [("prod", ["release-check"])]},
+    "consistency": {"tier": "auto", "args": {"day": "day?"}, "steps": [("prod", ["consistency", "{day}"])]},
     "verify":  {"tier": "auto", "args": {}, "steps": [("local", ["verify"])]},
     "correct": {"tier": "chat", "args": {"day": "day", "note": "text"},
                 "steps": [("prod", ["correct", "{day}", "{note}"]), ("prod", ["publish"]), ("local", ["verify"])]},

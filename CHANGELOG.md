@@ -6,6 +6,19 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.1.14-beta · 2026-10-23
+- **First-lines check for the daily briefing:** the day in brief and Top of mind are now checked against the
+  edition's own body, as deep-dive summaries have been since v0.1.9 (`consistency.check_briefing`). A figure
+  belongs to its whole story, so a line can name the company in its lead. A sentence that ties a figure to the
+  wrong company, or says something wasn't disclosed when the body gives it, is dropped.
+- **Across days (flag):** a "not disclosed" claim is compared with the previous 14 editions and flagged for review
+  if an earlier day gave the figure for the same company.
+- The "not disclosed" test is stricter everywhere: a question asking for a figure, or a sentence saying it's
+  lacking, no longer counts as giving it, and it must be about the same company.
+- `./np consistency [DAY|all]` (also a run-queue recipe) runs the checks over published editions as a dry run.
+  Over all 18 editions and 8 deep dives it found one misattributed figure (10-22's day in brief) and two
+  cross-day flags (10-23).
+
 ## v0.1.13-beta · 2026-10-23
 - Fix: the run queue's launchd tick never started a job. Its quick idle check listed both queue folders with `ls`,
   which fails whenever one of them is empty. It now checks each file, and a test runs the real `./np runner tick`.
