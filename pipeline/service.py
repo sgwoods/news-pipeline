@@ -3,6 +3,7 @@
 daily      runs `./np daily` at schedule.times (default 06:30 and a 07:30 retry)
 dashboard  keeps `./np dash` running (starts at login, restarts if it crashes)
 preflight  runs `./np preflight` each evening (schedule.preflight, default 20:30): notifies if an approval is pending
+runner     the run queue (pipeline/runner.py): every minute and whenever a job file lands in data/queue/pending/
 
 Plists live in ~/Library/LaunchAgents and point at this checkout, so moving the project to
 another Mac is: clone, ./np setup, ./np service install.
@@ -17,7 +18,7 @@ import subprocess
 from pathlib import Path
 
 LABELS = {"daily": "com.sgwoods.news-pipeline", "dashboard": "com.sgwoods.news-pipeline.dashboard",
-          "preflight": "com.sgwoods.news-pipeline.preflight"}
+          "preflight": "com.sgwoods.news-pipeline.preflight", "runner": "com.sgwoods.news-pipeline.runner"}
 
 
 def _sh(args, timeout=20):
@@ -59,6 +60,11 @@ def build_plist(kind: str, root: Path, cfg: dict) -> dict:
                      "StartCalendarInterval": [{"Minute": m} for m in TICK_MINUTES],
                      "StandardOutPath": str(root / "logs" / "launchd.out.log"),
                      "StandardErrorPath": str(root / "logs" / "launchd.err.log"), "RunAtLoad": False})
+    elif kind == "runner":                                # ticks fast; ./np runner tick exits at once when idle
+        base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "runner", "tick"],
+                     "StartInterval": 60, "WatchPaths": [str(root / "data" / "queue" / "pending")],
+                     "StandardOutPath": str(root / "logs" / "runner.log"),
+                     "StandardErrorPath": str(root / "logs" / "runner.log"), "RunAtLoad": True})
     else:
         base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "dash"],
                      "RunAtLoad": True, "KeepAlive": True, "ThrottleInterval": 15,
@@ -78,6 +84,8 @@ def install(kind: str, root: Path, cfg: dict) -> str:
     p = plist_path(kind)
     p.parent.mkdir(parents=True, exist_ok=True)
     (root / "logs").mkdir(exist_ok=True)
+    if kind == "runner":
+        (root / "data" / "queue" / "pending").mkdir(parents=True, exist_ok=True)
     with p.open("wb") as f:
         plistlib.dump(build_plist(kind, root, cfg), f)
     _sh(["launchctl", "bootout", f"{domain()}/{LABELS[kind]}"])

@@ -13,19 +13,22 @@ This page describes the design as of **v0.1 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.1.11-beta (2026-10-23)
+- **Release:** v0.1.12-beta (2026-10-23)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 60 in `pipeline/`
+- **Modules:** 62 in `pipeline/`
 
 ## Contents
 - Design principles
 - The daily run
 - Components
+- Grounding and fact checking
 - Data and storage
 - Privacy and security
 - Repositories and public surfaces
 - Releases
+- Run queue
+- Keeping these docs current
 - Operations
 - Component reference
 - Running your own instance
@@ -55,7 +58,8 @@ _Generated at build time._
 | cluster | Items about the same thing become one story, with an evidence mix. | `editorial.py`, `profiles.py` |
 | critique / verify | Each claim gets a verdict: holds, mixed, overstated, unsupported, unverified. Every Must read gets an evidence check. | `stages.py`, `dive.py` |
 | editorial / write | Day in brief, Top of mind, Must read, Worth knowing, Open questions; citations point at the real article. | `editorial.py`, `links.py`, `questions.py` |
-| fact check | Figures traced to their source, searched before they are cut, flagged when unconfirmed; numbers cross-checked. | `factcheck.py`, `factsearch.py`, `numbers.py` |
+| fact check | Figures traced to their source, searched before they are cut, flagged when unconfirmed; numbers cross-checked; quotes kept only if word for word. | `factcheck.py`, `factsearch.py`, `numbers.py` |
+| first lines | Summaries, "Why today" and Agenda lines checked against the checked body and the item's own source. | `consistency.py` |
 | deep dive | A second segment on the day's focal topic, from a queue the owner curates. | `deepdive.py` |
 | audio | The script becomes speech (pronunciations, pacing), the briefing and the deep dive joined into one episode. | `audio.py`, `speech.py` |
 | release gate | Tests, a secret scan, privacy invariants, approval of security-sensitive changes. | `release.py` |
@@ -76,6 +80,25 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
   runs, quality and control. It's never exposed to the internet.
 - **Services** (`service.py`): launchd agents for the daily run, the evening preflight and the dashboard.
 - **Secrets** (`vault.py`): macOS Keychain first, then `.env` (gitignored, mode 600).
+
+Smaller pieces:
+
+| Area | Modules |
+|---|---|
+| Sources | `sources.py` (resolve and verify feeds for tracked people), `suggest.py` (source suggestions), `xsource.py` (X accounts through public RSS mirrors, never the paid API), `xdigest.py` (a weekly X digest by web search for accounts no mirror reaches), `linkedin.py` (the owner's own posts from LinkedIn's export), `record.py` (the owner's public record) |
+| Owner touchpoints | `editor_note.py` (the owner's private evening note), `alerts.py` (an action-needed email when an edition can't go out), `todos.py` (the shared to-do list), `report.py` (the short status report in `logs/last-report.md`) |
+| Quality | `review.py` (the weekly review, from local files only) |
+| Settings and time | `owner.py` (who runs this instance), `settings.py` (edit single config values without disturbing comments), `schedule.py` (when scheduled jobs actually run, by the local clock) |
+| Public surfaces | `version.py` (the running version), `docs.py` (these pages on the site), `scrub.py` (scrubbing shared by the public code export and the docs) |
+| Run queue | `runner.py` (jobs from the chat, run on the Mac), `presence.py` (is a person here to approve) |
+| Helpers | `textutil.py` (HTML to text, page metadata, URL ids, dates) |
+
+## Grounding and fact checking
+Every claim a reader sees must trace back to text the pipeline holds: the archived item, the article the reader
+fetched, or a page found by search. The checks run in layers: ground, judge, check every figure and quote, check
+the first lines against the body, then the privacy gate. After shipping, editions change only through visible
+corrections. Unverifiable sentences are cut and the edition still goes. Only privacy blocks. The full list, with
+the reasons behind each layer, is in [Fact checking](FACT-CHECKING.md).
 
 ## Data and storage
 - **Archive:** append-only files under `data/` (items, analyses, stories, runs). Nothing deletes or rewrites history.
@@ -140,9 +163,41 @@ perspective, takes) isn't code and is edited in production at any time.
 | `./np staging publish` | dev | the development preview at sgwoods.github.io/ai-briefing-staging/ (banner, noindex) |
 | `./np release VERSION "reviewed: ..."` | production | merges dev with one approval, then tags it and updates the public code, backup and hub |
 | `./np rollback "reviewed: ..."` | production | returns the code to the previous release |
+| `./np runner status` | production | the run queue: what's queued, waiting for Approve, and done |
 
 Modules: `env.py` (production or staging), `devenv.py` (the development checkout), `compare.py` (staging vs production), `releaser.py` (release and
 rollback), `release.py` (the gate).
+
+## Run queue
+![Run queue](img/run-queue.svg)
+
+From v0.1.12 the owner can run releases and fixes from the Claude chat instead of a terminal (`runner.py`,
+docs/plans/run-queue.md). Claude writes a job file naming a recipe and its arguments. A launchd agent on the Mac
+runs only allowlisted recipes, with validated arguments, as argument lists rather than shell text. There are
+three tiers:
+
+| Tier | Recipes | Runs when |
+|---|---|---|
+| auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify` | at once |
+| chat | `correct`, `publish`, `restore` | the job quotes the owner's yes from the chat |
+| mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, the public code push | the owner clicks Approve in a dialog on the Mac, or runs `./np runner approve ID` in Terminal |
+
+The click grants presence in memory for that job's approved steps only (`presence.py`). No file or setting can
+stand in for it. Jobs that change production wait out the morning run. Unanswered approvals lapse at 20:00. The
+runner refuses to work if production code differs from the release. Release invariant 10 checks the recipes and
+the runner's code. Results go to `data/queue/done/` and `logs/runner-<id>.txt`. `./np runner status` lists the
+queue.
+
+## Keeping these docs current
+- **On every release (it blocks):** the drift tests in the release gate check that this page names the running
+  version, that every module it names exists, that every public module is described in a hand-written doc, and
+  that every diagram is used. Generated sections (current facts, component reference) are rebuilt at each
+  publish, and the site's docs are rebuilt with them.
+- **At the decision:** the release approval dialog and the release output list the modules that changed while no
+  doc describing them did ("docs to review"). The list is saved to `data/state/docs-impact.json`.
+- **Afterwards (automatic):** a weekly docs refresh reads that list and the week's changes, updates the docs and
+  diagrams on the development branch, and leaves them for the next release. Docs changes ship through releases
+  like code.
 
 ## Operations
 - **Schedule:** early morning with two retries. A retry skips work already done. An evening preflight checks
@@ -188,6 +243,7 @@ _Generated from each module's own description at build time._
 | `owner.py` | Who runs this instance |
 | `pages.py` | Sources without RSS |
 | `perspective.py` | Read-only parser for perspective.md. |
+| `presence.py` | Is a person here to approve? A terminal, or the run queue's approval dialog clicked on this Mac. |
 | `profiles.py` | Source profiles (source_profiles.yaml) |
 | `publish.py` | Push the static site (site/) to a separate public GitHub repo served by GitHub Pages. |
 | `quality.py` | Daily quality scorecard |
@@ -199,6 +255,7 @@ _Generated from each module's own description at build time._
 | `report.py` | Compact, paste-friendly status report → logs/last-report.md. |
 | `review.py` | Weekly quality review, run on the Mac from local files only (no web, no tools, no mailbox). |
 | `runlog.py` | Records every run |
+| `runner.py` | Run queue |
 | `schedule.py` | When the scheduled jobs actually run |
 | `scrub.py` | Scrubbing shared by the public code export and the public docs |
 | `service.py` | Background services on macOS (launchd user agents) + health of what the pipeline depends on. |

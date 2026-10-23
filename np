@@ -91,6 +91,11 @@ case "$cmd" in
   quality)   run $PY run.py --quality "$@" ;;                    # [DAY|all] | rate DAY SCORE [note]: scorecard
   review)    run $PY run.py --review "${@:-weekly}" ;;             # weekly [DAY]: quality review from local files
   preflight) run $PY run.py --preflight ;;                     # evening: is the release gate approval current? (notifies)
+  runner)    if [ "${1:-}" = tick ]; then                        # launchd, every minute: quiet unless a job is queued
+               ls data/queue/pending/*.json data/queue/waiting/*.json >/dev/null 2>&1 || exit 0
+               exec $PY run.py --runner tick >>logs/runner.log 2>&1
+             fi
+             run $PY run.py --runner "${@:-status}" ;;          # status | approve ID | reject ID | install | remove
   hub)       run $PY run.py --hub "${@:-status}" ;;                 # status | push: AI Briefing on the public project hub
   dev)       run $PY run.py --dev "${@:-setup}" ;;                # setup: create the development checkout (from production)
   staging)   run $PY run.py --staging "${@:-status}" ;;            # sync | run [DAY] [--email] [--force] | reset | status (dev checkout)
@@ -144,6 +149,7 @@ case "$cmd" in
 ./np slack test|fetch   links you share in Slack;  ./np linkedin import|list   your own LinkedIn posts
 ./np release-check      the release gate: [live] | approve "note" (Steven only) | install-hooks
 ./np preflight          evening check that the release approval is current (the 20:30 service runs it)
+./np runner status      the run queue (jobs Claude queues; you decide): status | approve ID | reject ID | install
 ./np secrets status     secrets in the macOS Keychain; set NAME (hidden prompt) | migrate
 ./np rebuild-history    rebuild every day's briefing + audio with the current profile (older versions kept)
 ./np record search      find new appearances / mentions of you on the web -> review queue (also weekly in the daily job)

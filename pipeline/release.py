@@ -203,6 +203,26 @@ def check_invariants(root: Path = ROOT) -> tuple:
             bad.append(f"{rel}:{fn} does not pass the release gate (require), so staging could reach readers")
     if "staging(_root)" not in _read(root / "pipeline/mailer.py"):
         bad.append("the mailer has lost its staging guard")
+    # 10 run queue (pipeline/runner.py, docs/plans/run-queue.md): jobs are data, only allowlisted recipes run, as
+    #   argument lists; whatever needs Steven runs only after his Approve; nothing on disk can stand in for it
+    rsrc, psrc = _read(root / "pipeline/runner.py"), _read(root / "pipeline/presence.py")
+    if rsrc:
+        for pat, why in ((r"shell\s*=\s*True", "runs a shell"), (r"\bos\.system\(|\bos\.popen\(", "runs a shell"),
+                         (r"(?<![\w.])(?:eval|exec)\(", "evaluates text"), (r"\bPopen\(", "starts unmanaged processes")):
+            if re.search(pat, rsrc):
+                bad.append(f"the run queue {why}")
+        try:
+            from . import runner as _runner
+            bad += [f"run queue recipe {x}" for x in _runner.recipe_problems()]
+        except Exception as e:  # noqa: BLE001
+            bad.append(f"the run queue doesn't load: {e}"[:200])
+    if psrc and re.search(r"\bos\.environ|\bgetenv\(|\bopen\(|\bPath\(|read_text|\bimport os\b", psrc):
+        bad.append("presence can be granted from a file or the environment")
+    for p in _files(["pipeline/**/*.py", "dashboard/**/*.py", "run.py"], root):
+        rel = str(p.relative_to(root))
+        if rel not in ("pipeline/runner.py", "pipeline/presence.py", "pipeline/release.py") and \
+                re.search(r"\bgranted\(", _read(p)):
+            bad.append(f"{rel} grants presence (only the run queue may, after Approve)")
     return not bad, "; ".join(bad) or "all invariants hold"
 
 
@@ -300,10 +320,12 @@ def passed_before(root: Path, fp: str, sfp: str) -> bool:
 
 
 def approve(root: Path, cfg: dict, note: str, who: str = "Steven", log=print, interactive=None) -> dict:
-    """Only a person at a terminal can approve: scheduled jobs, agents and the dashboard cannot."""
-    interactive = sys.stdin.isatty() if interactive is None else interactive
+    """Only a person can approve (a terminal, or the run queue's dialog): scheduled jobs, agents and the dashboard cannot."""
+    from .presence import confirmed
+    interactive = confirmed() if interactive is None else interactive
     if not interactive:
-        raise ReleaseBlocked("approval needs a person at a terminal: run ./np release-check approve \"...\" in Terminal")
+        raise ReleaseBlocked("approval needs a person at a terminal: run ./np release-check approve \"...\" in "
+                             "Terminal (or click Approve in the run queue's dialog on this Mac)")
     if not note.strip():
         raise ReleaseBlocked("say what you reviewed: ./np release-check approve \"...\"")
     rec = run(root, cfg, log=lambda *a: None)

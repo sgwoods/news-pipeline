@@ -6,6 +6,20 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.1.12-beta · 2026-10-23
+- **Run queue:** releases, corrections and checks can be started from the Claude chat instead of pasted into a
+  shell (`pipeline/runner.py`, `./np runner`, docs/plans/run-queue.md). Claude queues a named recipe and the Mac
+  runs it. There are three tiers: tests, staging and verify run at once; corrections and publish need Steven's
+  yes in the chat; releases, rollbacks, approvals and the public code push need Approve in a dialog on the Mac.
+  The click grants presence for that job only (`pipeline/presence.py`), and no file can stand in for it. Release
+  invariant 10 guards the runner. One-time setup: `./np runner install`.
+- **Docs stay current:** release-gate tests now require every public module to be described in a hand-written doc
+  and every diagram to be used. Each release lists the modules that changed while their docs didn't ("docs to
+  review"), in the approval dialog and in `data/state/docs-impact.json`, for a weekly docs refresh.
+- **Docs:** Fact checking is rewritten as "Grounding and fact checking": six layers, a new diagram, why the
+  first-lines check exists, corrections and known gaps. Architecture gains sections on grounding, the run queue
+  (with a diagram) and keeping docs current, plus every smaller module.
+
 ## v0.1.11-beta · 2026-10-23
 - Fix: v0.1.10's public code push was refused again, correctly: a code comment and the changelog named a
   portfolio company. Both are reworded, and the dev test now builds the whole public export and fails on any

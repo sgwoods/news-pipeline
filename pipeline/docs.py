@@ -6,7 +6,11 @@ code repo, so there is one source and it can't drift.
 - Generated sections: `<!-- GENERATED: components -->` becomes the component table (every public module's own
   one-line description) and `<!-- GENERATED: facts -->` the current facts (release, schedule, models). The public
   code export expands them the same way.
-- Drift checks (tests/test_docs.py): the architecture page names the current version, and every module it names exists.
+- Drift checks (tests/test_docs.py, so part of the release gate): the architecture page names the current version,
+  every module it names exists, every public module is described in a hand-written doc, every diagram is used.
+- Docs impact (`impact`): for a release, the modules that changed while no doc that describes them did. Shown in
+  the run queue's approval dialog, printed by the release, saved to data/state/docs-impact.json for the weekly
+  docs refresh (docs/plans/run-queue.md).
 """
 from __future__ import annotations
 
@@ -136,3 +140,61 @@ def build(root: Path, cfg: dict, out: Path, page) -> int:
                                        f'Rebuilt at every publish from the project\'s own docs.</p><ul>{"".join(items)}</ul>',
                                        "../", cfg), "utf-8")
     return n
+
+
+IMPACT = "data/state/docs-impact.json"
+
+
+def described(root: Path = ROOT) -> dict:
+    """{module: [doc files that name it]} over the hand-written docs (generated sections don't count)."""
+    out = {}
+    pages = sorted((root / "docs").glob("*.md"))
+    texts = {p.name: MARK.sub("", p.read_text("utf-8")) for p in pages}
+    for m, _ in public_modules(root):
+        out[m] = [n for n, tx in texts.items() if f"`{m}`" in tx or f"pipeline/{m}" in tx]
+    return out
+
+
+def impact(root: Path, base: str, head: str = "HEAD") -> dict:
+    """Modules changed between two refs whose describing docs didn't change: candidates for a docs update."""
+    r = subprocess.run(["git", "diff", "--name-only", base, head, "--"], cwd=root, env=_clean_env(),
+                       capture_output=True, text=True)
+    changed = set(r.stdout.split())
+    docs_changed = {Path(f).name for f in changed if f.startswith("docs/") and f.endswith(".md")}
+    where = described(root)
+    stale, undocumented = [], []
+    for f in sorted(changed):
+        if not (f.startswith("pipeline/") and f.endswith(".py")):
+            continue
+        m = Path(f).name
+        if m not in where:
+            continue                                      # private or removed
+        if not where[m]:
+            undocumented.append(m)
+        elif not set(where[m]) & docs_changed:
+            stale.append({"module": m, "docs": where[m]})
+    return {"base": base, "head": head, "modules_changed": len([f for f in changed if f.startswith("pipeline/")]),
+            "docs_changed": sorted(docs_changed), "stale": stale, "undocumented": undocumented}
+
+
+def impact_line(rep: dict) -> str:
+    if not rep["stale"] and not rep["undocumented"]:
+        return f"docs: up to date ({len(rep['docs_changed'])} doc(s) changed with {rep['modules_changed']} module(s))"
+    parts = []
+    if rep["stale"]:
+        parts.append("changed, docs not: " + ", ".join(s["module"] for s in rep["stale"][:8]))
+    if rep["undocumented"]:
+        parts.append("no doc: " + ", ".join(rep["undocumented"][:8]))
+    return "docs to review: " + "; ".join(parts)
+
+
+def save_impact(root: Path, rep: dict, version: str = ""):
+    import json
+    p = root / IMPACT
+    p.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        rows = json.loads(p.read_text("utf-8"))
+    except (OSError, ValueError):
+        rows = []
+    rows.append({"at": dt.datetime.now().isoformat(timespec="seconds"), "version": version, **rep, "reviewed": False})
+    p.write_text(json.dumps(rows[-20:], indent=1) + "\n", "utf-8")

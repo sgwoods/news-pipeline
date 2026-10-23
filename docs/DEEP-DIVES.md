@@ -16,6 +16,9 @@ at inference time), a change in the trajectory of the field, or a story that has
 - **Checks before it airs:** every source link is opened (dead ones dropped; fewer than 2 live → no episode);
   quotation marks survive only around words found in the archived or fetched text; sentences with a $ or %
   figure found in no source are cut; private names are removed; markup or banned words fail the episode.
+  The summary and "Why today" lines are then checked against the finished body (`pipeline/consistency.py`, since
+  v0.1.9): a sentence whose figure, company or "not disclosed" claim the body doesn't support is dropped. See
+  docs/FACT-CHECKING.md.
 - **In the podcast (2026-10-19):** the deep dive follows the briefing in the same episode. The briefing host
   ("I'm Michael" in the first line) closes by promoting today's deep dive and where to find it (the web page, with
   the written edition and every past episode), hands off to Bella, and the deep dive's sign-off closes the episode.

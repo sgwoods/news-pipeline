@@ -900,6 +900,14 @@ def cmd_release(cfg: dict, argv: list, rollback: bool = False) -> int:
                 return 2
             r = releaser.promote(ROOT, cfg, argv[0], " ".join(argv[1:]).strip(), force=force)
             print(f"Released v{r['version']} (was v{r['previous']}, commit {r['commit']})")
+            try:                                          # what the weekly docs refresh picks up
+                from pipeline import docs
+                rep = docs.impact(ROOT, f"v{r['previous']}", "HEAD") if r.get("previous") else None
+                if rep:
+                    docs.save_impact(ROOT, rep, r["version"])
+                    print(docs.impact_line(rep))
+            except Exception as e:  # noqa: BLE001
+                print(f"docs impact skipped: {e}"[:200])
     except releaser.ReleaseError as e:
         print(f"Release: {e}")
         return 1
@@ -1029,6 +1037,114 @@ def cmd_release_check(cfg: dict, argv: list) -> int:
         return 0 if rec["passed"] else 1
     rec = release.run(ROOT, cfg, live="live" in argv)
     return 0 if rec["passed"] else 1
+
+
+def _runner_verify(cfg: dict) -> int:
+    """After a run-queue job: what's running, tagged and guarded now (read only)."""
+    import json as _json
+    import subprocess as _sp
+    from pipeline import release, releaser
+    from pipeline.version import full
+    env = releaser._clean_env()
+    tag = _sp.run(["git", "describe", "--tags", "--abbrev=0"], cwd=ROOT, capture_output=True, text=True, env=env).stdout.strip()
+    print(f"VERSION v{full(ROOT)} · latest tag {tag or '-'}" + ("" if tag == f"v{full(ROOT)}" else "  (VERSION and tag differ)"))
+    hook = ROOT / ".git" / "hooks" / "pre-push"
+    hook_ok = hook.exists() and "release-check require" in hook.read_text("utf-8", errors="replace")
+    print(f"pre-push hook: {'fast gate (release-check require)' if hook_ok else 'OLD or missing: ./np release-check install-hooks'}")
+    fp, sfp = release.fingerprint(release.CODE, ROOT), release.fingerprint(release.SENSITIVE, ROOT)
+    ok, detail = release.check_approval(ROOT)
+    print(f"gate: code {fp} {'passed before' if release.passed_before(ROOT, fp, sfp) else 'not yet passed'} · {detail}")
+    dirty = _sp.run(["git", "status", "--porcelain", "--", *releaser.CODE_PATHS], cwd=ROOT, capture_output=True,
+                    text=True, env=env).stdout.strip()
+    print("production code: " + ("clean (matches the release)" if not dirty else "CHANGED outside a release:\n" + dirty[:400]))
+    try:
+        from pipeline import shipped
+        led = _json.loads((ROOT / shipped.FILE).read_text("utf-8"))
+        days = sorted(led.get("days", led) if isinstance(led, dict) else [])
+        if days:
+            print(f"shipped editions: {len(days)} (latest {days[-1]})")
+    except (OSError, ValueError, TypeError):
+        pass
+    return 0 if hook_ok and ok and not dirty else 1
+
+
+def _runner_summary(cfg: dict, job: dict) -> str:
+    """What the approval dialog shows: the commits and files a release brings, or the note."""
+    import subprocess as _sp
+    from pipeline import releaser
+    env = releaser._clean_env()
+    lines = []
+    if job["recipe"] in ("ship", "release"):
+        g = lambda *a: _sp.run(["git", *a], cwd=ROOT, capture_output=True, text=True, env=env).stdout.strip()  # noqa: E731
+        n = len([x for x in g("log", "--oneline", "HEAD..dev").splitlines() if x])
+        lines.append(f"{n} commit(s) from dev · {g('diff', '--shortstat', 'HEAD', 'dev') or 'no file changes'}")
+        try:
+            from pipeline import docs
+            lines.append(docs.impact_line(docs.impact(ROOT, "HEAD", "dev")))
+        except Exception:  # noqa: BLE001
+            pass
+        ch = g("show", "dev:CHANGELOG.md")
+        v = job["args"].get("version", "")
+        if f"## v{v}" in ch:
+            sec = ch.split(f"## v{v}", 1)[1].split("\n## ", 1)[0].strip().splitlines()[1:6]
+            lines += [x[:160] for x in sec]
+    if job["args"].get("note"):
+        lines.append("Note: " + job["args"]["note"])
+    if job.get("chat_approval"):
+        lines.append("In chat: " + job["chat_approval"][:200])
+    return "\n".join(lines)
+
+
+def cmd_runner(cfg: dict, argv: list) -> int:
+    """./np runner status | tick | approve ID | reject ID | install | remove: the run queue (pipeline/runner.py).
+    Claude queues jobs (data/queue/pending/); this Mac runs them; mac-tier jobs wait for Approve in a dialog."""
+    import json as _json
+    from pipeline import devenv, runner, service
+    from pipeline.releaser import run_in_progress
+    sub, rest = (argv or ["status"])[0], (argv or [])[1:]
+    local = {"verify": lambda a: _runner_verify(cfg),
+             "release": lambda a: cmd_release(cfg, a),
+             "rollback": lambda a: cmd_release(cfg, a, rollback=True),
+             "approve": lambda a: cmd_release_check(cfg, ["approve", *a]),
+             "install-hooks": lambda a: cmd_release_check(cfg, ["install-hooks"])}
+    r = runner.Runner(ROOT, devenv.dev_path(ROOT, cfg), local, busy=lambda: run_in_progress(ROOT),
+                      summary=lambda job: _runner_summary(cfg, job))
+    if sub == "tick":
+        for line in r.tick():
+            print(f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {line}")
+        return 0
+    if sub == "install":
+        print(service.install("runner", ROOT, cfg))
+        return 0
+    if sub == "remove":
+        print(service.remove("runner"))
+        return 0
+    if sub in ("approve", "reject") and rest:
+        from pipeline.presence import confirmed
+        p = runner.qdir(ROOT, "waiting") / f"{rest[0]}.json"
+        if not p.exists():
+            print(f"no waiting job {rest[0]}: ./np runner status")
+            return 1
+        if sub == "reject":
+            job = _json.loads(p.read_text("utf-8"))
+            runner._finish(ROOT, p, job, "rejected", "rejected in Terminal")
+            print(f"{rest[0]}: rejected")
+            return 0
+        import sys as _sys
+        if not (_sys.stdin is not None and _sys.stdin.isatty() and confirmed()):
+            print("approve needs you at a terminal (or click Approve in the dialog)")
+            return 1
+        print(f"{rest[0]}: {r.run_job(p, terminal=True)}")
+        return 0
+    s = runner.qdir(ROOT, "pending").parent / "status.json"
+    runner._status(ROOT)
+    st = _json.loads(s.read_text("utf-8"))
+    print(f"service: {'loaded' if service.loaded('runner') else 'not installed: ./np runner install'}")
+    print(f"pending: {', '.join(st['pending']) or '-'}")
+    print(f"waiting for Approve: {', '.join(st['waiting']) or '-'}")
+    for j in st["last"]:
+        print(f"  {j['ended']}  {j['id']}  {j['status']}  {j.get('detail') or ''}")
+    return 0
 
 
 def cmd_secrets(cfg: dict, argv: list) -> int:
@@ -2300,6 +2416,7 @@ def main() -> int:
     ap.add_argument("--review", nargs="*", metavar="ARG", help="weekly [DAY]: the weekly quality review")
     ap.add_argument("--due", metavar="KIND", help="daily|preflight: exit 0 if a scheduled time just passed (local clock)")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
+    ap.add_argument("--runner", nargs="*", metavar="ARG", help="status | tick | approve ID | reject ID | install | remove")
     ap.add_argument("--hub", nargs="*", metavar="ARG", help="status | push: status on the public project hub")
     ap.add_argument("--dev", nargs="*", metavar="ARG", help="setup: create the development checkout")
     ap.add_argument("--staging", nargs="*", metavar="ARG", help="sync | run [DAY] [--email] | reset | status (dev checkout)")
@@ -2372,6 +2489,8 @@ def main() -> int:
         return cmd_deepdive(cfg, args.deepdive)
     if args.quality is not None:
         return cmd_quality(cfg, args.quality)
+    if args.runner is not None:
+        return cmd_runner(cfg, args.runner)
     if args.preflight:
         return cmd_preflight(cfg)
     if args.review is not None:

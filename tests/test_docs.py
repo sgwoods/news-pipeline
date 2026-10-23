@@ -27,6 +27,46 @@ class DocsDrift(unittest.TestCase):
         self.assertNotIn("`company.py`", out)
         self.assertIn("v" + version.full(), out)
 
+    def test_every_public_module_is_described_in_a_hand_written_doc(self):
+        missing = [m for m, where in docs.described(ROOT).items() if not where]
+        self.assertEqual(missing, [], "describe these modules in docs/ARCHITECTURE.md (or another doc)")
+
+    def test_every_diagram_exists_and_is_used(self):
+        text = " ".join(p.read_text("utf-8") for p in (ROOT / "docs").glob("*.md"))
+        used = set(re.findall(r"img/([\w-]+\.svg)", text))
+        have = {p.name for p in (ROOT / "docs" / "img").glob("*.svg")}
+        self.assertEqual(used - have, set(), "a doc shows a diagram that doesn't exist")
+        self.assertEqual(have - used, set(), "a diagram no doc shows")
+
+    def test_impact_lists_changed_modules_whose_docs_did_not_change(self):
+        import os
+        import subprocess
+        d = Path(tempfile.mkdtemp())
+        env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        git = lambda *a: subprocess.run(["git", *a], cwd=d, env=env, capture_output=True, check=True)  # noqa: E731
+        (d / "pipeline").mkdir()
+        (d / "docs").mkdir()
+        (d / "owner.example.yaml").write_text("export_exclude: []\n", "utf-8")
+        (d / "pipeline" / "alpha.py").write_text('"""Alpha."""\n', "utf-8")
+        (d / "pipeline" / "beta.py").write_text('"""Beta."""\n', "utf-8")
+        (d / "pipeline" / "gamma.py").write_text('"""Gamma."""\n', "utf-8")
+        (d / "docs" / "A.md").write_text("`alpha.py` does a.\n", "utf-8")
+        (d / "docs" / "B.md").write_text("`beta.py` does b.\n", "utf-8")
+        git("init", "-q")
+        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "x", "--allow-empty")
+        git("add", "-A")
+        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base")
+        git("tag", "base")
+        for m in ("alpha", "beta", "gamma"):
+            (d / "pipeline" / f"{m}.py").write_text(f'"""{m}, changed."""\n', "utf-8")
+        (d / "docs" / "B.md").write_text("`beta.py` does b, now better.\n", "utf-8")
+        git("add", "-A")
+        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "change")
+        rep = docs.impact(d, "base", "HEAD")
+        self.assertEqual([s["module"] for s in rep["stale"]], ["alpha.py"])
+        self.assertEqual(rep["undocumented"], ["gamma.py"])
+        self.assertIn("alpha.py", docs.impact_line(rep))
+
 
 class DocsSite(unittest.TestCase):
     def test_build_pages_with_diagrams_and_no_private_terms(self):
