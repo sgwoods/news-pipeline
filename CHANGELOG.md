@@ -6,6 +6,20 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.0-beta · 2026-10-23
+- **Steven's takes (My takes, phase 1):** the owner's own view in the edition, verbatim, labelled "Steven's take".
+  - Once the edition is written, a private "AI Briefing · Your takes" email lists slots: 0 (the day), T (Top of
+    mind), and 1 to N (each Must-read story). Reply "1: ..." from a phone; "done" sends early, "skip" means none.
+  - Your own words on a link you post in the team Slack channel count as your take on that story.
+  - The edition waits until **09:15** or "done" (`./np takes done`, or `takes-done` in the run queue).
+  - Each take is checked for private names, owner addresses, personal links, disclosure phrases and the
+    confidential marker. One that fails is held back and listed to you, never published.
+  - Takes appear on the site and in the email, and the host reads each one after its story in the podcast. Only
+    the briefing audio is re-rendered.
+  - Retries leave a waiting run alone; a failure ships the edition without takes.
+- `./np takes status | email | preview | done`.
+- Fix: the Slack reader closed or leaked its HTTP client when it found your own LinkedIn posts.
+
 ## v0.1.14-beta · 2026-10-23
 - **First-lines check for the daily briefing:** the day in brief and Top of mind are now checked against the
   edition's own body, as deep-dive summaries have been since v0.1.9 (`consistency.check_briefing`). A figure

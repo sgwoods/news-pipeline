@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 import html as htmllib
+import json
 import os
 import re
 from pathlib import Path
@@ -219,8 +220,30 @@ def privacy_gate(msg: dict, cfg: dict) -> list:
     return list(dict.fromkeys(bad))[:10]
 
 
-def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | None = None) -> dict:
-    """→ {"subject", "html", "text"} with {{UNSUBSCRIBE}} where each recipient's link goes."""
+def day_takes(root: Path, day: str) -> dict:
+    """Steven's published takes for DAY ({key: text}): data/commentary/<day>.json (pipeline/takes.py, dashboard)."""
+    p = root / "data" / "commentary" / f"{day}.json"
+    try:
+        notes = json.loads(p.read_text("utf-8")).get("notes", {})
+    except (OSError, ValueError):
+        return {}
+    return {k: str(v.get("text", "")).strip() for k, v in notes.items() if str(v.get("text", "")).strip()}
+
+
+def _take_html(text: str) -> str:
+    from .takes import LABEL
+    return (f'<p style="margin:8px 0 0;padding:8px 12px;border-left:3px solid {C["strong"]};background:{C["card"]};'
+            f'border-radius:0 12px 12px 0;color:{C["text"]};font-size:14px;line-height:1.5">'
+            f'<span style="color:{C["strong"]};font-size:11px;letter-spacing:.12em;text-transform:uppercase">'
+            f'{htmllib.escape(LABEL)}</span><br>{htmllib.escape(defuse(text))}</p>')
+
+
+def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | None = None,
+           takes: dict | None = None) -> dict:
+    """→ {"subject", "html", "text"} with {{UNSUBSCRIBE}} where each recipient's link goes.
+    takes: {key: text} from day_takes(): "overall", "top", or a story's item id."""
+    from .textutil import item_id
+    takes = takes or {}
     md = defuse(md)
     if deep:
         deep = {k: (defuse(v) if isinstance(v, str) else v) for k, v in deep.items()}
@@ -243,6 +266,7 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
              f'font-size:11px;letter-spacing:.14em;text-transform:uppercase">Daily AI briefing</div>'
              f'<h1 style="margin:14px 0 8px;font-size:26px;line-height:1.2;color:{C["text"]}">{htmllib.escape(b["title"])}</h1>'
              + (f'<p {P}>{_inline(b["brief"])}</p>' if b["brief"] else "")
+             + (_take_html(takes["overall"]) if takes.get("overall") else "")
              + _btn(page, "Read the full briefing") + (_btn(page, "Listen to the episode", False) if has_audio else "")
              + "</td></tr>")
     stars = bool(e.get("ratings"))
@@ -254,7 +278,8 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
     if b["top"]:
         lis = "".join(f'<li style="margin:0 0 10px;color:{C["text"]};font-size:16px;line-height:1.55">{_inline(t)}</li>' for t in b["top"])
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Top of mind")}'
-                 f'<ul style="margin:0;padding-left:20px">{lis}</ul></td></tr>')
+                 f'<ul style="margin:0;padding-left:20px">{lis}</ul>'
+                 + (_take_html(takes["top"]) if takes.get("top") else "") + '</td></tr>')
     if b["must"]:
         items = []
         for n, s in enumerate(b["must"], 1):
@@ -278,6 +303,9 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
                 rows.append(f'<p style="margin:6px 0 0;padding:6px 12px;color:{C["muted"]};font-size:13px;line-height:1.5">'
                             f'<span style="font-size:11px;letter-spacing:.12em;text-transform:uppercase">{s["other_label"]}</span>'
                             f'<br>{_inline(s["other"])}</p>')
+            tk = takes.get(item_id(s["url"])) if s.get("url") else ""
+            if tk:
+                rows.append(_take_html(tk))
             items.append(f'<div style="padding:14px 0;border-top:1px solid {C["border"]}">{"".join(rows)}</div>')
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Must read")}{"".join(items)}</td></tr>')
     if deep:
@@ -334,9 +362,14 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{C["bg"]}"><tr><td align="center" style="padding:20px 10px">'
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;font-family:{FONT};color:{C["text"]}">'
             + "".join(H) + "</table></td></tr></table></body></html>")
-    text = "\n".join([b["title"], "", _strip_md(b["brief"]), "", "TOP OF MIND"] + [f"- {_strip_md(t)}" for t in b["top"]]
-                     + ["", "MUST READ"] + [f"{n}. {s['headline']} ({s['who']})\n   {_strip_md(s['what'])}"
-                                            for n, s in enumerate(b["must"], 1)]
+    from .takes import LABEL
+    tk_line = lambda k: [f"   {LABEL}: {defuse(takes[k])}"] if takes.get(k) else []  # noqa: E731
+    text = "\n".join([b["title"], "", _strip_md(b["brief"])] + (["", f"{LABEL}: {defuse(takes['overall'])}"]
+                      if takes.get("overall") else []) + ["", "TOP OF MIND"] + [f"- {_strip_md(t)}" for t in b["top"]]
+                     + tk_line("top")
+                     + ["", "MUST READ"] + [x for n, s in enumerate(b["must"], 1)
+                                            for x in [f"{n}. {s['headline']} ({s['who']})\n   {_strip_md(s['what'])}"]
+                                            + (tk_line(item_id(s["url"])) if s.get("url") else [])]
                      + ([ "", f"TODAY'S DEEP DIVE: {deep['title']}", deep.get("summary", ""), deep["url"]] if deep else [])
                      + ([ "", "RECOMMENDED READING", f"{b['reading']['title']} ({b['reading']['who']})", b["reading"]["url"],
                           f"Why it matters: {b['reading']['why']}"] if b.get("reading") else [])
@@ -394,7 +427,7 @@ def send_new(root: Path, cfg: dict, day: str) -> dict:
         return {"day": day, "ok": True, "sent": 0, "note": "no one has confirmed since it was emailed"}
     bdir = root / cfg.get("paths", {}).get("briefings", "briefings")
     msg = render(day, (bdir / f"{day}.md").read_text("utf-8"), cfg, (bdir / f"{day}.mp3").is_file(),
-                 deep_dive_for(root, cfg, day))
+                 deep_dive_for(root, cfg, day), day_takes(root, day))
     bad = privacy_gate(msg, cfg)
     if bad:
         raise MailError("privacy gate blocked the email: " + "; ".join(bad))
@@ -422,7 +455,8 @@ def send_day(root: Path, cfg: dict, day: str, to: str = "", force: bool = False)
         raise MailError(f"{day} is hidden from the public site; not emailing it")
     if not to and day in sent_days(root) and not force:
         return {"ok": True, "skipped": f"{day} already emailed"}
-    msg = render(day, md_file.read_text("utf-8"), cfg, (bdir / f"{day}.mp3").is_file(), deep_dive_for(root, cfg, day))
+    msg = render(day, md_file.read_text("utf-8"), cfg, (bdir / f"{day}.mp3").is_file(), deep_dive_for(root, cfg, day),
+                 day_takes(root, day))
     bad = privacy_gate(msg, cfg)
     if bad:
         raise MailError("privacy gate blocked the email: " + "; ".join(bad))

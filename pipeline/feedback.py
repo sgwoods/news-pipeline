@@ -189,6 +189,8 @@ def parse_reply(raw: bytes, cfg: dict) -> dict | None:
     subject = _hdr(msg, "Subject")
     if not re.search(r"AI Briefing", subject, re.I):
         return None
+    if re.search(r"Your takes", subject, re.I):           # replies to the private takes email are takes (takes.py)
+        return None
     name, addr = email.utils.parseaddr(_hdr(msg, "From"))
     addr = addr.lower()
     try:

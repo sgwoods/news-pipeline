@@ -2,8 +2,10 @@
 
 The channel is internal, the briefing is not. So only the LINKS travel: each article Steven posted becomes
 an item (tier "follow closely", flag SHARED) whose text is the article's own preview (Slack's unfurl), and
-whose source note tells the model the article is the source. Nothing written in Slack (Steven's comment,
-anyone else's message, thread replies, the channel's name) is stored as text or reaches any output.
+whose source note tells the model the article is the source. Nothing anyone else writes in Slack (their
+messages, thread replies, the channel's name) is stored as text or reaches any output. Steven's own words on a
+link he shares are kept as a take candidate (data/takes/slack.jsonl, decided 2026-10-22): they reach the edition
+only as "Steven's take" on that story, after the takes privacy check (pipeline/takes.py), never as source text.
 With `links_from: anyone` (Steven, 2026-10-22) links posted by any member count too, as the same kind of
 item, credited to the linked source; who posted them is never stored (names in his network stay private).
 
@@ -132,9 +134,18 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_hours: int | None = 
         anyone = s.get("links_from") == "anyone"
         msgs = [m for m in d.get("messages", []) if (m.get("user") in who or (anyone and m.get("user")))
                 and m.get("subtype") in (None, "thread_broadcast", "file_share") and not m.get("bot_id")]
+        take_rows = []
         for m in msgs:
             when = dt.datetime.fromtimestamp(float(m.get("ts", "0")), UTC)
             mine = m.get("user") in who
+            if mine and s.get("takes", True):          # his own words on the link he shares = his take (takes.py)
+                from .takes import slack_text
+                words = slack_text(m.get("text", ""))
+                if len(words.split()) >= 3:
+                    for url, _t, _p, _s in _links(m):
+                        if not private_link(url):
+                            take_rows.append({"ts": m.get("ts"), "at": when.astimezone().isoformat(timespec="seconds"),
+                                              "id": item_id(url), "url": url, "text": words[:1500]})
             for url, title, preview, site in _links(m):
                 if private_link(url):                 # a deck or doc shared with the team stays in Slack
                     continue
@@ -150,12 +161,16 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_hours: int | None = 
                                    "The article itself is the source: cite its publisher, never this note, never who "
                                    "shared it, and never mention where it was shared.",
                     "fetched_at": iso(now), "run_id": run_id})
+        if take_rows:
+            from .takes import add_slack
+            add_slack(root, take_rows)
+            log.info("  your words on %d shared link(s) kept as take candidates", len(take_rows))
         from . import linkedin                       # his own LinkedIn posts are his words, not news
-        own = [it for it in items if linkedin.is_own_post(it, cfg)]
-        if own:
-            n = linkedin.add_posts(root, [linkedin.from_item(it) for it in own])
-            items = [it for it in items if it not in own]
-            log.info("  own LinkedIn post(s): %d -> public record (%d new), not briefed", len(own), n)
+        own_posts = [it for it in items if linkedin.is_own_post(it, cfg)]
+        if own_posts:
+            n = linkedin.add_posts(root, [linkedin.from_item(it) for it in own_posts])
+            items = [it for it in items if it not in own_posts]
+            log.info("  own LinkedIn post(s): %d -> public record (%d new), not briefed", len(own_posts), n)
         per.append({"person": "Links Steven shared", "kind": "shared", "url": "slack", "status": "ok",
                     "new": len(items), "messages": len(msgs)})
         log.info("  OK   shared links: %d link(s) in %d post(s)", len(items), len(msgs))

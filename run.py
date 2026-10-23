@@ -1191,6 +1191,42 @@ def cmd_consistency(cfg: dict, argv: list) -> int:
     return 0
 
 
+def cmd_takes(cfg: dict, argv: list) -> int:
+    """./np takes status [DAY] | email [DAY] | preview [DAY] | done [DAY]: Steven's takes (pipeline/takes.py).
+    preview prints the takes email and what replies so far would publish; done releases a held edition now."""
+    from pipeline import takes
+    sub = (argv or ["status"])[0]
+    day = next((a for a in argv[1:] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)), dt.date.today().isoformat())
+    if sub == "done":
+        print(takes.release_now(ROOT, day))
+        return 0
+    if sub == "email":
+        m = takes.build_email(ROOT, cfg, day)
+        print(m["subject"] + "\n\n" + m["text"])
+        return 0
+    if sub == "preview":
+        replies = takes.fetch_replies(ROOT, cfg, day, print)
+        merged = {}
+        for r in replies:
+            merged.update(r["takes"])
+        merged = {**takes.slack_takes(ROOT, day, takes.slots(ROOT, day)), **merged}
+        for k, v in sorted(merged.items()):
+            why = takes.problems(v, cfg)
+            print(f"{k}: {'HELD (' + '; '.join(why) + ')' if why else 'ok'}: {v[:160]}")
+        print(f"{len(replies)} reply(ies); nothing saved (dry run)")
+        return 0
+    st = takes.state(ROOT, day)
+    c = takes.tcfg(cfg)
+    print(f"takes: {'on' if c['enabled'] else 'off'} · cutoff {c['cutoff']} · {day}: "
+          f"{'WAITING' if takes.waiting(ROOT, day) else ('released ' + st['released_at'][11:16] if st.get('released_at') else 'not started')}"
+          f" · email {'sent ' + st['emailed_at'][11:16] if st.get('emailed_at') else 'not sent'}")
+    for x in st.get("published", []):
+        print(f"  published {x['slot']} ({x['from']}): {x['text'][:120]}")
+    for x in st.get("held", []):
+        print(f"  HELD {x['slot']}: {'; '.join(x['why'])}")
+    return 0
+
+
 def cmd_secrets(cfg: dict, argv: list) -> int:
     """./np secrets status | set NAME | migrate: where secrets live (never prints values); hidden-prompt entry; .env -> Keychain"""
     from pipeline import vault
@@ -2119,12 +2155,55 @@ def _gate_alert(cfg: dict, err: str, when: str = "morning") -> None:
         _alert(cfg, "gate", detail=err, when=when, next_try=_next_try(cfg) if when == "morning" else "")
 
 
+def _make_podcast(cfg: dict, today: str):
+    """One podcast episode: briefing (with any takes), hand-off, deep dive."""
+    try:
+        from pipeline import deepdive
+        if (deepdive.latest(ROOT, today) or {}).get("status") == "published":
+            deepdive.make_podcast(ROOT, cfg, today)
+            if cfg.get("archive", {}).get("git_commit", True):
+                Archive(ROOT, cfg["paths"]).git_commit(f"deep dive {today}: recorded",
+                                                       paths=(deepdive.DIR, deepdive.LOG, "data/episodes.json"))
+    except Exception as e:  # noqa: BLE001
+        print(f"podcast episode skipped: {e}")
+
+
+def _takes_step(cfg: dict, today: str) -> dict:
+    """Steven's takes (pipeline/takes.py): the private email, the hold until takes.cutoff or "done", the privacy
+    hold, the takes in the site, email and audio. Never fails the edition: on any error it ships as before."""
+    from pipeline import takes
+    if not takes.tcfg(cfg)["enabled"]:
+        return {}
+    import os
+    try:
+        print(takes.send_email(ROOT, cfg, today))
+        takes.mark_pending(ROOT, today, os.getpid())
+        print(f"Holding the edition for your takes until {takes.tcfg(cfg)['cutoff']} (or a \"done\" reply)...")
+        st = takes.wait(ROOT, cfg, today, log=print)
+        if st.get("held") or st.get("unknown"):
+            print(takes.report_email(ROOT, cfg, today, st))
+        print(takes.revoice(ROOT, cfg, today, st, log=print))
+        if cfg.get("archive", {}).get("git_commit", True):
+            print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"takes {today}: {len(st.get('published', []))} published",
+                                                                paths=(takes.DIR, "data/commentary")))
+        return st
+    except Exception as e:  # noqa: BLE001
+        print(f"takes skipped, the edition ships without them: {e}")
+        return {}
+    finally:
+        takes.mark_released(ROOT, today)
+
+
 def _retry_outbound(cfg: dict, today: str) -> int:
     """A later scheduled run: if today's edition was built but never emailed (the release gate blocked it, say),
     send what was held back once the gate passes. Nothing is sent twice: email and labels skip what is done."""
     from pipeline import mailer, release
     if not (cfg.get("email") or {}).get("enabled") or today in mailer.sent_days(ROOT):
         print("Nothing to do.")
+        return 0
+    from pipeline import takes
+    if takes.waiting(ROOT, today):                # the morning run is holding the edition for Steven's takes
+        print(f"Held for your takes until {takes.tcfg(cfg)['cutoff']}: the morning run is waiting; nothing to do.")
         return 0
     try:
         release.require(ROOT, cfg, "held-back publish and email")
@@ -2133,6 +2212,9 @@ def _retry_outbound(cfg: dict, today: str) -> int:
         _notify("News pipeline: approval needed", "Today's edition is built but not sent. ./np release-check approve")
         _gate_alert(cfg, str(e))
         return 0
+    if takes.tcfg(cfg)["enabled"] and not takes.state(ROOT, today).get("released_at"):
+        _takes_step(cfg, today)                  # the morning run stopped before the takes step finished
+        _make_podcast(cfg, today)
     print("Sending what the release gate held back...")
     if cfg.get("publish", {}).get("auto") and not _publish_and_verify(cfg, today):
         print("Email held: the site isn't safely published.")
@@ -2255,12 +2337,12 @@ def cmd_daily(cfg: dict) -> int:
             from pipeline import deepdive
             if (deepdive.latest(ROOT, today) or {}).get("status") == "written":
                 deepdive.voice(ROOT, cfg, today)        # written + checked before the briefing audio; record it
-            if (deepdive.latest(ROOT, today) or {}).get("status") == "published":
-                deepdive.make_podcast(ROOT, cfg, today)  # one podcast episode: briefing, hand-off, deep dive
-                if cfg.get("archive", {}).get("git_commit", True):
-                    Archive(ROOT, cfg["paths"]).git_commit(f"deep dive {today}: recorded", paths=(deepdive.DIR, deepdive.LOG, "data/episodes.json"))
         except Exception as e:  # noqa: BLE001
             print(f"deep dive skipped: {e}")
+    if w.get("status") == "ok" and not gate_blocked:
+        _takes_step(cfg, today)                  # Steven's takes: email him, hold until the cutoff, splice them in
+    if w.get("status") == "ok" and (cfg.get("deepdive") or {}).get("enabled"):
+        _make_podcast(cfg, today)
     published = True
     if w.get("status") == "ok" and cfg.get("publish", {}).get("auto"):
         published = _publish_and_verify(cfg, today, alert=not gate_blocked)
@@ -2461,6 +2543,7 @@ def main() -> int:
     ap.add_argument("--due", metavar="KIND", help="daily|preflight: exit 0 if a scheduled time just passed (local clock)")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
     ap.add_argument("--runner", nargs="*", metavar="ARG", help="status | tick | approve ID | reject ID | install | remove")
+    ap.add_argument("--takes", nargs="*", metavar="ARG", help="status | email | preview | done [DAY]: Steven's takes")
     ap.add_argument("--consistency", nargs="*", metavar="ARG", help="[DAY|all]: first-lines and cross-day checks, dry run")
     ap.add_argument("--hub", nargs="*", metavar="ARG", help="status | push: status on the public project hub")
     ap.add_argument("--dev", nargs="*", metavar="ARG", help="setup: create the development checkout")
@@ -2536,6 +2619,8 @@ def main() -> int:
         return cmd_quality(cfg, args.quality)
     if args.consistency is not None:
         return cmd_consistency(cfg, args.consistency)
+    if args.takes is not None:
+        return cmd_takes(cfg, args.takes)
     if args.runner is not None:
         return cmd_runner(cfg, args.runner)
     if args.preflight:

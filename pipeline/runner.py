@@ -8,7 +8,7 @@ A launchd agent (`./np runner install`) ticks every minute and when a job file a
 runs only the recipes below, with validated arguments, as argument lists (never a shell). Three tiers:
 
 - auto: tests, staging sync / preview / compare, doctor, the gate's status, verify. Run as soon as queued.
-- chat: corrections, publish, restore. Need `chat_approval`: Steven's yes in the Claude chat, quoted.
+- chat: corrections, publish, restore, takes-done (release a held edition now). Need `chat_approval`: Steven's yes in the Claude chat, quoted.
 - mac:  ship, release, rollback, release-check approve, public code push, git hooks. Run only after Steven clicks
         Approve in a dialog on this Mac (or `./np runner approve ID` in Terminal). The click grants presence in
         memory for that job's approved steps only (pipeline/presence.py); nothing in a file can.
@@ -56,6 +56,7 @@ RECIPES = {
                 "steps": [("prod", ["correct", "{day}", "{note}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "publish": {"tier": "chat", "args": {}, "steps": [("prod", ["publish"]), ("local", ["verify"])]},
     "restore": {"tier": "chat", "args": {}, "steps": [("prod", ["publish", "restore"]), ("local", ["verify"])]},
+    "takes-done": {"tier": "chat", "args": {}, "steps": [("prod", ["takes", "done"])]},
     "ship":    {"tier": "mac", "args": {"version": "version", "note": "reviewed"},
                 "steps": [("dev", ["staging", "sync"]), ("dev", ["tests"]), APPROVE,
                           ("local", ["release", "{version}", "{note}"]), ("local", ["verify"])]},

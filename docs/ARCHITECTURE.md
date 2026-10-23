@@ -4,7 +4,7 @@ AI Briefing is a daily AI briefing for early-stage investors: a written edition,
 the day's deep dive, a static site and podcast feed, and a subscriber email. One machine runs the whole pipeline
 each morning, mostly with local models. Nothing reaches readers until a release gate has passed.
 
-This page describes the design as of **v0.1 beta**. Release notes: `CHANGELOG.md` and the site's
+This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md` and the site's
 [release notes](https://sgwoods.github.io/ai-briefing/releases/index.html). Project page:
 [sgwoods.github.io/public/ai-briefing.html](https://sgwoods.github.io/public/ai-briefing.html).
 
@@ -13,16 +13,17 @@ This page describes the design as of **v0.1 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.1.14-beta (2026-10-23)
+- **Release:** v0.2.0-beta (2026-10-23)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 62 in `pipeline/`
+- **Modules:** 63 in `pipeline/`
 
 ## Contents
 - Design principles
 - The daily run
 - Components
 - Grounding and fact checking
+- Steven's takes
 - Data and storage
 - Privacy and security
 - Repositories and public surfaces
@@ -61,6 +62,7 @@ _Generated at build time._
 | fact check | Figures traced to their source, searched before they are cut, flagged when unconfirmed; numbers cross-checked; quotes kept only if word for word. | `factcheck.py`, `factsearch.py`, `numbers.py` |
 | first lines | The day in brief, Top of mind, deep-dive summaries, "Why today" and Agenda lines checked against the checked body and the item's own source; "not disclosed" claims compared with the last 14 editions. | `consistency.py` |
 | deep dive | A second segment on the day's focal topic, from a queue the owner curates. | `deepdive.py` |
+| takes | A private email asks the owner for takes; the edition waits until the cutoff (09:15) or "done"; clean takes go into the site, email and audio. | `takes.py` |
 | audio | The script becomes speech (pronunciations, pacing), the briefing and the deep dive joined into one episode. | `audio.py`, `speech.py` |
 | release gate | Tests, a secret scan, privacy invariants, approval of security-sensitive changes. | `release.py` |
 | publish | The static site, RSS and the podcast feed, after a privacy scan; then a wait until the pages answer. | `site.py`, `publish.py`, `episodes.py` |
@@ -91,6 +93,7 @@ Smaller pieces:
 | Settings and time | `owner.py` (who runs this instance), `settings.py` (edit single config values without disturbing comments), `schedule.py` (when scheduled jobs actually run, by the local clock) |
 | Public surfaces | `version.py` (the running version), `docs.py` (these pages on the site), `scrub.py` (scrubbing shared by the public code export and the docs) |
 | Run queue | `runner.py` (jobs from the chat, run on the Mac), `presence.py` (is a person here to approve) |
+| Owner's voice | `takes.py` (the owner's takes: private email, Slack words, privacy hold, wait, audio) |
 | Helpers | `textutil.py` (HTML to text, page metadata, URL ids, dates) |
 
 ## Grounding and fact checking
@@ -99,6 +102,25 @@ fetched, or a page found by search. The checks run in layers: ground, judge, che
 the first lines against the body, then the privacy gate. After shipping, editions change only through visible
 corrections. Unverifiable sentences are cut and the edition still goes. Only privacy blocks. The full list, with
 the reasons behind each layer, is in [Fact checking](FACT-CHECKING.md).
+
+## Steven's takes
+From v0.2 the owner can add his own view to the day's edition, verbatim and labelled "Steven's take"
+(`takes.py`, docs/plans/my-takes.md). Once the edition is written, a private email lists numbered slots: 0 for the
+day overall, T for Top of mind, and 1 to N for each Must-read story. He replies from his phone ("1: ..."), or
+posts in his team's Slack channel with the story's link (his own words only; nobody else's text is ever kept).
+The edition waits until the cutoff (09:15) or a "done" reply, then:
+
+- each take is checked for private names, the owner's addresses, personal links, disclosure phrases and the
+  confidential marker; one that fails is held back and listed to him, never published;
+- the clean takes go into one store (`data/commentary/<day>.json`, the same store the dashboard writes), which
+  the site, the email and the mail-out read;
+- the host reads each take verbatim after its story ("Here's Steven's take"), and only the briefing audio is
+  re-rendered; the briefing text and its fact checks don't change;
+- raw replies, held takes and what was published are kept in the private archive.
+
+Takes are opinion: they sit outside the sourced claims and the fact check, and no model rewrites them. A crash or
+mailbox failure never blocks the edition; it ships without takes. Later retries see a run that is still waiting
+and leave it alone.
 
 ## Data and storage
 - **Archive:** append-only files under `data/` (items, analyses, stories, runs). Nothing deletes or rewrites history.
@@ -179,7 +201,7 @@ three tiers:
 | Tier | Recipes | Runs when |
 |---|---|---|
 | auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify` | at once |
-| chat | `correct`, `publish`, `restore` | the job quotes the owner's yes from the chat |
+| chat | `correct`, `publish`, `restore`, `takes-done` | the job quotes the owner's yes from the chat |
 | mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, the public code push | the owner clicks Approve in a dialog on the Mac, or runs `./np runner approve ID` in Terminal |
 
 The click grants presence in memory for that job's approved steps only (`presence.py`). No file or setting can
@@ -200,7 +222,8 @@ queue.
   like code.
 
 ## Operations
-- **Schedule:** early morning with two retries. A retry skips work already done. An evening preflight checks
+- **Schedule:** early morning with two retries. A retry skips work already done. When takes are on, the
+  edition is built early and held until the cutoff (09:15) or the owner's "done". An evening preflight checks
   that tomorrow's release is approved.
 - **When something needs the owner:** an action-needed email states the issue and the fix. Approving re-sends
   what was held back.
@@ -267,6 +290,7 @@ _Generated from each module's own description at build time._
 | `speech.py` | The speech layer |
 | `stages.py` | LLM stages |
 | `suggest.py` | Source suggestions |
+| `takes.py` | Steven's takes |
 | `textutil.py` | HTML → text, page metadata, URL ids, and date parsing. |
 | `todos.py` | A shared to-do list for Steven and Claude |
 | `tuning.py` | Tuning profiles |
