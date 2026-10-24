@@ -6,6 +6,11 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.1-beta · 2026-10-24
+- Fix: the first takes morning (10-24) never sent the takes email. The takes step called the mailer with
+  positional arguments it doesn't take, so it failed straight away and the edition shipped on time without takes,
+  as designed. Fixed, with a test that checks each call against the mailer's real signature.
+
 ## v0.2.0-beta · 2026-10-23
 - **Steven's takes (My takes, phase 1):** the owner's own view in the edition, verbatim, labelled "Steven's take".
   - Once the edition is written, a private "AI Briefing · Your takes" email lists slots: 0 (the day), T (Top of

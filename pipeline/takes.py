@@ -154,10 +154,11 @@ def send_email(root: Path, cfg: dict, day: str, log=print) -> str:
     to = mailer.ecfg(cfg).get("test_to")
     if not to:
         return "takes email skipped: email.test_to (the owner's address) is not set"
-    r = mailer.call(cfg, "send", m["subject"], mailer.defuse(m["html"]), mailer.defuse(m["text"]), to=to)
+    r = mailer.call(cfg, "send", subject=m["subject"], html=mailer.defuse(m["html"]), text=mailer.defuse(m["text"]),
+                    to=to)
     st["emailed_at"] = dt.datetime.now().isoformat(timespec="seconds")
     _save_state(root, day, st)
-    return f"takes email sent to the owner ({r if isinstance(r, str) else 'ok'})"
+    return "takes email sent to the owner" + ("" if (r or {}).get("ok", True) else f" (mailer: {r})")
 
 
 # ---------------------------------------------------------------- parsing
@@ -403,7 +404,8 @@ def report_email(root: Path, cfg: dict, day: str, st: dict) -> str:
     text = "\n".join(L)
     html = "".join(f"<p>{htmllib.escape(x)}</p>" for x in L)
     to = mailer.ecfg(cfg).get("test_to")
-    mailer.call(cfg, "send", f"AI Briefing · Your takes · held back · {day}", mailer.defuse(html), mailer.defuse(text), to=to)
+    mailer.call(cfg, "send", subject=f"AI Briefing · Your takes · held back · {day}", html=mailer.defuse(html),
+                text=mailer.defuse(text), to=to)
     return "held-takes note sent to the owner"
 
 

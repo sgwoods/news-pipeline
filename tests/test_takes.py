@@ -231,5 +231,27 @@ class Feedback(unittest.TestCase):
         self.assertIsNone(feedback.parse_reply(m.as_bytes(), {}))
 
 
+class Sending(unittest.TestCase):
+    """Calls the real mailer.call signature (2026-10-24: positional arguments broke the first takes morning)."""
+    def test_takes_email_and_held_note_use_the_mailer_signature(self):
+        root = make_root()
+        sent = []
+        real = mailer.call
+
+        def fake(cfg, action, _alert=False, **params):
+            import inspect
+            inspect.signature(real).bind(cfg, action, _alert, **params)      # raises if the call shape is wrong
+            sent.append(params)
+            return {"ok": True}
+        with mock.patch.object(mailer, "call", side_effect=fake), \
+                mock.patch.object(mailer, "ecfg", return_value={"test_to": "owner@example.com"}):
+            self.assertIn("sent", takes.send_email(root, CFG, DAY))
+            takes.report_email(root, CFG, DAY, {"published": [], "held": [{"slot": "1", "title": "x", "why": ["a private name"]}]})
+        self.assertEqual(sent[0]["to"], "owner@example.com")
+        self.assertTrue(sent[0]["subject"].startswith("AI Briefing · Your takes"))
+        self.assertIn("held back", sent[1]["subject"])
+        self.assertEqual(takes.send_email(root, CFG, DAY)[:28], "takes email already sent at ")
+
+
 if __name__ == "__main__":
     unittest.main()
