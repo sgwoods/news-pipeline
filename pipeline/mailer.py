@@ -50,7 +50,7 @@ def ready(cfg: dict) -> str:
     return ""
 
 
-READ_ACTIONS = ("list", "ratings", "ddactions", "companylist")   # Apps Script actions that change nothing
+READ_ACTIONS = ("list", "ratings", "ddactions", "companylist", "takes_pull")   # Apps Script actions that change nothing
 
 
 def call(cfg: dict, action: str, _alert: bool = False, **params) -> dict:

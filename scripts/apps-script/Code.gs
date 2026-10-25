@@ -13,6 +13,7 @@
  *   private  (needs the SECRET script property; used by the pipeline and the dashboard)
  *            list · add (always sends a confirmation) · remove · send (subscribers or OWNER_EMAIL only)
  *            ratings (read-only export, no addresses) · setqueue / ddactions (the deep-dive queue page)
+ *            takes (Steven's takes from the site page, owner token t) · takes_pull (the pipeline reads them)
  *
  * Script properties (Project Settings -> Script properties):
  *   SHEET_ID     the shared subscriber Sheet's ID (from its URL, between /d/ and /edit)
@@ -31,6 +32,7 @@ var RSHEET = 'ratings';
 var RHEAD = ['day', 'who', 'email', 'score', 'note', 'at', 'src'];
 var QSHEET = 'dd_queue', QHEAD = ['id', 'topic', 'status', 'why'];
 var ASHEET = 'dd_actions', AHEAD = ['at', 'op', 'id', 'topic', 'angle'];
+var TSHEET = 'takes', THEAD = ['at', 'day', 'slot', 'text', 'done'];   // Steven's takes from the site page
 var CONSENT = 'Asked to receive the daily AI Briefing by email and confirmed by clicking the link sent to this address.';
 
 function props_() { return PropertiesService.getScriptProperties(); }
@@ -81,7 +83,7 @@ function isoStr_(v) { return (v instanceof Date) ? v.toISOString() : String(v ||
 
 // Steven's links carry signed owner tokens: one scope each (r = rating, q = queue page), a date, and an expiry
 // (security review 2026-10-18, H2). Rotating SECRET invalidates every owner token at once.
-var OWNER_DAYS = { r: 35, q: 8 };
+var OWNER_DAYS = { r: 35, q: 8, t: 2 };      // t = takes on the site page (2 days)
 function ymd_(d) { return Utilities.formatDate(d, 'UTC', 'yyyyMMdd'); }
 function ownerSig_(email, scope, day) {
   var sig = Utilities.computeHmacSha256Signature(String(email).toLowerCase() + '|' + scope + '|' + day,
@@ -94,7 +96,7 @@ function ownerToken_(email, scope) {
   return 'o' + scope + day + ownerSig_(email, scope, day);
 }
 function ownerOf_(t, scope) {                         // the owner address a token was issued to, or null
-  var m = /^o([rq])(\d{8})([A-Za-z0-9_-]{32})$/.exec(String(t || ''));
+  var m = /^o([rqt])(\d{8})([A-Za-z0-9_-]{32})$/.exec(String(t || ''));
   if (!m || (scope && m[1] !== scope)) return null;
   var issued = new Date(Date.UTC(+m[2].slice(0, 4), +m[2].slice(4, 6) - 1, +m[2].slice(6, 8)));
   var age = (Date.now() - issued.getTime()) / 86400000;
@@ -413,7 +415,30 @@ function doPost_(e) {
       '<p style="color:#9cc4df;font-size:14px">Know someone who would like it? Forward the email or share ' +
       '<a style="color:#d9f7ff" href="' + site_() + esc_(p.d) + '/">today\'s page</a>.</p>');
   }
+  if (p.action === 'takes') {                         // Steven's takes from the site page: owner token (scope t) only
+    if (!ownerOf_(p.t, 't')) return page_('Link not recognised', '<p>This link only works from your own takes email, ' +
+      'and expires after two days.</p>');
+    if (!validDay_(p.d)) return page_('That didn\'t work', '<p>Unknown day.</p>');
+    var tk = {};
+    try { tk = JSON.parse(String(p.takes || '{}')); } catch (err) { tk = {}; }
+    var sh = tab_(TSHEET, THEAD), n = 0, done = String(p.done || '') === '1';
+    Object.keys(tk).slice(0, 20).forEach(function (k) {
+      var slot = String(k).toUpperCase().slice(0, 2), text = clean_(tk[k], 1500);
+      if (!/^(\d{1,2}|T|W)$/.test(slot) || !text) return;
+      sh.appendRow([now_(), String(p.d), slot, text, ''].map(safeCell_));
+      n++;
+    });
+    if (done) sh.appendRow([now_(), String(p.d), 'DONE', '', '1'].map(safeCell_));
+    return page_('Takes saved', '<p>' + n + ' take' + (n === 1 ? '' : 's') + ' saved for ' + esc_(p.d) +
+      (done ? '. The edition goes out within a few minutes.' : '. The edition goes out at the cutoff, or when you send done.') +
+      '</p><p style="color:#9cc4df;font-size:14px">Anything with a private name or detail is held back and listed to you, ' +
+      'never published. Submitting again replaces a take for the same section.</p>');
+  }
   if (!authed_(p)) return json_({ ok: false, error: 'unauthorised' });
+  if (p.action === 'takes_pull') {                  // the pipeline reads the day's site takes (key only)
+    return json_({ ok: true, takes: tabRows_(TSHEET, THEAD).filter(function (r) { return dayStr_(r.day) === String(p.d); })
+      .map(function (r) { return { at: isoStr_(r.at), slot: String(r.slot), text: String(r.text || ''), done: String(r.done) === '1' }; }) });
+  }
   if (p.action === 'setqueue') {                    // the pipeline's queue snapshot for the page
     var rows = [];
     try { rows = JSON.parse(String(p.items || '[]')); } catch (err) { return json_({ ok: false, error: 'bad items' }); }
@@ -458,9 +483,11 @@ function doPost_(e) {
       var un = r.token ? selfUrl_() + '?action=unsubscribe&t=' + r.token : site_();
       var rt = r.token || (owners_().indexOf(String(r.email).toLowerCase()) >= 0 ? ownerToken_(r.email, 'r') : '');
       var rate = selfUrl_() + '?action=rate&d=' + encodeURIComponent(validDay_(p.day) ? p.day : '') + (rt ? '&t=' + rt : '');
-      var own = owners_().indexOf(String(r.email).toLowerCase()) >= 0 ? ownerToken_(r.email, 'q') : '';
+      var isOwner = owners_().indexOf(String(r.email).toLowerCase()) >= 0;
+      var own = isOwner ? ownerToken_(r.email, 'q') : '';
+      var ownt = isOwner ? ownerToken_(r.email, 't') : '';
       var fill = function (x) { return String(x || '').split('{{UNSUBSCRIBE}}').join(un).split('{{RATE}}').join(rate)
-        .split('{{OWNER}}').join(own).split('{{SCRIPT}}').join(selfUrl_()); };
+        .split('{{OWNERT}}').join(ownt).split('{{OWNER}}').join(own).split('{{SCRIPT}}').join(selfUrl_()); };
       try {
         MailApp.sendEmail(r.email, p.subject, fill(p.text), mailOpts_({ htmlBody: fill(p.html), name: fromName_() }));
         sent++;

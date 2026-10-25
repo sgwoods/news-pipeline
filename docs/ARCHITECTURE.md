@@ -13,7 +13,7 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.6-beta (2026-10-25)
+- **Release:** v0.2.7-beta (2026-10-25)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 64 in `pipeline/`
@@ -109,7 +109,10 @@ From v0.2 the owner can add his own view to the day's edition, verbatim and labe
 (`takes.py`, docs/plans/my-takes.md). Once the edition is written, a private email lists numbered slots: 0 for the
 day overall, T for Top of mind, and 1 to N for each Must-read story. The email carries the whole edition, with an
 "Add your take" button after each section that opens a reply with the section's number filled in (mail clients
-strip real text boxes). He replies from his phone ("1: ..."), or
+strip real text boxes), and a private "Read and comment on the site" link: the day's page with a box after each
+section and one Submit, shown only with his signed token (after the `#`, so it never reaches the web server; it
+expires after two days) and checked again by the mail script, which stores the takes for the pipeline to read
+(`takes.js` on the site, the `takes` / `takes_pull` actions in the Apps Script). He replies from his phone ("1: ..."), or
 posts in his team's Slack channel with the story's link (his own words only; nobody else's text is ever kept).
 The edition waits until the cutoff (09:15) or a "done" reply, then:
 

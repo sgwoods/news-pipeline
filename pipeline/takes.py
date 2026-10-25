@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 
 LABEL = "Steven's take"
+TOKEN_MARK = "__OWNERT__"          # where the mail script puts Steven's signed takes token (owner sends only)
 DIR = "data/takes"
 SLACK = "data/takes/slack.jsonl"
 _SLOT = re.compile(r"^\s*(?:take\s*)?([0-9]{1,2}|[TtDdWw])\s*[:.)\-–]\s*(.*\S)?\s*$")
@@ -161,9 +162,13 @@ def build_email(root: Path, cfg: dict, day: str) -> dict:
     card = 'style="padding:16px 18px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin:0 0 12px"'
     P = 'style="margin:0 0 8px;font-size:15px;line-height:1.55;color:#111827"'
     H = [f'<div style="max-width:660px;margin:0 auto;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">',
-         f'<p {P}>{esc(intro)}</p><p {P}><a href="{esc(page)}">Read today\'s page on the site</a> (as readers will '
-         f'see it).</p>']
-    L = [subject(day), "", intro, "", f"Today's page: {page}", ""]
+         f'<p {P}>{esc(intro)}</p>'
+         f'<p {P}><a href="{esc(page)}#takes=__OWNERT__" style="display:inline-block;padding:8px 14px;'
+         f'border-radius:999px;background:#111827;color:#fff;text-decoration:none">✍ Read and comment on the site'
+         f'</a> &nbsp; one box after each section, one Submit (your private link, valid two days).</p>'
+         f'<p {P}><a href="{esc(page)}">Read today\'s page as readers will see it</a>.</p>']
+    L = [subject(day), "", intro, "", f"Read and comment on the site (private link): {page}#takes=__OWNERT__",
+         f"Today's page: {page}", ""]
     H.append(f'<div {card}><div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">'
              f'0 · The day overall</div><p {P}>{_li(b.get("brief", ""))}</p>{btn("0")}</div>')
     L += ["0: The day overall", "   " + mailer._strip_md(b.get("brief", "")), ""]
@@ -207,8 +212,9 @@ def send_email(root: Path, cfg: dict, day: str, log=print) -> str:
     to = mailer.ecfg(cfg).get("test_to")
     if not to:
         return "takes email skipped: email.test_to (the owner's address) is not set"
-    r = mailer.call(cfg, "send", subject=m["subject"], html=mailer.defuse(m["html"]), text=mailer.defuse(m["text"]),
-                    to=to)
+    # content is defused (no placeholder can come from a story); only this template adds the takes token
+    fill = lambda s: mailer.defuse(s).replace(TOKEN_MARK, "{{OWNERT}}")  # noqa: E731
+    r = mailer.call(cfg, "send", subject=m["subject"], html=fill(m["html"]), text=fill(m["text"]), to=to)
     st["emailed_at"] = dt.datetime.now().isoformat(timespec="seconds")
     _save_state(root, day, st)
     return "takes email sent to the owner" + ("" if (r or {}).get("ok", True) else f" (mailer: {r})")
@@ -284,6 +290,37 @@ def fetch_replies(root: Path, cfg: dict, day: str, log=print) -> list:
         except Exception:  # noqa: BLE001
             pass
     return sorted(out, key=lambda r: r["received"])
+
+
+def fetch_site(cfg: dict, day: str) -> list:
+    """Takes Steven submitted on the site page (Apps Script 'takes' tab), as reply-like rows, oldest first."""
+    from . import mailer
+    r = mailer.call(cfg, "takes_pull", d=day)
+    rows = sorted((x for x in (r.get("takes") or []) if isinstance(x, dict)), key=lambda x: str(x.get("at", "")))
+    out = []
+    for x in rows:
+        if x.get("done") or str(x.get("slot")) == "DONE":
+            out.append({"received": str(x.get("at", "")), "takes": {}, "done": True, "skip": False, "via": "site"})
+            continue
+        slot = str(x.get("slot", "")).upper()
+        if re.fullmatch(r"\d{1,2}|T|W", slot) and str(x.get("text", "")).strip():
+            out.append({"received": str(x.get("at", "")), "takes": {slot: tidy(str(x["text"]))}, "done": False,
+                        "skip": False, "via": "site"})
+    return out
+
+
+def fetch_all(root: Path, cfg: dict, day: str, log=print) -> list:
+    """Email replies and site takes together, oldest first (a later take for a slot replaces an earlier one)."""
+    rows = []
+    try:
+        rows += fetch_replies(root, cfg, day, log)
+    except Exception as e:  # noqa: BLE001
+        log(f"takes: mailbox read failed ({e})")
+    try:
+        rows += fetch_site(cfg, day)
+    except Exception as e:  # noqa: BLE001
+        log(f"takes: site takes read failed ({e})")
+    return sorted(rows, key=lambda r: str(r.get("received", "")))
 
 
 # ---------------------------------------------------------------- Slack
@@ -425,7 +462,7 @@ def _cutoff(cfg: dict, day: str) -> dt.datetime:
 
 def wait(root: Path, cfg: dict, day: str, log=print, now=dt.datetime.now, sleep=time.sleep, fetch=None) -> dict:
     """Poll for replies until the cutoff, "done" or "skip"; then collect. Never raises: no takes = today as before."""
-    fetch = fetch or (lambda: (_slack_refresh(root, cfg, log), fetch_replies(root, cfg, day, log))[1])
+    fetch = fetch or (lambda: (_slack_refresh(root, cfg, log), fetch_all(root, cfg, day, log))[1])
     end = _cutoff(cfg, day)
     replies = []
     while True:

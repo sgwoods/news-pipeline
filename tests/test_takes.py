@@ -289,5 +289,69 @@ class WorthAndColours(unittest.TestCase):
         self.assertIn("Thin today.", msg["html"])
 
 
+class SiteTakes(unittest.TestCase):
+    """Takes typed on the site page (takes.js) go to the mail script and back to the pipeline (v0.2.7)."""
+    def test_site_rows_become_reply_like_rows(self):
+        rows = {"ok": True, "takes": [{"at": "2026-10-24T07:10:00Z", "slot": "1", "text": "Margins.", "done": False},
+                                      {"at": "2026-10-24T07:12:00Z", "slot": "w", "text": "Thin.", "done": False},
+                                      {"at": "2026-10-24T07:13:00Z", "slot": "DONE", "text": "", "done": True},
+                                      {"at": "2026-10-24T07:14:00Z", "slot": "ZZ", "text": "bad slot", "done": False}]}
+        with mock.patch.object(mailer, "call", return_value=rows) as call:
+            out = takes.fetch_site({}, DAY)
+        call.assert_called_once_with({}, "takes_pull", d=DAY)
+        self.assertEqual([r["takes"] for r in out], [{"1": "Margins."}, {"W": "Thin."}, {}])
+        self.assertTrue(out[2]["done"])
+
+    def test_fetch_all_merges_replies_and_site_in_time_order(self):
+        with mock.patch.object(takes, "fetch_replies", return_value=[{"received": "2026-10-24T07:20:00+00:00",
+                                                                     "takes": {"1": "Later email."}, "done": False}]), \
+                mock.patch.object(takes, "fetch_site", return_value=[{"received": "2026-10-24T07:10:00Z",
+                                                                      "takes": {"1": "Site first."}, "done": False}]):
+            out = takes.fetch_all(Path("."), {}, DAY)
+        self.assertEqual([r["takes"]["1"] for r in out], ["Site first.", "Later email."])
+
+    def test_one_failing_source_does_not_stop_the_other(self):
+        with mock.patch.object(takes, "fetch_replies", side_effect=OSError("imap down")), \
+                mock.patch.object(takes, "fetch_site", return_value=[{"received": "x", "takes": {"T": "ok"}}]):
+            self.assertEqual(len(takes.fetch_all(Path("."), {}, DAY, log=lambda *a: None)), 1)
+
+    def test_email_link_carries_the_placeholder_only_after_defusing(self):
+        root = make_root()
+        (root / "briefings").mkdir()
+        (root / "briefings" / f"{DAY}.md").write_text(MD.replace("Corvane raised $550M.", "Corvane {{OWNERT}} raised."), "utf-8")
+        sent = []
+        with mock.patch.object(mailer, "call", side_effect=lambda cfg, a, _alert=False, **p: sent.append(p) or {"ok": True}), \
+                mock.patch.object(mailer, "ecfg", return_value={"test_to": "owner@example.com"}), \
+                mock.patch("pipeline.mailsource.mcfg", return_value={"account": "briefing@example.com"}):
+            takes.send_email(root, CFG, DAY)
+        html = sent[0]["html"]
+        self.assertIn("2026-10-24/#takes={{OWNERT}}", html)
+        self.assertEqual(html.count("{{OWNERT}}"), 1)                 # a story can't inject the placeholder
+        self.assertIn("#takes={{OWNERT}}", sent[0]["text"])
+
+    def test_takes_pull_is_a_read_action(self):
+        self.assertIn("takes_pull", mailer.READ_ACTIONS)
+
+
+class SitePageAndScript(unittest.TestCase):
+    ROOT = Path(__file__).resolve().parent.parent
+
+    def test_mail_script_checks_the_takes_token(self):
+        gs = (self.ROOT / "scripts" / "apps-script" / "Code.gs").read_text("utf-8")
+        self.assertIn("t: 2", gs)
+        self.assertIn("if (!ownerOf_(p.t, 't')) return page_('Link not recognised'", gs)
+        self.assertLess(gs.index("p.action === 'takes')"), gs.index("if (!authed_(p)) return json_"))
+        self.assertGreater(gs.index("p.action === 'takes_pull'"), gs.index("if (!authed_(p)) return json_"))
+        self.assertIn(".split('{{OWNERT}}').join(ownt)", gs)
+
+    def test_takes_script_only_with_the_token_and_a_script_url(self):
+        from pipeline import site
+        js = site.TAKES_JS
+        self.assertIn("takes=([A-Za-z0-9_-]{8,64})", js)
+        self.assertIn("script\\.google\\.com", js)
+        self.assertNotIn("innerHTML", js)                             # no page text built from strings
+        self.assertIn('data-takes', site.TAKES_JS.replace('"script[data-takes]"', "data-takes"))
+
+
 if __name__ == "__main__":
     unittest.main()

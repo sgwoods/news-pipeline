@@ -6,6 +6,16 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.7-beta · 2026-10-25
+- **Takes on the website:** the private takes email has a "Read and comment on the site" link to the day's page.
+  With Steven's signed token (after the `#`, valid two days) the page shows a box after the day in brief, Top of
+  mind, each Must-read story and Worth knowing, and one Submit (with "Done: send the edition now"). Visitors without
+  the token see nothing different. The mail script checks the token and stores the takes; the pipeline reads them
+  during the hold together with email replies and Slack, and the same privacy hold applies.
+- **Needs a redeploy of the mail script** (`scripts/apps-script/Code.gs`: new `takes` / `takes_pull` actions, owner
+  token scope `t`, a `{{OWNERT}}` placeholder for owner sends). Until then the site link shows no boxes and
+  everything else works as before.
+
 ## v0.2.6-beta · 2026-10-25
 - Takes email: bold lead phrases were pale blue on white (the subscriber email's dark-mode colour) and now read
   dark; links are blue. A "W" slot covers Worth knowing (button in the takes email, a take box under Worth knowing
