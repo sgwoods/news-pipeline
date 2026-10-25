@@ -89,6 +89,20 @@ def parse_briefing(md: str) -> dict:
             "worth": worth, "top": top, "questions": questions}
 
 
+def cold_open(md: str) -> str:
+    """The first thing heard (critic 2026-10-24): the lead story's sharpest line, before the show's own opening.
+    Our read on the first Must read, else its first sentence of what happened. One sentence, at most 35 words."""
+    b = parse_briefing(md)
+    st = (b["stories"] or [{}])[0]
+    for key in ("Our read", "What happened"):
+        s = (st.get(key) or "").strip()
+        if s:
+            first = re.split(r"(?<=[.!?])\s+", s)[0].strip()
+            if 6 <= len(first.split()) <= 35:
+                return first
+    return ""
+
+
 def opener(title: str, acfg: dict | None = None) -> str:
     """The fixed first line: which episode, who is speaking (Steven, 2026-10-19: the host introduces themselves by
     name), and the AI disclosure. Never left to a model."""
@@ -145,11 +159,24 @@ def _plan_spec(b: dict, cfg: dict) -> list:
         body = "\n".join([f"Headline: {st['headline']}", f"Sources: {st.get('who', '')}"] +
                           [f"{k}: {v}" for k, v in fields.items()])
         last = " This is the last of the main stories; say so." if i == n and n > 1 else ""
+        dev = re.search(r"day (\d+)", st.get("Developing", ""))
+        if st.get("Today's deep dive"):          # the deep dive tells it: no story twice in one episode
+            plan.append((f"Story {i}", body, "About 50 words, never more than 70.",
+                         f"Main story {i}, briefly. Open with a spoken signpost ({ordinal[i - 1].lower()} story), say "
+                         f"in one or two sentences what happened, then that today's deep dive, right after the "
+                         f"briefing, covers it in full.{last}"))
+            continue
+        if dev and int(dev.group(1)) >= 2:       # covered on earlier days: what's new only (critic 2026-10-24)
+            plan.append((f"Story {i}", body, "About 120 words, never more than 140.",
+                         f"Main story {i}, a developing story we have covered before. Open with a spoken signpost "
+                         f"({ordinal[i - 1].lower()} story) and say it's an update, then only what is new since our "
+                         f"earlier coverage and whether it changes our read. No background recap.{last}"))
+            continue
         plan.append((f"Story {i}", body, f"About {per} words, never more than {per + 30}.",
                      f"Main story {i}. Open with a spoken signpost ({ordinal[i - 1].lower()} story, without the "
                      f"word 'next'), then: setup with at most two outlets named and a relative date, what is new, how "
-                     f"well it holds up, and what we would look at or want to know, as a suggestion. Weave the evidence check and our read in; do "
-                     f"not read their labels.{last}"))
+                     f"well it holds up, and what we would look at or want to know, as a suggestion. Weave the evidence "
+                     f"check, our read and the early-stage point in; do not read their labels.{last}"))
     if hits:
         plan.append(("Quick hits", "\n".join(hits), f"At most {hit_words * h + 15} words.",
                      f"{words.get(h, h).capitalize()} quick hits. Introduce them once in a few words, then each in at "
@@ -551,7 +578,9 @@ def render_mp3(engine, parts: list, out_mp3: Path, title: str = "", bitrate: str
         lst = td / "list.txt"
         lst.write_text("".join(f"file '{f}'\n" for f in files))
         out_mp3.parent.mkdir(parents=True, exist_ok=True)
+        # loudness normalised to podcast level (-16 LUFS, true peak -1.5 dB): critic 2026-10-24, free and local
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
+                        "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-ar", "24000",
                         "-ac", "1", "-b:a", bitrate, "-metadata", f"title={title}", "-metadata", "artist=AI Briefing",
                         str(out_mp3)], check=True)
         frames = sum(wave.open(str(f)).getnframes() for f in files)

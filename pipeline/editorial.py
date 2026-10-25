@@ -132,6 +132,27 @@ def build_stories(stories: list, by_id: dict) -> list:
     return out
 
 
+_SPONSORED = re.compile(r"\b(sponsored by|sponsored content|paid partnership|presented by|register (?:now|today)|"
+                        r"webinar|on-demand demo|book a demo)\b", re.I)
+
+
+def weak_lead(s: dict) -> str:
+    """Why the story's lead can't carry a Must read ('' if it can): a sponsored or webinar page, or a link to a bare
+    homepage rather than an article (critic, 2026-10-24: a vendor-sponsored webinar page became a Must read)."""
+    from urllib.parse import urlparse
+    r = s.get("lead") or {}
+    try:
+        u = _cite_url(r) if r.get("url") else ""
+    except (KeyError, TypeError):
+        u = ""
+    if u and urlparse(u).path.strip("/") == "" and not urlparse(u).query:
+        return "the source link is a homepage, not an article"
+    text = " ".join(str(r.get(k) or "") for k in ("title", "description", "text"))[:4000]
+    if _SPONSORED.search(text):
+        return "the source is sponsored or a webinar page"
+    return ""
+
+
 def select(stories: list, cfg: dict) -> dict:
     max_must, max_worth = cfg.get("max_must_read", 6), cfg.get("max_worth_knowing", 8)
     max_brief, per_source = cfg.get("max_in_brief", 8), cfg.get("max_stories_per_source", 2)
@@ -149,7 +170,10 @@ def select(stories: list, cfg: dict) -> dict:
         imp = s["lead"].get("importance") or 0
         ranked = s.get("rank") is not None
         grounded = (s.get("evidence") or {}).get("grounded", True)   # a primary source or a report
-        if not over and not s.get("wire_only") and grounded and len(must) < max_must and (s["score"] >= 4 or (ranked and s["score"] >= 3)):
+        weak = weak_lead(s)
+        if weak:
+            s["weak_lead"] = weak
+        if not over and not s.get("wire_only") and grounded and not weak and len(must) < max_must and (s["score"] >= 4 or (ranked and s["score"] >= 3)):
             must.append(s)
         elif not over and len(worth) < max_worth and s["score"] >= 3:
             worth.append(s)
@@ -262,6 +286,11 @@ def run_editorial(llm, sel: dict, system: str, log, cfg: dict | None = None, ear
         v = ev.get(str(n)) or ev.get(n)
         if v:
             s["editor_view"] = _one_line(v)
+    es = out.get("early_stage") or {}
+    for n, s in enumerate(sel["must"], 1):
+        v = es.get(str(n)) or es.get(n)
+        if v and _one_line(v):
+            s["early_stage"] = _one_line(v)
     lenses = {"The AGI-forward view", "The AI-realist view", "The market view", "The policy view"}
     ol = out.get("other_lens") or {}
     used = 0
@@ -487,6 +516,17 @@ VERDICT_LABEL = {"holds": "Holds", "overstated": "Overstated", "unsupported": "U
 _LABEL_RE = re.compile(r"^(holds|overstated|unsupported|mixed|too early|unverified)\b[.:]?\s*", re.I)
 
 
+_NOT_SOLID = re.compile(r"\b(self-reported|self-assessed|unverified|not (?:yet )?(?:independently )?(?:verified|confirmed|"
+                        r"replicated|reproduced)|no independent|untested|unconfirmed|vendor-reported|company-reported)\b",
+                        re.I)
+
+
+def label_fits(label: str, text: str) -> str:
+    """'Holds' only when the evidence line itself doesn't say the claim is self-reported or unverified (critic,
+    2026-10-24: 'Holds. Self-reported benchmarks unverified'). Such a line is labelled 'Unverified' instead."""
+    return "Unverified" if label == "Holds" and _NOT_SOLID.search(text or "") else label
+
+
 def critical_line(s: dict, r: dict) -> str:
     """The critical pass always opens with its verdict word (Holds / Overstated / Unsupported / Mixed / Too early)."""
     crit = _clean(_one_line(s.get("critical_pass") or verdict_line(r)))
@@ -494,9 +534,10 @@ def critical_line(s: dict, r: dict) -> str:
         return ""
     m = _LABEL_RE.match(crit)
     if m:
-        return VERDICT_LABEL[m.group(1).lower()] + ". " + crit[m.end():].strip()
+        rest = crit[m.end():].strip()
+        return label_fits(VERDICT_LABEL[m.group(1).lower()], rest) + ". " + rest
     v = verdict_of(r)
-    return f"{VERDICT_LABEL[v]}. {crit}" if v in VERDICT_LABEL else crit
+    return f"{label_fits(VERDICT_LABEL[v], crit)}. {crit}" if v in VERDICT_LABEL else crit
 
 
 def _agenda(r: dict) -> str:
@@ -546,6 +587,8 @@ def render(day: str, sel: dict, ed: dict, meta: dict) -> tuple:
                 L.append(f"- **Evidence check:** {_md(crit)}")
             if s.get("editor_view"):
                 L.append(f"- **Our read:** {_md(s['editor_view'])}")
+            if s.get("early_stage"):
+                L.append(f"- **For early-stage:** {_md(s['early_stage'])}")
             if s.get("other_lens"):
                 L.append(f"- **{s['other_lens']['lens']}:** {_md(s['other_lens']['text'])}")
             if multi:
@@ -621,7 +664,8 @@ def story_records(sel: dict, run_id: str, day: str) -> dict:
         return {"key": s["key"], "section": section, "n": n, "headline": s["headline"], "ids": s["ids"],
                 "lead_id": s["lead"]["id"], "lead_url": s["lead"]["url"], "names": s["names"], "score": s["score"],
                 "what_happened": s.get("what_happened", ""), "critical_pass": s.get("critical_pass", ""),
-                "editor_view": s.get("editor_view", ""), "other_lens": s.get("other_lens") or {}, "thread": s.get("thread") or s["key"],
+                "editor_view": s.get("editor_view", ""), "early_stage": s.get("early_stage", ""),
+                "other_lens": s.get("other_lens") or {}, "thread": s.get("thread") or s["key"],
                 "continues": s.get("continues", ""), "thread_day": s.get("thread_day", 1)}
     stories = [pack(s, "must", n) for n, s in enumerate(sel["must"], 1)]
     stories += [pack(s, "worth", n) for n, s in enumerate(sel["worth"], len(sel["must"]) + 1)]

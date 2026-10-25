@@ -152,10 +152,13 @@ def parse(md: str) -> dict:
         ed = re.search(r"- \*\*(Editor's view|Our read):\*\* (.+)", block)
         ol = re.search(r"- \*\*(The (?:AGI-forward|AI-realist|sceptic's|market|policy) view):\*\* (.+)", block)
         dev = re.search(r"^\*(Developing story[^*]+)\*$", block, re.M)
+        es = re.search(r"- \*\*For early-stage:\*\* (.+)", block)
+        dd = re.search(r"- \*\*Today's deep dive:\*\* (.+)", block)
         must.append({"headline": head, "who": who, "url": src.group(1) if src else "",
                      "what": what.group(1) if what else "", "crit": crit.group(1) if crit else "",
                      "editor": ed.group(2) if ed else "", "editor_label": ed.group(1) if ed else "",
-                     "other": ol.group(2) if ol else "", "other_label": ol.group(1) if ol else "", "developing": dev.group(1) if dev else ""})
+                     "other": ol.group(2) if ol else "", "other_label": ol.group(1) if ol else "", "developing": dev.group(1) if dev else "",
+                     "early": es.group(1) if es else "", "deep": dd.group(1) if dd else ""})
     worth = [re.sub(r"^\*\*\d+\.\s*", "**", ln[2:]) for ln in secs.get("Worth knowing", "").splitlines() if ln.startswith("- ")]
     questions = [_strip_refs(ln[2:]) for ln in secs.get("Open questions", "").splitlines() if ln.startswith("- ")]
     rr = None
@@ -299,6 +302,13 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
                             f'border-radius:0 12px 12px 0;color:{C["text"]};font-size:14px;line-height:1.5">'
                             f'<span style="color:{C["accent"]};font-size:11px;letter-spacing:.12em;text-transform:uppercase">'
                             f'{s["editor_label"]}</span><br>{_inline(s["editor"])}</p>')
+            if s.get("early"):
+                rows.append(f'<p style="margin:6px 0 0;color:{C["text"]};font-size:14px;line-height:1.5">'
+                            f'<span style="color:{C["accent"]};font-size:11px;letter-spacing:.12em;text-transform:uppercase">'
+                            f'For early-stage</span><br>{_inline(s["early"])}</p>')
+            if s.get("deep"):
+                rows.append(f'<p style="margin:0 0 6px;color:{C["text"]};font-size:15px;line-height:1.55">'
+                            f'<span style="color:{C["muted"]}">In today\'s deep dive:</span> {_inline(s["deep"])}</p>')
             if s.get("other"):
                 rows.append(f'<p style="margin:6px 0 0;padding:6px 12px;color:{C["muted"]};font-size:13px;line-height:1.5">'
                             f'<span style="font-size:11px;letter-spacing:.12em;text-transform:uppercase">{s["other_label"]}</span>'

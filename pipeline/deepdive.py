@@ -650,7 +650,8 @@ def make_podcast(root: Path, cfg: dict, day: str, log=print) -> Path | None:
         log(f"Podcast {day}: the briefing audio has no hand-off; the deep dive stays a separate episode")
         return None
     out = podcast_mp3(root, day)
-    minutes = audio.combine([b_mp3, d_mp3], out, title=f"AI Briefing {day} + deep dive")
+    minutes = audio.combine([b_mp3, d_mp3], out, title=f"AI Briefing {day} + deep dive",
+                            bitrate=(cfg.get("audio") or {}).get("bitrate", "64k"))
     episodes.rebuilt(root, day)                  # a new file for an already-published day is a new episode version
     log(f"Podcast {day}: briefing + deep dive in one episode, {minutes} min")
     return out

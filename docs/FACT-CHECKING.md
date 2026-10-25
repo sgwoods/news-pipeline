@@ -67,6 +67,20 @@ company and said a disclosed number wasn't disclosed. The day before, an unsourc
 investor the wrong role. Each fact was in the sources. The mistake was in short lines that were written
 separately and never checked against the body.
 
+## 4b. The briefing against the day's deep dive (since v0.2.5)
+After the deep dive is written and before the briefing audio is made (`consistency.align_deepdive`):
+
+- a Must read the deep dive covers shrinks to one sentence and a pointer ("Today's deep dive covers this story in
+  full"), so no story is told twice in one episode;
+- a "not disclosed" line in the day in brief or Top of mind that the deep dive answers is dropped;
+- an opening line about the deep dive's story that calls something unverified or unclear is flagged for review in
+  the run log (meaning, not just names, decides that one, so it is not cut automatically).
+
+## 4c. Labels that match their evidence (since v0.2.5)
+An evidence check that itself says the claim is self-reported, unverified or untested can't carry the label
+"Holds"; it reads "Unverified". A story whose source link is a bare homepage, or a sponsored or webinar page,
+can't be a Must read (`editorial.weak_lead`).
+
 ## 5. Privacy gate: the one check that blocks
 `links.py`, `mailer.privacy_gate`, `publish.scan_site`, `stages.scrub_private`: private names, the owner's
 addresses, board-seat notes and tracker links never leave. A hit removes the text. If anything is still left at

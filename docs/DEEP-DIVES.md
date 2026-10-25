@@ -19,6 +19,8 @@ at inference time), a change in the trajectory of the field, or a story that has
   The summary and "Why today" lines are then checked against the finished body (`pipeline/consistency.py`, since
   v0.1.9): a sentence whose figure, company or "not disclosed" claim the body doesn't support is dropped. See
   docs/FACT-CHECKING.md.
+- **No story twice (v0.2.5):** when the deep dive covers one of the day's Must reads, the briefing keeps that story
+  to a sentence and a pointer to the deep dive, in the written edition, the email and the podcast.
 - **In the podcast (2026-10-19):** the deep dive follows the briefing in the same episode. The briefing host
   ("I'm Michael" in the first line) closes by promoting today's deep dive and where to find it (the web page, with
   the written edition and every past episode), hands off to Bella, and the deep dive's sign-off closes the episode.

@@ -54,10 +54,20 @@ class Slots(unittest.TestCase):
         sl = takes.slots(root, DAY)
         self.assertEqual([s["slot"] for s in sl], ["0", "T", "1", "2"])
         self.assertEqual(sl[2]["key"], item_id(URL1))
-        m = takes.build_email(root, CFG, DAY)
+        (root / "briefings").mkdir()
+        (root / "briefings" / f"{DAY}.md").write_text(MD, "utf-8")
+        with mock.patch("pipeline.mailsource.mcfg", return_value={"account": "briefing@example.com"}):
+            m = takes.build_email(root, CFG, DAY)
         self.assertEqual(m["subject"], "AI Briefing · Your takes · Sat Oct 24")
         self.assertIn("1: Corvane raises $550M", m["text"])
         self.assertIn("09:15", m["text"])
+        self.assertIn("Corvane raised $550M.", m["html"])                       # the edition itself, to read
+        self.assertIn("mailto:briefing@example.com?subject=Re%3A%20AI%20Briefing%20%C2%B7%20Your%20takes", m["html"])
+        self.assertIn("&amp;body=1%3A%20", m["html"])                           # the reply opens with "1: "
+        self.assertIn("Add your take on this (T)", m["html"])
+        self.assertIn("https://sgwoods.github.io/ai-briefing/2026-10-24/", m["html"])
+        r = takes.parse("1: Margins matter.")                                   # what the reply contains parses
+        self.assertEqual(r["takes"], {"1": "Margins matter."})
 
 
 class Collect(unittest.TestCase):

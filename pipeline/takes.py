@@ -123,25 +123,66 @@ def subject(day: str) -> str:
     return f"AI Briefing · Your takes · {d.strftime('%a %b')} {d.day}"
 
 
+def _reply_link(cfg: dict, day: str, slot: str) -> str:
+    """A mailto that opens a reply to the takes email with the slot number filled in ("2: ")."""
+    from urllib.parse import quote
+    from .mailsource import mcfg
+    to = mcfg(cfg).get("account") or ""
+    return f"mailto:{to}?subject={quote('Re: ' + subject(day))}&body={quote(slot + ': ')}"
+
+
 def build_email(root: Path, cfg: dict, day: str) -> dict:
+    """The whole edition, read in the email, with an "Add your take" button after each section (v0.2.5, Steven
+    2026-10-25: read, then type an observation after each main section). Mail clients strip real text boxes, so
+    each button opens a reply with the section's number filled in; several replies are merged."""
+    from . import mailer
     t = tcfg(cfg)
-    sl = slots(root, day)
-    intro = (f"Today's edition is written. Reply with your takes, one per line, by number: \"1: ...\". "
-             f"It waits until {t['cutoff']} or until you reply \"done\". \"skip\" means none today. "
-             f"Your words go in verbatim as \"{LABEL}\", in the written edition, the email and the podcast. "
-             f"Anything with a private name or detail is held back and listed to you, never published.")
-    L = [subject(day), "", intro, ""]
-    H = [f'<p style="font-size:15px;line-height:1.5">{htmllib.escape(intro)}</p><table cellpadding="6" style="font-size:15px">']
-    for s in sl:
-        L.append(f"{s['slot']}: {s['title']}" + (f"\n   {s['summary']}" if s["summary"] else ""))
-        H.append(f'<tr><td style="vertical-align:top;font-weight:700">{htmllib.escape(s["slot"])}:</td><td>'
-                 f'<b>{htmllib.escape(s["title"])}</b>'
-                 + (f'<br><span style="color:#666">{htmllib.escape(s["summary"])}</span>' if s["summary"] else "")
-                 + "</td></tr>")
-    H.append("</table>")
-    L += ["", "Example reply:", "1: The margin story matters more than the headline.", "done"]
-    H.append('<p style="color:#666;font-size:13px">Example reply:<br>1: The margin story matters more than the '
-             'headline.<br>done</p>')
+    sl = {s["slot"]: s for s in slots(root, day)}
+    md_file = root / cfg.get("paths", {}).get("briefings", "briefings") / f"{day}.md"
+    b = mailer.parse(md_file.read_text("utf-8")) if md_file.exists() else {"brief": "", "top": [], "must": []}
+    base = ((cfg.get("publish") or {}).get("site_url") or "https://sgwoods.github.io/ai-briefing/").rstrip("/")
+    page = f"{base}/{day}/"
+    esc = htmllib.escape
+    intro = (f"Today's edition is written and held until {t['cutoff']} for your takes. Read each section, then tap "
+             f"\"Add your take\": a reply opens with the section number filled in. Type and send; send as many as you "
+             f"like. Reply \"done\" to send the edition early, \"skip\" for none. Your words go in verbatim as "
+             f"\"{LABEL}\" in the written edition, the email and the podcast. Anything with a private name or detail is "
+             f"held back and listed to you, never published.")
+    btn = lambda slot: (f'<p style="margin:10px 0 0"><a href="{esc(_reply_link(cfg, day, slot), quote=True)}" '  # noqa: E731
+                        f'style="display:inline-block;padding:8px 14px;border-radius:999px;background:#2563eb;color:#fff;'
+                        f'text-decoration:none;font-size:14px">✍ Add your take on this ({esc(slot)})</a></p>')
+    card = 'style="padding:16px 18px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin:0 0 12px"'
+    P = 'style="margin:0 0 8px;font-size:15px;line-height:1.55;color:#111827"'
+    H = [f'<div style="max-width:660px;margin:0 auto;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">',
+         f'<p {P}>{esc(intro)}</p><p {P}><a href="{esc(page)}">Read today\'s page on the site</a> (as readers will '
+         f'see it).</p>']
+    L = [subject(day), "", intro, "", f"Today's page: {page}", ""]
+    H.append(f'<div {card}><div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">'
+             f'0 · The day overall</div><p {P}>{mailer._inline(b.get("brief", ""))}</p>{btn("0")}</div>')
+    L += ["0: The day overall", "   " + mailer._strip_md(b.get("brief", "")), ""]
+    if b.get("top"):
+        lis = "".join(f'<li style="margin:0 0 6px;font-size:15px;line-height:1.5">{mailer._inline(x)}</li>' for x in b["top"])
+        H.append(f'<div {card}><div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">'
+                 f'T · Top of mind</div><ul style="margin:6px 0 0;padding-left:20px">{lis}</ul>{btn("T")}</div>')
+        L += ["T: Top of mind"] + [f"   - {mailer._strip_md(x)}" for x in b["top"]] + [""]
+    for n, s in enumerate(b.get("must", []), 1):
+        slot = str(n)
+        if slot not in sl:
+            continue
+        rows = [f'<div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">{esc(slot)} · '
+                f'Must read</div><div style="font-size:17px;font-weight:600;margin:4px 0 6px">{esc(s["headline"])}</div>']
+        for label, key in (("What happened", "what"), ("In today's deep dive", "deep"), ("Evidence check", "crit"),
+                           (s.get("editor_label") or "Our read", "editor"), ("For early-stage", "early"),
+                           (s.get("other_label") or "", "other")):
+            if s.get(key):
+                rows.append(f'<p {P}><span style="color:#6b7280">{esc(label)}:</span> {mailer._inline(s[key])}</p>')
+        if s.get("url"):
+            rows.append(f'<p style="margin:0;font-size:13px"><a href="{esc(s["url"])}">Source</a></p>')
+        H.append(f'<div {card}>{"".join(rows)}{btn(slot)}</div>')
+        L += [f"{slot}: {s['headline']}", "   " + mailer._strip_md(s.get("what", "")), ""]
+    H.append('<p style="color:#6b7280;font-size:13px">Or reply to this email with one take per line: "1: ...", '
+             '"T: ...", "0: ...", then "done".</p></div>')
+    L += ["Reply with one take per line, e.g.:", "1: The margin story matters more than the headline.", "done"]
     return {"subject": subject(day), "text": "\n".join(L), "html": "".join(H)}
 
 

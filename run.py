@@ -753,6 +753,36 @@ def write_v2(run, cfg, backends, system, entries, day, dropped, meta, briefings_
             run.log.warning("number check skipped: %s", e)
 
 
+def _align_with_deepdive(run, cfg: dict, day: str) -> None:
+    """The briefing agrees with the day's deep dive and doesn't tell its story twice (consistency.align_deepdive),
+    before the briefing audio is made. Never fails the edition."""
+    import json as _json
+    try:
+        from pipeline import consistency, deepdive
+        rec = deepdive.latest(ROOT, day) or {}
+        if rec.get("status") not in ("written", "published"):
+            return
+        pf = ROOT / deepdive.DIR / f"{day}.parts.json"
+        if not pf.exists():
+            return
+        parts = _json.loads(pf.read_text("utf-8")).get("parts", [])
+        body = " ".join(str(t_) for n_, t_ in parts if n_ not in ("Opener", "Outro"))
+        head = " ".join(str(x) for x in ((rec.get("pick") or {}).get("why_today", ""), rec.get("title", "")))
+        bfile = ROOT / cfg["paths"]["briefings"] / f"{day}.md"
+        md = bfile.read_text("utf-8")
+        md2, notes, flags = consistency.align_deepdive(md, rec.get("title") or "", body, head)
+        for n_ in notes:
+            run.log.warning("deep-dive alignment: %s", n_)
+        for f_ in flags:
+            run.log.info("deep-dive alignment: review: %s", f_)
+        if md2 != md:
+            bfile.write_text(md2, "utf-8")
+            (ROOT / cfg["paths"]["briefings"] / "versions" / f"{day}-{run.run_id}-aligned.md").write_text(md2, "utf-8")
+        run.record["stages"].setdefault("write", {})["deepdive_alignment"] = {"changes": notes[:10], "review": flags[:10]}
+    except Exception as e:  # noqa: BLE001
+        run.log.warning("deep-dive alignment skipped: %s", e)
+
+
 def make_audio(run, cfg: dict, day: str, experiment=None) -> None:
     """Stage 'audio': spoken script (LLM) + TTS + delivery. Never fails the briefing.
     experiment=<profile>: read and write briefings/experiments/<day>/<profile>.*, no delivery."""
@@ -797,6 +827,10 @@ def make_audio(run, cfg: dict, day: str, experiment=None) -> None:
                     parts[i] = (name, text2)
             if scrubbed:
                 run.log.warning("script: removed private name(s): %s", ", ".join(sorted(set(scrubbed))))
+            if acfg.get("cold_open", True) and not experiment:
+                cold = audio.cold_open(md)
+                if cold:
+                    parts.insert(0, ("Cold open", cold))
             title = audio.parse_briefing(md)["title"]
             voice = f"{eng.name}:{getattr(eng, 'voice', '')}"
             script = audio.script_markdown(title, parts, {"script_model": backend.label, "voice": voice})
@@ -804,6 +838,9 @@ def make_audio(run, cfg: dict, day: str, experiment=None) -> None:
             from pipeline import speech
             table = speech.load_table(ROOT)
             said = [(name, speech.spoken(text, table)) for name, text in parts]
+            odd = speech.lint(" ".join(t_ for _, t_ in said), table)
+            if odd:
+                run.log.info("pronunciation: check these in pronunciations.yaml: %s", ", ".join(odd))
             (bdir / f"{stem}.spoken.txt").write_text("\n\n".join(f"[{n}]\n{t}" for n, t in said) + "\n", "utf-8")
             mp3 = bdir / f"{stem}.mp3"
             minutes = audio.render_mp3(eng, said, mp3, title, acfg.get("bitrate", "64k"))
@@ -2043,6 +2080,7 @@ def cmd_run(cfg: dict, lookback_hours=None, commit=True, no_llm=False, stages_on
                             deepdive.run(ROOT, cfg, run.day, log=run.log.info, tts=False)
                     except Exception as e:  # noqa: BLE001
                         run.log.warning("deep dive skipped: %s", e)
+                    _align_with_deepdive(run, cfg, run.day)
                 make_audio(run, cfg, rebrief_day or reprocess_day or run.day, experiment)
     except Exception as e:  # noqa: BLE001
         import traceback

@@ -13,7 +13,7 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.4-beta (2026-10-25)
+- **Release:** v0.2.5-beta (2026-10-25)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 64 in `pipeline/`
@@ -61,10 +61,10 @@ _Generated at build time._
 | critique / verify | Each claim gets a verdict: holds, mixed, overstated, unsupported, unverified. Every Must read gets an evidence check. | `stages.py`, `dive.py` |
 | editorial / write | Day in brief, Top of mind, Must read, Worth knowing, Open questions; citations point at the real article. | `editorial.py`, `links.py`, `questions.py` |
 | fact check | Figures traced to their source, searched before they are cut, flagged when unconfirmed; numbers cross-checked; quotes kept only if word for word. | `factcheck.py`, `factsearch.py`, `numbers.py` |
-| first lines | The day in brief, Top of mind, deep-dive summaries, "Why today" and Agenda lines checked against the checked body and the item's own source; "not disclosed" claims compared with the last 14 editions. | `consistency.py` |
+| first lines | The day in brief, Top of mind, deep-dive summaries, "Why today" and Agenda lines checked against the checked body and the item's own source; "not disclosed" claims compared with the last 14 editions; after the deep dive is written, the briefing is aligned with it (no story twice, no contradictions). | `consistency.py` |
 | deep dive | A second segment on the day's focal topic, from a queue the owner curates. | `deepdive.py` |
 | takes | A private email asks the owner for takes; the edition waits until the cutoff (09:15) or "done"; clean takes go into the site, email and audio. | `takes.py` |
-| audio | The script becomes speech (pronunciations, pacing), the briefing and the deep dive joined into one episode. | `audio.py`, `speech.py` |
+| audio | The script becomes speech: a cold open with the lead story's sharpest line, pronunciations and a lint for words the voice may garble, loudness normalised (−16 LUFS, 96 kbps); the briefing and the deep dive are joined into one episode. Stories covered on earlier days get a short "what's new" segment. | `audio.py`, `speech.py` |
 | release gate | Tests, a secret scan, privacy invariants, approval of security-sensitive changes. | `release.py` |
 | publish | The static site, RSS and the podcast feed, after a privacy scan; then a wait until the pages answer. | `site.py`, `publish.py`, `episodes.py` |
 | email | The edition to subscribers through an Apps Script mailer, only once the site is live. | `mailer.py` |
@@ -107,7 +107,9 @@ the reasons behind each layer, is in [Fact checking](FACT-CHECKING.md).
 ## Steven's takes
 From v0.2 the owner can add his own view to the day's edition, verbatim and labelled "Steven's take"
 (`takes.py`, docs/plans/my-takes.md). Once the edition is written, a private email lists numbered slots: 0 for the
-day overall, T for Top of mind, and 1 to N for each Must-read story. He replies from his phone ("1: ..."), or
+day overall, T for Top of mind, and 1 to N for each Must-read story. The email carries the whole edition, with an
+"Add your take" button after each section that opens a reply with the section's number filled in (mail clients
+strip real text boxes). He replies from his phone ("1: ..."), or
 posts in his team's Slack channel with the story's link (his own words only; nobody else's text is ever kept).
 The edition waits until the cutoff (09:15) or a "done" reply, then:
 

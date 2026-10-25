@@ -19,6 +19,10 @@ that investor the company's "founder" in an unsourced Agenda line. These checks 
   gave that figure for the same company. Logged and shown in ./np consistency; a day can be right about its own
   sources and still contradict the record, so this is for review, not a cut.
 - audit(root, days): all of the above over published editions, dry run (./np consistency all).
+- align_deepdive(md, title, body, head) (v0.2.5, critic 2026-10-24): the briefing against the same day's deep dive.
+  A Must read the deep dive covers shrinks to a pointer (no story told twice in one episode), a "not disclosed"
+  line the deep dive answers is dropped from the day in brief and Top of mind, and lines that call something
+  unverified when the deep dive names it are flagged for review.
 """
 from __future__ import annotations
 
@@ -362,3 +366,100 @@ def audit(root, days: list | None = None, log=print) -> dict:
                     notes.append(f"{label}: ({w}): {s[:140]}")
         rep["deepdives"].append({"day": f.stem, "header": notes})
     return rep
+
+
+_UNSETTLED = re.compile(r"\b(unverified|unconfirmed|remains? unclear|not (?:yet )?(?:named|identified|confirmed|"
+                        r"disclosed)|unknown|undisclosed)\b", re.I)
+_SETTLED = re.compile(r"\b(named|names|said it used|used|confirmed|identified|according to|says|said)\b", re.I)
+_GENERIC = {"AI", "Today", "Deep", "Briefing", "Story", "Our", "Evidence", "What", "Who", "Why", "How", "The"}
+
+
+def _distinct(s: str) -> set:
+    return {n for n in _names(s) if n not in _GENERIC and len(n) > 2}
+
+
+def _figs(s: str) -> set:
+    return {_key(f) for f in _FIG.findall(spoken_figures(s))}
+
+
+def covers(story: str, dd_head: str) -> bool:
+    """Does the deep dive (title, why-today, summary) cover this Must-read story (headline + what happened)?"""
+    shared = _distinct(story) & _distinct(dd_head)
+    return len(shared) >= 2 or (len(shared) >= 1 and bool(_figs(story) & _figs(dd_head)))
+
+
+def align_deepdive(md: str, title: str, body: str, head: str) -> tuple:
+    """-> (md, notes, flags). See the module docstring."""
+    body = spoken_figures(body or "")
+    notes, flags = [], []
+    covered = set()                                          # distinctive names of the stories the deep dive tells
+    lines = md.split("\n")
+    try:
+        mi = lines.index("## Must read")
+    except ValueError:
+        mi = -1
+    if mi >= 0 and title:
+        end = next((i for i in range(mi + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+        i = mi + 1
+        while i < end:
+            if lines[i].startswith("### "):
+                j = next((k for k in range(i + 1, end) if lines[k].startswith("### ")), end)
+                block = lines[i:j]
+                what = next((ln for ln in block if ln.startswith("- **What happened:**")), "")
+                if covers(block[0] + " " + what, f"{title}. {head}") and not any("Today's deep dive" in ln for ln in block):
+                    first = _SENT.split(what.split(":**", 1)[1].strip())[0] if what else ""
+                    keep = [ln for ln in block if not ln.startswith("- **") or ln.startswith("- **Sources:**")]
+                    new = keep[:3] + ([f"- **What happened:** {first}"] if first else []) + \
+                        [f"- **Today's deep dive:** \"{title}\" covers this story in full, right after the briefing."] + \
+                        [ln for ln in keep[3:] if ln.strip()] + [""]
+                    lines[i:j] = new
+                    end += len(new) - len(block)
+                    notes.append(f"Must read shortened to a pointer (the deep dive covers it): {block[0][4:120]}")
+                    covered |= _distinct(block[0])
+                    j = i + len(new)
+                i = j
+            else:
+                i += 1
+    md = "\n".join(lines)
+    out_lines = md.split("\n")
+    _, dib, top, tend = _split(md)
+    header_idx = set(range(top + 1, tend)) if top >= 0 else set()
+    if dib >= 0:
+        header_idx.add(dib)
+    for idx, ln in enumerate(out_lines):
+        sents = _sentences(ln)
+        kept = []
+        for s in sents:
+            plain = _plain(s)
+            names = _distinct(plain)
+            drop = False
+            for m in _NOT_DISCLOSED.finditer(plain):
+                for term in re.split(r"\s*(?:,|\band\b|\bor\b)\s*", m.group(1)):
+                    term = term.strip()
+                    hit = _disclosed(term, names, body) if len(term) >= 3 and names else ""
+                    if hit:
+                        if idx in header_idx:
+                            drop = True
+                            notes.append(f"dropped: says {term} wasn't disclosed; the deep dive gives it: {plain[:120]}")
+                        else:
+                            flags.append(f"says {term} wasn't disclosed; the deep dive gives it: {plain[:120]}")
+                        break
+                if drop:
+                    break
+            q_idx = idx > tend and out_lines[idx].startswith("- **") and "Open questions" in "\n".join(out_lines[:idx])
+            if not drop and _UNSETTLED.search(plain) and (idx in header_idx or q_idx) and names & covered:
+                flags.append(f"a line about the story the deep dive covers calls something unsettled; check it against "
+                             f"the deep dive: '{plain[:140]}'")
+            elif not drop and _UNSETTLED.search(plain) and len(names) >= 1:
+                for ds in _lines_sents(body):
+                    if len(names & _distinct(ds)) >= 2 and _SETTLED.search(ds) and not _UNSETTLED.search(ds):
+                        flags.append(f"calls something unsettled that the deep dive states: '{plain[:100]}' vs "
+                                     f"'{ds[:100]}'")
+                        break
+            if not drop:
+                kept.append(s)
+        if len(kept) != len(sents):
+            out_lines[idx] = " ".join(kept) if kept else ""
+    # a Top of mind bullet left as a bare lead is removed
+    out_lines = [ln for ln in out_lines if not re.fullmatch(r"\s*-\s*\*\*[^*]+\*\*\s*", ln)]
+    return "\n".join(out_lines), notes, flags

@@ -135,6 +135,9 @@ def expand(text: str) -> str:
     t = re.sub(r"(?<![\w&])#(\d+)\b", lambda m: "number " + num_words(m.group(1)), t)
     t = re.sub(r"\bpass@(\d+)\b", lambda m: "pass at " + num_words(m.group(1)), t)
     t = re.sub(r"\b[Qq]([1-4])\b", lambda m: "Q " + ONES[int(m.group(1))], t)
+    # a single capital glued to a version number ("K3.1", "R1", "H100") is said as letter + number, not "Kthree"
+    t = re.sub(r"(?<![\w.])([A-Z])(\d+(?:\.\d+)*)(?![\w])", r"\1 \2", t)
+    t = re.sub(r"([?!])\.(?=\s|$)", r"\1", t)             # "...the Patches?." (a title ending a sentence)
     t = t.replace("and/or", "and or")
     t = re.sub(r"\best\.(?=\)|\s|$)", "estimate", t)
     # model sizes "74B-A9B" (total / active parameters)
@@ -191,3 +194,18 @@ def pronounce(text: str, table: dict) -> tuple:
 def spoken(text: str, table: dict) -> str:
     """Pronounce first (so names like 'GPT-6.1 Sol' can have entries), then expand figures."""
     return expand(pronounce(text, table)[0])
+
+
+_ODD = re.compile(r"\b(?:[A-Za-z]+\d+[A-Za-z\d.]*|[A-Z]{4,}|[a-z]+[A-Z][A-Za-z]+)\b")
+
+
+def lint(text: str, table: dict | None = None) -> list:
+    """Tokens the voice is likely to garble after expansion (mixed letters and digits, long all-caps runs, camelCase
+    brand names) that the pronunciation table doesn't cover. Logged before voicing, for pronunciations.yaml."""
+    known = {k.lower() for k in (table or {})}
+    out = []
+    for m in _ODD.finditer(text or ""):
+        w = m.group(0)
+        if w.lower() not in known and w not in out:
+            out.append(w)
+    return out[:20]

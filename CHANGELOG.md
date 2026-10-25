@@ -6,6 +6,26 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.5-beta · 2026-10-25
+The critic's first batch (review of 2026-10-24), plus an easier way to add takes.
+- **No story twice:** after the deep dive is written, a Must read it covers shrinks to one sentence and a pointer,
+  in the written edition, the email and the podcast. On 10-24 this would have cut the PHP story that took about 11
+  of 19 minutes.
+- **The briefing agrees with its deep dive:** "not disclosed" lines the deep dive answers are dropped from the day
+  in brief and Top of mind; "unverified" lines about the deep dive's story are flagged for review.
+- **Verdict labels match their evidence:** "Holds" is no longer used on an evidence check that says the claim is
+  self-reported or unverified; it reads "Unverified".
+- **Source gate:** a homepage link, or a sponsored or webinar page, can't be a Must read.
+- **"For early-stage":** a new line on each Must read on what the story means at seed and Series A (written
+  edition, email, podcast).
+- **Audio:** a cold open with the lead story's sharpest line; loudness normalised to −16 LUFS at 96 kbps; "K3.1"
+  is said "K three point one", not "Kthree"; a lint logs words the voice may garble; developing stories get a
+  short "what's new" segment.
+- **Takes email:** it now carries the whole edition, with an "Add your take" button after each section that opens
+  a reply with the section's number filled in, and a link to the page on the site.
+- Not in this batch: merging the day in brief and Top of mind (critic item 7), which changes the email, site,
+  takes slots and audio together; it needs a preview first.
+
 ## v0.2.4-beta · 2026-10-25
 - Fix: v0.2.3's public code push was refused because the new critic page (docs/CRITIC.md) wasn't in the public
   export, so the exported tests couldn't find it. It's added, and a test now checks that every page on the site's
