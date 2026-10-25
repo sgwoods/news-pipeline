@@ -78,7 +78,7 @@ def _sources_commit(cfg: dict, msg: str) -> None:
 
 
 def cmd_sources(cfg: dict, argv: list) -> int:
-    """./np sources list | suggest [N] | find NAME [NOTE] | accept ID | deny ID [REASON] |
+    """./np sources list | suggest [N] | find NAME [NOTE] | add NAME URL [URL] [NOTE] | accept ID | deny ID [REASON] |
     reconsider ID | recheck ID | remove URL [REASON] | restore URL"""
     from pipeline import suggest
     sub, rest = (argv[0] if argv else "list"), argv[1:]
@@ -120,6 +120,32 @@ def cmd_sources(cfg: dict, argv: list) -> int:
         print(f"\nQueued {row['id']} {name}: {len(row['verified'])} live source(s), {len(row['failed'])} failed"
               + ("" if row["reachable"] else "; no live web source, kept for later"))
         _sources_commit(cfg, f"sources: queued {name} (manual)")
+        return 0
+    if sub == "add":                             # a named source with known feed URLs: verify live, then wire in
+        urls = [a for a in rest[1:] if a.startswith("https://")]
+        note = " ".join(a for a in rest[1:] if not a.startswith("https://"))[:300]
+        if not rest or not urls:
+            print("usage: ./np sources add \"Name\" https://feed-url [https://alt-url] [note]")
+            return 2
+        name = rest[0].strip()[:80]
+        c = {"name": name, "why": ("Added by Steven" + (f" ({note})" if note else "")).strip(), "sites": [],
+             "bluesky": [], "feeds": urls}
+        row = suggest.enqueue(ROOT, cfg, [c], "manual", store)[0]
+        suggest.save_store(ROOT, store)
+        already = [u for u in urls if u in suggest._wired_urls(ROOT, cfg)]
+        if not row["reachable"] and already:
+            suggest.deny(ROOT, row["id"], "already a source")
+            print(f"{name}: already a source ({', '.join(already)}); nothing to add")
+            _sources_commit(cfg, f"sources: {name} already tracked")
+            return 0
+        if not row["reachable"]:
+            print(f"{name}: no feed answered ({'; '.join(str(f) for f in row['failed'])[:300]}); queued as {row['id']}, "
+                  f"not wired in")
+            _sources_commit(cfg, f"sources: queued {name} (no live feed)")
+            return 1
+        s = suggest.accept(ROOT, cfg, row["id"])
+        print(f"{name}: {len(row['verified'])} live feed(s) verified and wired in ({s['status']})")
+        _sources_commit(cfg, f"sources: added {name}")
         return 0
     if sub in ("accept", "deny", "reconsider", "recheck") and not rest:
         print(f"usage: ./np sources {sub} ID")
@@ -1225,6 +1251,26 @@ def cmd_takes(cfg: dict, argv: list) -> int:
     for x in st.get("held", []):
         print(f"  HELD {x['slot']}: {'; '.join(x['why'])}")
     return 0
+
+
+def cmd_critic(cfg: dict, argv: list) -> int:
+    """./np critic preview [DATE] | email [DATE] | list: the weekly critic email (pipeline/critic.py)."""
+    from pipeline import critic
+    sub = (argv or ["preview"])[0]
+    date = next((a for a in argv[1:] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)), None)
+    try:
+        if sub == "list":
+            for w in critic.history(ROOT):
+                print(f"{w['date']}  us {w['ours']['overall']:.1f}  ({len(w.get('shows', []))} shows rated)")
+            return 0
+        if sub == "email":
+            print(critic.send(ROOT, cfg, date))
+            return 0
+        print(critic.render(ROOT, date)["text"])
+        return 0
+    except Exception as e:  # noqa: BLE001
+        print(f"Critic: {e}")
+        return 1
 
 
 def cmd_secrets(cfg: dict, argv: list) -> int:
@@ -2543,6 +2589,7 @@ def main() -> int:
     ap.add_argument("--due", metavar="KIND", help="daily|preflight: exit 0 if a scheduled time just passed (local clock)")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
     ap.add_argument("--runner", nargs="*", metavar="ARG", help="status | tick | approve ID | reject ID | install | remove")
+    ap.add_argument("--critic", nargs="*", metavar="ARG", help="preview | email | list [DATE]: the weekly critic")
     ap.add_argument("--takes", nargs="*", metavar="ARG", help="status | email | preview | done [DAY]: Steven's takes")
     ap.add_argument("--consistency", nargs="*", metavar="ARG", help="[DAY|all]: first-lines and cross-day checks, dry run")
     ap.add_argument("--hub", nargs="*", metavar="ARG", help="status | push: status on the public project hub")
@@ -2621,6 +2668,8 @@ def main() -> int:
         return cmd_consistency(cfg, args.consistency)
     if args.takes is not None:
         return cmd_takes(cfg, args.takes)
+    if args.critic is not None:
+        return cmd_critic(cfg, args.critic)
     if args.runner is not None:
         return cmd_runner(cfg, args.runner)
     if args.preflight:

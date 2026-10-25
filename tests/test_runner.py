@@ -164,6 +164,24 @@ class Tiers(Base):
         p = self.queue("release", {"version": "0.1.12-beta", "note": "reviewed: x"})
         self.assertEqual(self.make(now=dt.datetime(2026, 10, 23, 21, 0)).run_job(p), "deferred")
 
+    def test_no_release_dialog_that_would_be_answered_after_eight(self):
+        p = self.queue("release", {"version": "0.1.12-beta", "note": "reviewed: x"})
+        st = self.make(ask=lambda j, s: self.fail("no dialog this late"),
+                       now=dt.datetime(2026, 10, 23, 19, 55)).run_job(p)
+        self.assertEqual(st, "waiting")
+        self.assertEqual(self.calls, [])
+
+    def test_an_approval_after_eight_expires_instead_of_failing(self):
+        p = self.queue("release", {"version": "0.1.12-beta", "note": "reviewed: x"})
+        clock = [dt.datetime(2026, 10, 23, 19, 40)]
+
+        def ask(job, s):
+            clock[0] = dt.datetime(2026, 10, 23, 20, 2)     # Steven clicks at 20:02
+            return "approve"
+        r = runner.Runner(self.root, self.dev, self.local, now=lambda: clock[0], ask=ask, notify=None)
+        self.assertEqual(r.run_job(p), "expired")
+        self.assertNotIn("release", [c[1][0] for c in self.calls])
+
     def test_terminal_approve_skips_the_dialog(self):
         p = self.queue("rollback", {"note": "reviewed: canary failed"})
         self.make(ask=lambda j, s: "timeout").run_job(p)

@@ -17,7 +17,10 @@ WINDOW = dt.timedelta(minutes=30)
 def times(cfg: dict, kind: str) -> list:
     s = cfg.get("schedule") or {}
     if kind == "daily":
-        return [str(t) for t in s.get("times", ["06:30", "07:30"])]
+        base = [str(t) for t in s.get("times", ["06:30", "07:30"])]
+        if (cfg.get("takes") or {}).get("enabled"):      # the edition waits for takes: retry after the cutoff too
+            base += [str(t) for t in s.get("after_takes", ["09:30", "10:30", "12:00"]) if str(t) not in base]
+        return base
     if kind == "preflight":
         return [str(s.get("preflight", "20:30"))]
     return []

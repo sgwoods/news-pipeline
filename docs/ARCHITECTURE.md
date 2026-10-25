@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.1-beta (2026-10-24)
+- **Release:** v0.2.4-beta (2026-10-25)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 63 in `pipeline/`
+- **Modules:** 64 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -24,6 +24,7 @@ _Generated at build time._
 - Components
 - Grounding and fact checking
 - Steven's takes
+- The weekly critic
 - Data and storage
 - Privacy and security
 - Repositories and public surfaces
@@ -89,7 +90,7 @@ Smaller pieces:
 |---|---|
 | Sources | `sources.py` (resolve and verify feeds for tracked people), `suggest.py` (source suggestions), `xsource.py` (X accounts through public RSS mirrors, never the paid API), `xdigest.py` (a weekly X digest by web search for accounts no mirror reaches), `linkedin.py` (the owner's own posts from LinkedIn's export), `record.py` (the owner's public record) |
 | Owner touchpoints | `editor_note.py` (the owner's private evening note), `alerts.py` (an action-needed email when an edition can't go out), `todos.py` (the shared to-do list), `report.py` (the short status report in `logs/last-report.md`) |
-| Quality | `review.py` (the weekly review, from local files only) |
+| Quality | `review.py` (the weekly review, from local files only), `critic.py` (the weekly critic email: scores against ten benchmark shows, charts, suggestions; owner only) |
 | Settings and time | `owner.py` (who runs this instance), `settings.py` (edit single config values without disturbing comments), `schedule.py` (when scheduled jobs actually run, by the local clock) |
 | Public surfaces | `version.py` (the running version), `docs.py` (these pages on the site), `scrub.py` (scrubbing shared by the public code export and the docs) |
 | Run queue | `runner.py` (jobs from the chat, run on the Mac), `presence.py` (is a person here to approve) |
@@ -121,6 +122,14 @@ The edition waits until the cutoff (09:15) or a "done" reply, then:
 Takes are opinion: they sit outside the sourced claims and the fact check, and no model rewrites them. A crash or
 mailbox failure never blocks the edition; it ships without takes. Later retries see a run that is still waiting
 and leave it alone.
+
+## The weekly critic
+Every Saturday the briefing is scored against the latest episode or issue of ten of the most popular tech and AI
+shows, with a fixed ten-part rubric weighted for an investor daily: content selection, accuracy, depth,
+timeliness, structure, opinion, distinctiveness, writing, tone and production. A private email gives the owner the
+score and rank, charts by characteristic against the field, the trend week by week and ten ranked suggestions with
+options; the owner picks what to build that week (`critic.py`). Method, rubric, limits and the latest results:
+[The critic](CRITIC.md).
 
 ## Data and storage
 - **Archive:** append-only files under `data/` (items, analyses, stories, runs). Nothing deletes or rewrites history.
@@ -200,8 +209,8 @@ three tiers:
 
 | Tier | Recipes | Runs when |
 |---|---|---|
-| auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify` | at once |
-| chat | `correct`, `publish`, `restore`, `takes-done` | the job quotes the owner's yes from the chat |
+| auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify`, `consistency`, `critic-email` | at once |
+| chat | `correct`, `publish`, `restore`, `takes-done`, `send-held`, `source-add` | the job quotes the owner's yes from the chat |
 | mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, the public code push | the owner clicks Approve in a dialog on the Mac, or runs `./np runner approve ID` in Terminal |
 
 The click grants presence in memory for that job's approved steps only (`presence.py`). No file or setting can
@@ -223,7 +232,8 @@ queue.
 
 ## Operations
 - **Schedule:** early morning with two retries. A retry skips work already done. When takes are on, the
-  edition is built early and held until the cutoff (09:15) or the owner's "done". An evening preflight checks
+  edition is built early and held until the cutoff (09:15) or the owner's "done"; retries at 09:30, 10:30 and
+  12:00 send a held edition if the Mac was offline at the cutoff. An evening preflight checks
   that tomorrow's release is approved.
 - **When something needs the owner:** an action-needed email states the issue and the fix. Approving re-sends
   what was held back.
@@ -242,6 +252,7 @@ _Generated from each module's own description at build time._
 | `bluesky.py` | Bluesky lists and Steven's own posts as sources, via the public AT Protocol API (no key, no login). |
 | `compare.py` | Staging against production for the same day |
 | `consistency.py` | Short texts readers see first must agree with the checked text and the sources (2026-10-23). |
+| `critic.py` | The weekly critic |
 | `deepdive.py` | Topical deep dive |
 | `devenv.py` | The development checkout |
 | `dive.py` | Deep dive on one story |

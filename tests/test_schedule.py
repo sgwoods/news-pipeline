@@ -49,5 +49,14 @@ class Rebrief(unittest.TestCase):
         self.assertEqual(run.llm_stage_names({}), ["filter", "rank", "critique", "cluster", "merge", "editorial", "write"])
 
 
+class AfterTakes(unittest.TestCase):
+    def test_retries_after_the_takes_cutoff(self):
+        from pipeline import schedule
+        cfg = {"schedule": {"times": ["05:00", "06:30", "07:30"]}, "takes": {"enabled": True}}
+        self.assertEqual(schedule.times(cfg, "daily"), ["05:00", "06:30", "07:30", "09:30", "10:30", "12:00"])
+        self.assertEqual(schedule.check(cfg), [])
+        self.assertEqual(schedule.times({"schedule": {"times": ["05:00"]}}, "daily"), ["05:00"])
+
+
 if __name__ == "__main__":
     unittest.main()

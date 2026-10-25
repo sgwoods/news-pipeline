@@ -7,8 +7,9 @@
 A launchd agent (`./np runner install`) ticks every minute and when a job file appears. Jobs are data: the runner
 runs only the recipes below, with validated arguments, as argument lists (never a shell). Three tiers:
 
-- auto: tests, staging sync / preview / compare, doctor, the gate's status, verify. Run as soon as queued.
-- chat: corrections, publish, restore, takes-done (release a held edition now). Need `chat_approval`: Steven's yes in the Claude chat, quoted.
+- auto: tests, staging sync / preview / compare, doctor, the gate's status, verify, consistency, critic-email
+        (the weekly critic, to the owner only). Run as soon as queued.
+- chat: corrections, publish, restore, takes-done (release a held edition now), source-add (verify a feed, wire it in), send-held (./np daily: publish and email a held edition). Need `chat_approval`: Steven's yes in the Claude chat, quoted.
 - mac:  ship, release, rollback, release-check approve, public code push, git hooks. Run only after Steven clicks
         Approve in a dialog on this Mac (or `./np runner approve ID` in Terminal). The click grants presence in
         memory for that job's approved steps only (pipeline/presence.py); nothing in a file can.
@@ -57,6 +58,10 @@ RECIPES = {
     "publish": {"tier": "chat", "args": {}, "steps": [("prod", ["publish"]), ("local", ["verify"])]},
     "restore": {"tier": "chat", "args": {}, "steps": [("prod", ["publish", "restore"]), ("local", ["verify"])]},
     "takes-done": {"tier": "chat", "args": {}, "steps": [("prod", ["takes", "done"])]},
+    "send-held": {"tier": "chat", "args": {}, "steps": [("prod", ["daily"]), ("local", ["verify"])]},
+    "critic-email": {"tier": "auto", "args": {"date": "day?"}, "steps": [("prod", ["critic", "email", "{date}"])]},
+    "source-add": {"tier": "chat", "args": {"name": "text", "url": "url", "url2": "url?", "note": "text?"},
+                   "steps": [("prod", ["sources", "add", "{name}", "{url}", "{url2}", "{note}"])]},
     "ship":    {"tier": "mac", "args": {"version": "version", "note": "reviewed"},
                 "steps": [("dev", ["staging", "sync"]), ("dev", ["tests"]), APPROVE,
                           ("local", ["release", "{version}", "{note}"]), ("local", ["verify"])]},
@@ -69,7 +74,7 @@ RECIPES = {
     "install-hooks": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["install-hooks"])]},
 }
 CHANGES_PRODUCTION = {"correct", "publish", "restore", "ship", "release", "rollback", "approve", "install-hooks",
-                      "push-code"}
+                      "push-code", "source-add", "send-held"}
 IN_RELEASE_WINDOW = {"ship", "release"}
 NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code"}   # local steps behind the click
 
@@ -144,6 +149,10 @@ def validate(job: dict, name: str = "") -> dict:
             if not isinstance(v, str) or not VERSION.match(v.lstrip("v")):
                 raise JobError(f"{k}: like 0.1.12-beta")
             v = v.lstrip("v")
+        elif kind == "url":
+            if not isinstance(v, str) or not re.fullmatch(r"https://[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/?#][^\s<>\"']*)?", v) \
+                    or len(v) > 300:
+                raise JobError(f"{k}: an https:// URL")
         elif kind == "reviewed":
             v = _text(v, 300)
             if not v.lower().startswith("reviewed"):
@@ -367,6 +376,15 @@ class Runner:
                 _finish(self.root, src, job, "failed", f"step {len(job['steps'])} exited {code}", self.notify)
                 return "failed"
         if cut < len(steps):                               # mac tier: Steven decides here
+            end = dt.datetime.combine(self.now().date(), RELEASE_WINDOW[1])
+            if job["recipe"] in IN_RELEASE_WINDOW and not terminal and \
+                    self.now() + dt.timedelta(seconds=DIALOG_SECONDS) > end:
+                job["phase"] = "approval"                  # an answer would land after 20:00: don't ask tonight
+                dst = qdir(self.root, "waiting") / src.name
+                _write(dst, job)
+                if src != dst:
+                    src.unlink()
+                return "waiting"
             if terminal:
                 answer = "approve"
             else:
@@ -387,6 +405,12 @@ class Runner:
                 job["log"] = str(log.relative_to(self.root))
                 _finish(self.root, src, job, "rejected", "Steven clicked Reject", self.notify)
                 return "rejected"
+            t_now = self.now().time()
+            if job["recipe"] in IN_RELEASE_WINDOW and not (RELEASE_WINDOW[0] <= t_now <= RELEASE_WINDOW[1]):
+                job["log"] = str(log.relative_to(self.root))
+                _finish(self.root, src, job, "expired", "approved after the 08:30-20:00 release window; queue it "
+                        "again in the window", self.notify)
+                return "expired"
             code = self._run_approved(job, steps, cut + 1, log, "terminal" if terminal else "dialog")
         else:
             code = 0

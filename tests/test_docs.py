@@ -67,6 +67,23 @@ class DocsDrift(unittest.TestCase):
         self.assertEqual(rep["undocumented"], ["gamma.py"])
         self.assertIn("alpha.py", docs.impact_line(rep))
 
+    def test_critic_section_from_the_latest_run(self):
+        import json
+        from pipeline import critic
+        d = Path(tempfile.mkdtemp())
+        keys = [k for k, _, _ in critic.DIMS]
+        critic.save(d, {"date": "2026-10-24", "shows": [{"name": "Alpha Show", "episode": "Ep 1", "date": "2026-10-23",
+                                                        "scores": {k: 8 for k in keys}}],
+                        "ours": {"scores": {k: 6 for k in keys}}})
+        out = docs.expand("<!-- GENERATED: critic -->", d, {})
+        self.assertIn("| 1 | Alpha Show | 80.0 |", out)
+        self.assertIn("| 2 | **AI Briefing (us)** | **60.0** |", out)
+        self.assertIn("| Content selection (18) | 6 | 8.0 | 8 (Alpha Show) |", out)
+        self.assertIn("No critic results yet", docs.expand("<!-- GENERATED: critic -->", Path(tempfile.mkdtemp()), {}))
+        page = (ROOT / "docs" / "CRITIC.md").read_text("utf-8")    # the public export has it expanded already
+        self.assertTrue("GENERATED: critic" in page or "| Characteristic (weight) | Us |" in page or
+                        "No critic results yet" in page)
+
 
 class DocsSite(unittest.TestCase):
     def test_build_pages_with_diagrams_and_no_private_terms(self):

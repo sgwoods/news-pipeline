@@ -107,6 +107,7 @@ case "$cmd" in
   factcheck) run $PY run.py --factcheck "$@" ;;                 # [DAY] | probe "sentence" FIGURE: fact check + search-before-cut, dry run
   consistency) run $PY run.py --consistency "${@:-all}" ;;     # [DAY|all]: first lines vs body, cross-day; dry run
   takes)     run $PY run.py --takes "${@:-status}" ;;            # status | email | preview | done [DAY]: your takes
+  critic)    run $PY run.py --critic "${@:-preview}" ;;          # preview | email | list [DATE]: the weekly critic (to you only)
   reader)    run $PY run.py --reader "${@:-check}" ;;             # check [DAYS]: article reader on past items (dry run)
   profiles)  run $PY run.py --profiles "$@" ;;                   # [DAYS] sites/sources not yet in source_profiles.yaml
   relink)    run $PY run.py --relink "${1:?usage: ./np relink YYYY-MM-DD}" ;;   # links + labels in an existing briefing, no model/audio
@@ -144,6 +145,7 @@ case "$cmd" in
 ./np quality [DAY|all]  scorecard; also: rate DAY SCORE [note] | pull (star ratings from the subscriber Sheet)
 ./np review weekly      weekly quality review (benchmarks, house rules) from local files
 ./np remaster DAY       rebuild DAY's podcast in the current style (deep dive + briefing + combined episode), then publish
+./np critic preview     the weekly critic email (preview | email to you | list)
 ./np takes status       your takes today: status | email (the slots) | preview (replies so far, dry run) | done (send now)
 ./np consistency [DAY|all]  first lines (day in brief, Top of mind, Agenda, deep-dive summary) vs the body; cross-day; dry run
 ./np factcheck [DAY]    fact-check dry run on a saved briefing (traces figures, searches before cutting); probe "sentence" FIG
@@ -162,7 +164,7 @@ case "$cmd" in
 ./np script-preview DAY [tts]  the audio script (and MP3 with tts) for DAY with the current settings, real episode untouched
 ./np say "TEXT"          hear how the voice says TEXT with pronunciations.yaml
 ./np dive DAY N         deep dive on story N of DAY's briefing (cited, with earlier coverage; ~2-4 min)
-./np sources            show the queue; also: find "Name" [note] | accept ID [URL..] | deny ID [why] | reconsider ID
+./np sources            show the queue; also: find "Name" [note] | add "Name" URL [URL] [note] | accept ID [URL..] | deny ID [why] | reconsider ID
                         | recheck ID | remove URL [why] | restore URL   (same as the dashboard Sources page)
 ./np tests              run unit tests
 ./np daily              once-a-day run + Mac notification (what the schedule calls)

@@ -4,8 +4,8 @@ code repo, so there is one source and it can't drift.
 - Pages: DOCS below (each scrubbed like the public code export: PRIVATE blocks removed, owner details replaced),
   with the diagrams in docs/img/ embedded. Each page shows the running version and when the file last changed.
 - Generated sections: `<!-- GENERATED: components -->` becomes the component table (every public module's own
-  one-line description) and `<!-- GENERATED: facts -->` the current facts (release, schedule, models). The public
-  code export expands them the same way.
+  one-line description), `<!-- GENERATED: facts -->` the current facts (release, schedule, models) and
+  `<!-- GENERATED: critic -->` the latest weekly critic results. The public code export expands them the same way.
 - Drift checks (tests/test_docs.py, so part of the release gate): the architecture page names the current version,
   every module it names exists, every public module is described in a hand-written doc, every diagram is used.
 - Docs impact (`impact`): for a release, the modules that changed while no doc that describes them did. Shown in
@@ -32,7 +32,8 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS = [("ARCHITECTURE.md", "architecture", "Architecture", "How the pipeline is built: stages, components, privacy, repositories, releases."),
         ("FACT-CHECKING.md", "fact-checking", "Fact checking", "What is checked before anything goes out."),
         ("SOURCE-PROFILES.md", "source-profiles", "Source profiles", "Weighing evidence by the kind of source."),
-        ("DEEP-DIVES.md", "deep-dives", "Deep dives", "The second segment: how topics are chosen and made.")]
+        ("DEEP-DIVES.md", "deep-dives", "Deep dives", "The second segment: how topics are chosen and made."),
+        ("CRITIC.md", "critic", "The critic", "How the briefing is rated against the top shows, every week.")]
 MARK = re.compile(r"^<!-- GENERATED: (\w+) -->\s*$", re.M)
 
 
@@ -73,11 +74,40 @@ def _facts(root: Path, cfg: dict) -> str:
     return "_Generated at build time._\n\n" + "\n".join(x for x in lines if x) + "\n"
 
 
+def _critic(root: Path) -> str:
+    """The latest weekly critic results and our trend (data/critic/*.json, pipeline/critic.py)."""
+    from .critic import DIMS, OURS, history
+    weeks = history(root)
+    if not weeks:
+        return "_Generated at build time. No critic results yet._\n"
+    w = weeks[-1]
+    rows = sorted([(s["name"], s["overall"], s.get("episode", ""), s.get("date", "")) for s in w["shows"]]
+                  + [(OURS, w["ours"]["overall"], "the week's editions", w["date"])], key=lambda r: -r[1])
+    out = [f"_Generated at build time from the critic run of {w['date']}._", "",
+           "| Rank | Show | Score | Rated |", "|---|---|---|---|"]
+    out += [f"| {i} | {'**' + n + '**' if n == OURS else n} | {'**%.1f**' % v if n == OURS else '%.1f' % v} | "
+            f"{e[:60].replace('|', '/')} ({d}) |" for i, (n, v, e, d) in enumerate(rows, 1)]
+    out += ["", "| Characteristic (weight) | Us | Field average | Best |", "|---|---|---|---|"]
+    for k, label, wt in DIMS:
+        vals = [(s["scores"].get(k, 0), s["name"]) for s in w["shows"]]
+        avg = sum(v for v, _ in vals) / len(vals)
+        best = max(vals)
+        out.append(f"| {label} ({wt}) | {w['ours']['scores'].get(k, 0):g} | {avg:.1f} | {best[0]:g} ({best[1]}) |")
+    if len(weeks) > 1:
+        recent = weeks[-8:]
+        out += ["", "Our overall score by week: " + " · ".join(f"{x['date']} {x['ours']['overall']:.1f}" for x in recent)]
+    else:
+        out += ["", "Our trend starts with the second weekly run."]
+    return "\n".join(out) + "\n"
+
+
 def expand(text: str, root: Path = ROOT, cfg: dict | None = None) -> str:
     def sub(m):
         kind = m.group(1)
         if kind == "components":
             return _components(root)
+        if kind == "critic":
+            return _critic(root)
         if kind == "facts":
             return _facts(root, cfg or {})
         return m.group(0)

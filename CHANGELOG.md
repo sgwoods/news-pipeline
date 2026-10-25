@@ -6,6 +6,36 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.4-beta · 2026-10-25
+- Fix: v0.2.3's public code push was refused because the new critic page (docs/CRITIC.md) wasn't in the public
+  export, so the exported tests couldn't find it. It's added, and a test now checks that every page on the site's
+  docs is in the export.
+- `./np sources add` says "already a source" (and closes the queue entry) when the feed is already wired in,
+  instead of "no feed answered".
+
+## v0.2.3-beta · 2026-10-25
+- Fix: on Sun 10-25 the Mac went offline during the takes hold, so the publish at the 09:15 cutoff failed and the
+  email was held. The only retries were at 06:30 and 07:30, before the cutoff, so nothing sent it later. With takes
+  on, the schedule now also retries at 09:30, 10:30 and 12:00 (`schedule.after_takes`).
+- Fix: v0.2.2's release was approved at 20:02, after the release window, and failed. The run queue no longer shows
+  a release dialog that would be answered after 20:00, and an approval that lands outside the window now expires
+  cleanly instead of failing.
+- The run-queue job `send-held` (chat tier) runs `./np daily` to publish and email a held edition.
+- Includes v0.2.2 (the weekly critic email, `./np sources add`), which wasn't released on 10-24.
+- **Docs:** a new page, "The critic" (`docs/CRITIC.md`, also on the site): the rubric and its weights, the benchmark
+  shows and why they were chosen, how a weekly run works, the email and the record, the limits, and the latest
+  results (generated from `data/critic/` at every publish: ranking, us against the field by characteristic, our
+  trend). The architecture page gains a section on the weekly critic.
+
+## v0.2.2-beta · 2026-10-24
+- **The weekly critic:** every Saturday the briefing is scored against the latest episode or issue of ten benchmark
+  shows, with a 10-part rubric weighted for an investor daily. A private email to the owner gives our score and
+  rank, bar charts by characteristic against the field, our trend week by week, what shipped, and the top
+  suggestions with recommended options (`pipeline/critic.py`, `./np critic preview | email | list`, the run-queue
+  job `critic-email`). Results are kept in `data/critic/<date>.json`; the first is 2026-10-24.
+- `./np sources add "Name" URL [URL] [note]` and the run-queue job `source-add`: verify a feed live on the Mac,
+  then wire it in. Used to add the ten benchmark shows as sources.
+
 ## v0.2.1-beta · 2026-10-24
 - Fix: the first takes morning (10-24) never sent the takes email. The takes step called the mailer with
   positional arguments it doesn't take, so it failed straight away and the edition shipped on time without takes,
