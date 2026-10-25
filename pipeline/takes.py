@@ -28,7 +28,7 @@ from pathlib import Path
 LABEL = "Steven's take"
 DIR = "data/takes"
 SLACK = "data/takes/slack.jsonl"
-_SLOT = re.compile(r"^\s*(?:take\s*)?([0-9]{1,2}|[TtDd])\s*[:.)\-–]\s*(.*\S)?\s*$")
+_SLOT = re.compile(r"^\s*(?:take\s*)?([0-9]{1,2}|[TtDdWw])\s*[:.)\-–]\s*(.*\S)?\s*$")
 _DONE = re.compile(r"^\s*(done|that's it|thats it|send it)\s*[.!]*\s*$", re.I)
 _SKIP = re.compile(r"^\s*(skip|no takes|none)\s*[.!]*\s*$", re.I)
 
@@ -114,6 +114,8 @@ def slots(root: Path, day: str) -> list:
             out.append({"slot": str(s["n"]), "key": key, "title": s.get("headline", ""),
                         "summary": str(s.get("what_happened") or "")[:220], "ids": s.get("ids", []),
                         "lead_url": s.get("lead_url", "")})
+    if any(s.get("section") == "worth" for s in stories):
+        out.append({"slot": "W", "key": "worth", "title": "Worth knowing", "summary": ""})
     return out
 
 
@@ -129,6 +131,11 @@ def _reply_link(cfg: dict, day: str, slot: str) -> str:
     from .mailsource import mcfg
     to = mcfg(cfg).get("account") or ""
     return f"mailto:{to}?subject={quote('Re: ' + subject(day))}&body={quote(slot + ': ')}"
+
+
+def _li(md: str) -> str:
+    from . import mailer
+    return mailer._inline(md, light=True)
 
 
 def build_email(root: Path, cfg: dict, day: str) -> dict:
@@ -158,10 +165,10 @@ def build_email(root: Path, cfg: dict, day: str) -> dict:
          f'see it).</p>']
     L = [subject(day), "", intro, "", f"Today's page: {page}", ""]
     H.append(f'<div {card}><div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">'
-             f'0 · The day overall</div><p {P}>{mailer._inline(b.get("brief", ""))}</p>{btn("0")}</div>')
+             f'0 · The day overall</div><p {P}>{_li(b.get("brief", ""))}</p>{btn("0")}</div>')
     L += ["0: The day overall", "   " + mailer._strip_md(b.get("brief", "")), ""]
     if b.get("top"):
-        lis = "".join(f'<li style="margin:0 0 6px;font-size:15px;line-height:1.5">{mailer._inline(x)}</li>' for x in b["top"])
+        lis = "".join(f'<li style="margin:0 0 6px;font-size:15px;line-height:1.5">{_li(x)}</li>' for x in b["top"])
         H.append(f'<div {card}><div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">'
                  f'T · Top of mind</div><ul style="margin:6px 0 0;padding-left:20px">{lis}</ul>{btn("T")}</div>')
         L += ["T: Top of mind"] + [f"   - {mailer._strip_md(x)}" for x in b["top"]] + [""]
@@ -175,11 +182,16 @@ def build_email(root: Path, cfg: dict, day: str) -> dict:
                            (s.get("editor_label") or "Our read", "editor"), ("For early-stage", "early"),
                            (s.get("other_label") or "", "other")):
             if s.get(key):
-                rows.append(f'<p {P}><span style="color:#6b7280">{esc(label)}:</span> {mailer._inline(s[key])}</p>')
+                rows.append(f'<p {P}><span style="color:#6b7280">{esc(label)}:</span> {_li(s[key])}</p>')
         if s.get("url"):
             rows.append(f'<p style="margin:0;font-size:13px"><a href="{esc(s["url"])}">Source</a></p>')
         H.append(f'<div {card}>{"".join(rows)}{btn(slot)}</div>')
         L += [f"{slot}: {s['headline']}", "   " + mailer._strip_md(s.get("what", "")), ""]
+    if b.get("worth") and "W" in sl:
+        lis = "".join(f'<li style="margin:0 0 6px;font-size:15px;line-height:1.5">{_li(x)}</li>' for x in b["worth"])
+        H.append(f'<div {card}><div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">'
+                 f'W · Worth knowing</div><ul style="margin:6px 0 0;padding-left:20px">{lis}</ul>{btn("W")}</div>')
+        L += ["W: Worth knowing"] + [f"   - {mailer._strip_md(x)}" for x in b["worth"]] + [""]
     H.append('<p style="color:#6b7280;font-size:13px">Or reply to this email with one take per line: "1: ...", '
              '"T: ...", "0: ...", then "done".</p></div>')
     L += ["Reply with one take per line, e.g.:", "1: The margin story matters more than the headline.", "done"]
@@ -464,6 +476,8 @@ def audio_parts(parts: list, st: dict) -> list:
         if name == "Close" and "0" in pub:
             out.append(("Take overall", say(f"And {LABEL} on the day. {pub['0']}")))
         out.append((name, text))
+        if name == "Quick hits" and "W" in pub:
+            out.append(("Take worth", say(f"{LABEL} on the quick hits. {pub['W']}")))
         if name == "Intro" and "T" in pub:
             out.append(("Take top", say(f"{LABEL} on the top of the day. {pub['T']}")))
         m = re.fullmatch(r"Story (\d+)", name)

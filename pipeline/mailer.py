@@ -122,13 +122,15 @@ def remove(cfg: dict, email: str) -> dict:
 
 # ---------- rendering ----------
 
-def _inline(md: str) -> str:
-    """One line of briefing Markdown → safe inline HTML (bold, links), styled for email."""
+def _inline(md: str, light: bool = False) -> str:
+    """One line of briefing Markdown → safe inline HTML (bold, links), styled for email (dark, or light=True for
+    a white background such as the private takes email)."""
     s = htmllib.escape(md, quote=False)
-    s = re.sub(r"\*\*(.+?)\*\*", rf'<strong style="color:{C["strong"]}">\1</strong>', s)
+    s = re.sub(r"\*\*(.+?)\*\*", rf'<strong style="color:{"#111827" if light else C["strong"]}">\1</strong>', s)
     s = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"<em>\1</em>", s)
     s = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)",
-               lambda m: f'<a href="{htmllib.escape(m.group(2))}" style="color:{C["link"]}">{m.group(1)}</a>', s)
+               lambda m: f'<a href="{htmllib.escape(m.group(2))}" style="color:{"#2563eb" if light else C["link"]}">'
+                         f'{m.group(1)}</a>', s)
     return s
 
 
@@ -338,7 +340,8 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
     if b["worth"]:
         lis = "".join(f'<li style="margin:0 0 8px;color:{C["text"]};font-size:15px;line-height:1.5">{_inline(t)}</li>' for t in b["worth"])
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Worth knowing")}'
-                 f'<ul style="margin:0;padding-left:20px">{lis}</ul></td></tr>')
+                 f'<ul style="margin:0;padding-left:20px">{lis}</ul>'
+                 + (_take_html(takes["worth"]) if takes.get("worth") else "") + '</td></tr>')
     if b["questions"]:
         lis = "".join(f'<li style="margin:0 0 8px;color:{C["text"]};font-size:15px;line-height:1.5">{_inline(t)}</li>' for t in b["questions"])
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Open questions")}'

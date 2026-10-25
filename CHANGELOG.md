@@ -6,6 +6,11 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.6-beta · 2026-10-25
+- Takes email: bold lead phrases were pale blue on white (the subscriber email's dark-mode colour) and now read
+  dark; links are blue. A "W" slot covers Worth knowing (button in the takes email, a take box under Worth knowing
+  in the subscriber email and on the site, and read after the quick hits in the podcast).
+
 ## v0.2.5-beta · 2026-10-25
 The critic's first batch (review of 2026-10-24), plus an easier way to add takes.
 - **No story twice:** after the deep dive is written, a Must read it covers shrinks to one sentence and a pointer,

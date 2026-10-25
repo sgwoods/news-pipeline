@@ -263,5 +263,31 @@ class Sending(unittest.TestCase):
         self.assertEqual(takes.send_email(root, CFG, DAY)[:28], "takes email already sent at ")
 
 
+class WorthAndColours(unittest.TestCase):
+    def test_worth_slot_light_bold_and_audio(self):
+        root = make_root()
+        f = root / "data" / "stories" / f"{DAY}.jsonl"
+        rows = json.loads(f.read_text("utf-8"))
+        rows["stories"].append({"section": "worth", "n": 3, "headline": "Small thing"})
+        f.write_text(json.dumps(rows) + "\n", "utf-8")
+        self.assertEqual([s["slot"] for s in takes.slots(root, DAY)], ["0", "T", "1", "2", "W"])
+        (root / "briefings").mkdir()
+        (root / "briefings" / f"{DAY}.md").write_text(MD + "\n## Worth knowing\n\n- **3. Small thing.** It matters a bit.\n", "utf-8")
+        with mock.patch("pipeline.mailsource.mcfg", return_value={"account": "briefing@example.com"}):
+            m = takes.build_email(root, CFG, DAY)
+        self.assertIn("Add your take on this (W)", m["html"])
+        self.assertIn('<strong style="color:#111827">Corvane raises.</strong>', m["html"])   # readable on white
+        self.assertNotIn("#d7ecff", m["html"])
+        self.assertEqual(takes.parse("W: Quick hits were thin")["takes"], {"W": "Quick hits were thin"})
+        parts = [("Intro", "Hi."), ("Quick hits", "More."), ("Close", "Bye.")]
+        with mock.patch("pipeline.speech.load_table", return_value={}), \
+                mock.patch("pipeline.speech.spoken", side_effect=lambda s, t: s):
+            out = takes.audio_parts(parts, {"published": [{"slot": "W", "text": "Thin today."}]})
+        self.assertEqual([n for n, _ in out], ["Intro", "Quick hits", "Take worth", "Close"])
+        msg = mailer.render(DAY, MD + "\n## Worth knowing\n\n- **3. Small thing.** It matters.\n", {},
+                            takes={"worth": "Thin today."})
+        self.assertIn("Thin today.", msg["html"])
+
+
 if __name__ == "__main__":
     unittest.main()
