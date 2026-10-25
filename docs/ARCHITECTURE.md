@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.7-beta (2026-10-25)
+- **Release:** v0.2.8-beta (2026-10-25)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 64 in `pipeline/`
+- **Modules:** 65 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -95,6 +95,7 @@ Smaller pieces:
 | Public surfaces | `version.py` (the running version), `docs.py` (these pages on the site), `scrub.py` (scrubbing shared by the public code export and the docs) |
 | Run queue | `runner.py` (jobs from the chat, run on the Mac), `presence.py` (is a person here to approve) |
 | Owner's voice | `takes.py` (the owner's takes: private email, Slack words, privacy hold, wait, audio) |
+| Mail script | `clasp.py` (deploys the Apps Script mailer with Google's clasp CLI: status, setup, deploy behind the owner's approval) |
 | Helpers | `textutil.py` (HTML to text, page metadata, URL ids, dates) |
 
 ## Grounding and fact checking
@@ -214,9 +215,9 @@ three tiers:
 
 | Tier | Recipes | Runs when |
 |---|---|---|
-| auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify`, `consistency`, `critic-email` | at once |
-| chat | `correct`, `publish`, `restore`, `takes-done`, `send-held`, `source-add` | the job quotes the owner's yes from the chat |
-| mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, the public code push | the owner clicks Approve in a dialog on the Mac, or runs `./np runner approve ID` in Terminal |
+| auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify`, `consistency`, `critic-email`, `takes-test`, `takes-check`, `mailer-status` | at once |
+| chat | `correct`, `publish`, `restore`, `takes-done`, `takes-apply`, `send-held`, `source-add`, `mailer-setup` | the job quotes the owner's yes from the chat |
+| mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, the public code push, `deploy-mailer` | the owner clicks Approve in a dialog on the Mac, or runs `./np runner approve ID` in Terminal |
 
 The click grants presence in memory for that job's approved steps only (`presence.py`). No file or setting can
 stand in for it. Jobs that change production wait out the morning run. Unanswered approvals lapse at 20:00. The
@@ -255,6 +256,7 @@ _Generated from each module's own description at build time._
 | `archive.py` | Append-only archive on plain files. |
 | `audio.py` | Phase 2 |
 | `bluesky.py` | Bluesky lists and Steven's own posts as sources, via the public AT Protocol API (no key, no login). |
+| `clasp.py` | Deploy the mail script (scripts/apps-script/Code.gs) with Google's clasp CLI instead of copy and paste. |
 | `compare.py` | Staging against production for the same day |
 | `consistency.py` | Short texts readers see first must agree with the checked text and the sources (2026-10-23). |
 | `critic.py` | The weekly critic |

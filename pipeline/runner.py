@@ -10,7 +10,7 @@ runs only the recipes below, with validated arguments, as argument lists (never 
 - auto: tests, staging sync / preview / compare, doctor, the gate's status, verify, consistency, critic-email
         (the weekly critic, to the owner only). Run as soon as queued.
 - chat: corrections, publish, restore, takes-done (release a held edition now), source-add (verify a feed, wire it in), send-held (./np daily: publish and email a held edition). Need `chat_approval`: Steven's yes in the Claude chat, quoted.
-- mac:  ship, release, rollback, release-check approve, public code push, git hooks. Run only after Steven clicks
+- mac:  ship, release, rollback, release-check approve, public code push, git hooks, deploy-mailer (the mail script). Run only after Steven clicks
         Approve in a dialog on this Mac (or `./np runner approve ID` in Terminal). The click grants presence in
         memory for that job's approved steps only (pipeline/presence.py); nothing in a file can.
 
@@ -58,6 +58,10 @@ RECIPES = {
     "publish": {"tier": "chat", "args": {}, "steps": [("prod", ["publish"]), ("local", ["verify"])]},
     "restore": {"tier": "chat", "args": {}, "steps": [("prod", ["publish", "restore"]), ("local", ["verify"])]},
     "takes-done": {"tier": "chat", "args": {}, "steps": [("prod", ["takes", "done"])]},
+    "takes-test": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["takes", "test", "{day}"])]},
+    "takes-check": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["takes", "check", "{day}"])]},
+    "takes-apply": {"tier": "chat", "args": {"day": "day"},
+                    "steps": [("prod", ["takes", "apply", "{day}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "send-held": {"tier": "chat", "args": {}, "steps": [("prod", ["daily"]), ("local", ["verify"])]},
     "critic-email": {"tier": "auto", "args": {"date": "day?"}, "steps": [("prod", ["critic", "email", "{date}"])]},
     "source-add": {"tier": "chat", "args": {"name": "text", "url": "url", "url2": "url?", "note": "text?"},
@@ -72,11 +76,15 @@ RECIPES = {
     "approve": {"tier": "mac", "args": {"note": "reviewed"},
                 "steps": [("prod", ["release-check"]), APPROVE, ("local", ["approve", "{note}"])]},
     "install-hooks": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["install-hooks"])]},
+    "deploy-mailer": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["deploy-mailer"]),
+                                                         ("prod", ["mailer", "status"])]},
+    "mailer-status": {"tier": "auto", "args": {}, "steps": [("prod", ["mailer", "status"])]},
+    "mailer-setup": {"tier": "chat", "args": {"script": "text"}, "steps": [("prod", ["mailer", "setup", "{script}"])]},
 }
 CHANGES_PRODUCTION = {"correct", "publish", "restore", "ship", "release", "rollback", "approve", "install-hooks",
-                      "push-code", "source-add", "send-held"}
+                      "push-code", "source-add", "send-held", "takes-apply", "deploy-mailer"}
 IN_RELEASE_WINDOW = {"ship", "release"}
-NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code"}   # local steps behind the click
+NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer"}   # local steps behind the click
 
 
 class JobError(ValueError):

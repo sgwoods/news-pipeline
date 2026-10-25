@@ -163,11 +163,11 @@ def build_email(root: Path, cfg: dict, day: str) -> dict:
     P = 'style="margin:0 0 8px;font-size:15px;line-height:1.55;color:#111827"'
     H = [f'<div style="max-width:660px;margin:0 auto;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">',
          f'<p {P}>{esc(intro)}</p>'
-         f'<p {P}><a href="{esc(page)}#takes=__OWNERT__" style="display:inline-block;padding:8px 14px;'
+         f'<p {P}><a href="{esc(page)}?v={day}#takes=__OWNERT__" style="display:inline-block;padding:8px 14px;'
          f'border-radius:999px;background:#111827;color:#fff;text-decoration:none">✍ Read and comment on the site'
          f'</a> &nbsp; one box after each section, one Submit (your private link, valid two days).</p>'
          f'<p {P}><a href="{esc(page)}">Read today\'s page as readers will see it</a>.</p>']
-    L = [subject(day), "", intro, "", f"Read and comment on the site (private link): {page}#takes=__OWNERT__",
+    L = [subject(day), "", intro, "", f"Read and comment on the site (private link): {page}?v={day}#takes=__OWNERT__",
          f"Today's page: {page}", ""]
     H.append(f'<div {card}><div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">'
              f'0 · The day overall</div><p {P}>{_li(b.get("brief", ""))}</p>{btn("0")}</div>')
@@ -201,6 +201,43 @@ def build_email(root: Path, cfg: dict, day: str) -> dict:
              '"T: ...", "0: ...", then "done".</p></div>')
     L += ["Reply with one take per line, e.g.:", "1: The margin story matters more than the headline.", "done"]
     return {"subject": subject(day), "text": "\n".join(L), "html": "".join(H)}
+
+
+def send_test(root: Path, cfg: dict, day: str) -> str:
+    """The takes email for DAY to the owner, marked [TEST], without touching the day's state (run queue: takes-test)."""
+    from . import mailer
+    m = build_email(root, cfg, day)
+    to = mailer.ecfg(cfg).get("test_to")
+    if not to:
+        return "takes test skipped: email.test_to is not set"
+    fill = lambda s: mailer.defuse(s).replace(TOKEN_MARK, "{{OWNERT}}")  # noqa: E731
+    mailer.call(cfg, "send", subject=m["subject"] + " [TEST]", html=fill(m["html"]), text=fill(m["text"]), to=to)
+    return f"test takes email for {day} sent to the owner"
+
+
+def check(root: Path, cfg: dict, day: str, log=print) -> dict:
+    """What would be published for DAY right now (email replies, site, Slack), with the privacy check. Saves nothing."""
+    rows = fetch_all(root, cfg, day, log)
+    merged, origin = {}, {}
+    for k, v in slack_takes(root, day, slots(root, day)).items():
+        merged[k], origin[k] = v, "slack"
+    for r in rows:
+        for k, v in r["takes"].items():
+            merged[k], origin[k] = v, r.get("via", "reply")
+    return {"day": day, "rows": len(rows), "done": any(r.get("done") for r in rows),
+            "takes": [{"slot": k, "from": origin[k], "text": v, "held": problems(v, cfg)} for k, v in sorted(merged.items())]}
+
+
+def apply_day(root: Path, cfg: dict, day: str, log=print) -> dict:
+    """Collect DAY's takes now and save the clean ones (site and email boxes on the next publish). For a day already
+    shipped, only the written takes change: its email has gone and its audio stays as published."""
+    st = collect(root, cfg, day, fetch_all(root, cfg, day, log), log)
+    if st.get("held") or st.get("unknown"):
+        try:
+            report_email(root, cfg, day, st)
+        except Exception as e:  # noqa: BLE001
+            log(f"held-takes note not sent: {e}")
+    return st
 
 
 def send_email(root: Path, cfg: dict, day: str, log=print) -> str:
@@ -419,7 +456,7 @@ def collect(root: Path, cfg: dict, day: str, replies: list | None = None, log=pr
     st["done"] = any(r.get("done") for r in replies or [])
     for r in replies or []:
         for k, v in r["takes"].items():
-            merged[k], origin[k] = v, "reply"
+            merged[k], origin[k] = v, r.get("via", "reply")
     if st.get("skip"):
         merged = {}
     published, held, unknown = [], [], []

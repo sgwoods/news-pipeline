@@ -1187,7 +1187,8 @@ def cmd_runner(cfg: dict, argv: list) -> int:
              "release": lambda a: cmd_release(cfg, a),
              "rollback": lambda a: cmd_release(cfg, a, rollback=True),
              "approve": lambda a: cmd_release_check(cfg, ["approve", *a]),
-             "install-hooks": lambda a: cmd_release_check(cfg, ["install-hooks"])}
+             "install-hooks": lambda a: cmd_release_check(cfg, ["install-hooks"]),
+             "deploy-mailer": lambda a: cmd_mailer(cfg, ["deploy"])}
     r = runner.Runner(ROOT, devenv.dev_path(ROOT, cfg), local, busy=lambda: run_in_progress(ROOT),
                       summary=lambda job: _runner_summary(cfg, job))
     if sub == "tick":
@@ -1255,13 +1256,33 @@ def cmd_consistency(cfg: dict, argv: list) -> int:
 
 
 def cmd_takes(cfg: dict, argv: list) -> int:
-    """./np takes status [DAY] | email [DAY] | preview [DAY] | done [DAY]: Steven's takes (pipeline/takes.py).
+    """./np takes status | email | preview | done | test | check | apply [DAY]: Steven's takes (pipeline/takes.py).
+    test sends the takes email marked [TEST]; check shows what would publish now; apply saves them (then publish).
     preview prints the takes email and what replies so far would publish; done releases a held edition now."""
     from pipeline import takes
     sub = (argv or ["status"])[0]
     day = next((a for a in argv[1:] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)), dt.date.today().isoformat())
     if sub == "done":
         print(takes.release_now(ROOT, day))
+        return 0
+    if sub == "test":
+        print(takes.send_test(ROOT, cfg, day))
+        return 0
+    if sub == "check":
+        r = takes.check(ROOT, cfg, day, print)
+        print(f"{day}: {r['rows']} submission(s){' · done' if r['done'] else ''}")
+        for x in r["takes"]:
+            print(f"  {x['slot']} ({x['from']}): {'HELD (' + '; '.join(x['held']) + ') ' if x['held'] else ''}{x['text'][:200]}")
+        if not r["takes"]:
+            print("  no takes yet")
+        return 0
+    if sub == "apply":
+        st = takes.apply_day(ROOT, cfg, day, print)
+        print(f"{day}: {len(st.get('published', []))} take(s) saved, {len(st.get('held', []))} held")
+        for x in st.get("published", []):
+            print(f"  {x['slot']} ({x['from']}): {x['text'][:160]}")
+        if cfg.get("archive", {}).get("git_commit", True):
+            print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"takes {day}: applied", paths=(takes.DIR, "data/commentary")))
         return 0
     if sub == "email":
         m = takes.build_email(ROOT, cfg, day)
@@ -1307,6 +1328,33 @@ def cmd_critic(cfg: dict, argv: list) -> int:
         return 0
     except Exception as e:  # noqa: BLE001
         print(f"Critic: {e}")
+        return 1
+
+
+def cmd_mailer(cfg: dict, argv: list) -> int:
+    """./np mailer status | setup SCRIPT_ID | deploy: the mail script via clasp (pipeline/clasp.py)."""
+    from pipeline import clasp
+    from pipeline.version import full
+    sub = (argv or ["status"])[0]
+    try:
+        if sub == "setup" and len(argv) > 1:
+            print(clasp.setup(ROOT, argv[1]))
+            return 0
+        if sub == "deploy":
+            print(clasp.deploy(ROOT, cfg, f"v{full(ROOT)}"))
+            return 0
+        s = clasp.status(ROOT, cfg)
+        print(f"clasp installed: {'yes' if s['clasp'] else 'no (npm install -g @google/clasp)'}")
+        print(f"logged in: {'yes' if s['logged_in'] else 'no (clasp login, as the mailer account)'}")
+        print(f"script ID: {'set' if s['script_id'] else 'not set (./np mailer setup SCRIPT_ID)'}")
+        print(f"deployment: {'from email.script_url' if s['deployment'] else 'missing'}")
+        if s.get("matches") is not None:
+            print("live script: " + ("matches the repo" if s["matches"] else "DIFFERS from the repo: deploy it (deploy-mailer)"))
+        if s.get("error"):
+            print(f"error: {s['error']}")
+        return 0 if s.get("matches") in (True, None) and not s.get("error") else 1
+    except clasp.ClaspError as e:
+        print(f"Mailer: {e}")
         return 1
 
 
@@ -2627,6 +2675,7 @@ def main() -> int:
     ap.add_argument("--due", metavar="KIND", help="daily|preflight: exit 0 if a scheduled time just passed (local clock)")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
     ap.add_argument("--runner", nargs="*", metavar="ARG", help="status | tick | approve ID | reject ID | install | remove")
+    ap.add_argument("--mailer", nargs="*", metavar="ARG", help="status | setup SCRIPT_ID | deploy: the mail script via clasp")
     ap.add_argument("--critic", nargs="*", metavar="ARG", help="preview | email | list [DATE]: the weekly critic")
     ap.add_argument("--takes", nargs="*", metavar="ARG", help="status | email | preview | done [DAY]: Steven's takes")
     ap.add_argument("--consistency", nargs="*", metavar="ARG", help="[DAY|all]: first-lines and cross-day checks, dry run")
@@ -2708,6 +2757,8 @@ def main() -> int:
         return cmd_takes(cfg, args.takes)
     if args.critic is not None:
         return cmd_critic(cfg, args.critic)
+    if args.mailer is not None:
+        return cmd_mailer(cfg, args.mailer)
     if args.runner is not None:
         return cmd_runner(cfg, args.runner)
     if args.preflight:

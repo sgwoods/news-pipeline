@@ -107,6 +107,7 @@ case "$cmd" in
   factcheck) run $PY run.py --factcheck "$@" ;;                 # [DAY] | probe "sentence" FIGURE: fact check + search-before-cut, dry run
   consistency) run $PY run.py --consistency "${@:-all}" ;;     # [DAY|all]: first lines vs body, cross-day; dry run
   takes)     run $PY run.py --takes "${@:-status}" ;;            # status | email | preview | done [DAY]: your takes
+  mailer)    run $PY run.py --mailer "${@:-status}" ;;            # status | setup SCRIPT_ID | deploy: the mail script via clasp
   critic)    run $PY run.py --critic "${@:-preview}" ;;          # preview | email | list [DATE]: the weekly critic (to you only)
   reader)    run $PY run.py --reader "${@:-check}" ;;             # check [DAYS]: article reader on past items (dry run)
   profiles)  run $PY run.py --profiles "$@" ;;                   # [DAYS] sites/sources not yet in source_profiles.yaml
@@ -145,6 +146,7 @@ case "$cmd" in
 ./np quality [DAY|all]  scorecard; also: rate DAY SCORE [note] | pull (star ratings from the subscriber Sheet)
 ./np review weekly      weekly quality review (benchmarks, house rules) from local files
 ./np remaster DAY       rebuild DAY's podcast in the current style (deep dive + briefing + combined episode), then publish
+./np mailer status      the mail script via clasp: status (live = repo?) | setup SCRIPT_ID | deploy (needs you)
 ./np critic preview     the weekly critic email (preview | email to you | list)
 ./np takes status       your takes today: status | email (the slots) | preview (replies so far, dry run) | done (send now)
 ./np consistency [DAY|all]  first lines (day in brief, Top of mind, Agenda, deep-dive summary) vs the body; cross-day; dry run

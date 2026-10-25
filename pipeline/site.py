@@ -149,12 +149,15 @@ def _with_takes(page: str, notes: dict) -> str:
     return "".join(out)
 
 
-TAKES_JS = """
+TAKES_JS = r"""
 // Steven's takes on the site page (pipeline/takes.py): shown only with his signed link (#takes=<token>, from his
 // private takes email). The token never leaves this page except in the form he submits to the mail script, which
 // checks it; a visitor without it sees nothing. Boxes go after the day in brief (0), Top of mind (T), each Must-read
 // story (its number) and Worth knowing (W); one Submit sends them all.
 (function () {
+  var started = false;
+  function start() {
+  if (started) return;
   var m = /(?:^|[#&])takes=([A-Za-z0-9_-]{8,64})/.exec(location.hash || "");
   var s = document.querySelector("script[data-takes]");
   var root = document.getElementById("brief");
@@ -213,6 +216,10 @@ TAKES_JS = """
   note.style.cssText = "padding:10px 12px;border-radius:10px;background:#1e3a5f;color:#e5f2ff;font-size:14px";
   root.insertBefore(note, root.firstChild);
   root.parentNode.insertBefore(f, root.nextSibling);
+  started = true;
+  }
+  start();
+  window.addEventListener("hashchange", start);   // an already-open page gets the boxes without a reload
 })();
 """
 

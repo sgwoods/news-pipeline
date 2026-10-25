@@ -325,7 +325,7 @@ class SiteTakes(unittest.TestCase):
                 mock.patch("pipeline.mailsource.mcfg", return_value={"account": "briefing@example.com"}):
             takes.send_email(root, CFG, DAY)
         html = sent[0]["html"]
-        self.assertIn("2026-10-24/#takes={{OWNERT}}", html)
+        self.assertIn("2026-10-24/?v=2026-10-24#takes={{OWNERT}}", html)     # ?v= so the browser fetches it fresh
         self.assertEqual(html.count("{{OWNERT}}"), 1)                 # a story can't inject the placeholder
         self.assertIn("#takes={{OWNERT}}", sent[0]["text"])
 

@@ -6,6 +6,17 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.8-beta · 2026-10-25
+- **Takes on the site, fixed for an open page:** the takes email's site link adds `?v=<day>` so the browser loads
+  the page fresh, and the boxes also appear when only the `#takes=` part changes (on 10-25 a cached page showed none).
+- **Run-queue jobs for takes:** `takes-test DAY` (the takes email marked [TEST], to the owner), `takes-check DAY`
+  (what would publish now: email, site, Slack, with the privacy check; saves nothing), `takes-apply DAY` (chat
+  tier: save the day's takes and publish; for a shipped day only the written takes change).
+- **The mail script via clasp** (`pipeline/clasp.py`, `./np mailer status | setup | deploy`): `mailer-status`
+  checks the live script against the repo, `deploy-mailer` (Approve on the Mac) pushes Code.gs and updates the same
+  deployment, so mail-script changes stop needing copy and paste. One-time setup by Steven: docs/EMAIL-SETUP.md.
+- The site script is a raw string (Python's escape warning is gone).
+
 ## v0.2.7-beta · 2026-10-25
 - **Takes on the website:** the private takes email has a "Read and comment on the site" link to the day's page.
   With Steven's signed token (after the `#`, valid two days) the page shows a box after the day in brief, Top of
