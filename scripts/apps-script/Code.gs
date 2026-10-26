@@ -13,7 +13,9 @@
  *   private  (needs the SECRET script property; used by the pipeline and the dashboard)
  *            list · add (always sends a confirmation) · remove · send (subscribers or OWNER_EMAIL only)
  *            ratings (read-only export, no addresses) · setqueue / ddactions (the deep-dive queue page)
- *            takes (Steven's takes from the site page, owner token t) · takes_pull (the pipeline reads them)
+ *            takes (Steven's takes from the site or review page, owner token t) · takes_pull (the pipeline reads them)
+ *            review (GET: the held edition with a box per section, owner token t) · setreview (the pipeline uploads it)
+ *            savedoc (the edition and deep dive as Google Docs in the Briefings folder in Drive)
  *
  * Script properties (Project Settings -> Script properties):
  *   SHEET_ID     the shared subscriber Sheet's ID (from its URL, between /d/ and /edit)
@@ -22,6 +24,7 @@
  *   REPLY_TO     where replies go (briefing+feedback@example.com)
  *   FROM_NAME    AI Briefing
  *   SITE_URL     https://sgwoods.github.io/ai-briefing/
+ *   DRIVE_FOLDER_ID  optional: the Drive folder for the edition docs (else the folder named Briefings)
  *
  * Consumer Gmail allows about 100 recipients a day through Apps Script; `send` reports the remaining quota.
  */
@@ -30,9 +33,10 @@ var SHEET = 'subscribers';
 var HEAD = ['email', 'status', 'token', 'created', 'confirmed', 'updated', 'source', 'consent'];
 var RSHEET = 'ratings';
 var RHEAD = ['day', 'who', 'email', 'score', 'note', 'at', 'src'];
-var QSHEET = 'dd_queue', QHEAD = ['id', 'topic', 'status', 'why'];
+var QSHEET = 'dd_queue', QHEAD = ['id', 'topic', 'status', 'why', 'take'];   // take: Steven's own words on it
 var ASHEET = 'dd_actions', AHEAD = ['at', 'op', 'id', 'topic', 'angle'];
 var TSHEET = 'takes', THEAD = ['at', 'day', 'slot', 'text', 'done'];   // Steven's takes from the site page
+var VSHEET = 'review', VHEAD = ['day', 'part', 'html'];                 // the held edition as a private review page
 var CONSENT = 'Asked to receive the daily AI Briefing by email and confirmed by clicking the link sent to this address.';
 
 function props_() { return PropertiesService.getScriptProperties(); }
@@ -150,7 +154,7 @@ function writeQueue_(rows) {                         // the snapshot the queue p
   var sh = tab_(QSHEET, QHEAD);
   if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, QHEAD.length).clearContent();
   if (rows.length) sh.getRange(2, 1, rows.length, QHEAD.length).setNumberFormat('@')
-    .setValues(rows.map(function (r) { return QHEAD.map(function (h) { return String(r[h] || '').slice(0, 300); }); }));
+    .setValues(rows.map(function (r) { return QHEAD.map(function (h) { return String(r[h] || '').slice(0, h === 'take' ? 800 : 300); }); }));
 }
 
 function isOwnerToken_(t) { return !!ownerOf_(t, 'q'); }
@@ -162,12 +166,19 @@ function clean_(s, n) { return String(s || '').replace(/[\u0000-\u001f]+/g, ' ')
 
 // One action from the page: logged for the pipeline, and applied to the snapshot so the page shows it now.
 function queueAction_(op, id, topic, angle) {
-  tab_(ASHEET, AHEAD).appendRow([now_(), op, clean_(id, 20), clean_(topic, 200), clean_(angle, 400)].map(safeCell_));
+  tab_(ASHEET, AHEAD).appendRow([now_(), op, clean_(id, 20), clean_(topic, 200), clean_(angle, op === 'take' ? 800 : 400)].map(safeCell_));
   var q = tabRows_(QSHEET, QHEAD), i = -1;
   q.forEach(function (r, n) { if (r.id === id) i = n; });
   var up = q.filter(function (r) { return r.status === 'queued'; });
   if (op === 'add') q.push({ id: 'new', topic: clean_(topic, 200), status: 'queued', why: 'Suggested by you; added at the next run.' });
   else if (i >= 0 && op === 'dismiss') q.splice(i, 1);
+  else if (i >= 0 && op === 'take') q[i].take = clean_(angle, 800);
+  else if (i >= 0 && op === 'queue' && q[i].status !== 'queued') {   // to the end of Up next
+    var iq = q.splice(i, 1)[0], last = -1;
+    iq.status = 'queued';
+    q.forEach(function (r, n) { if (r.status === 'queued') last = n; });
+    q.splice(last + 1, 0, iq);
+  }
   else if (i >= 0 && op === 'next') { var it = q.splice(i, 1)[0]; it.status = 'queued'; q.unshift(it); }
   else if (i >= 0 && (op === 'up' || op === 'down')) {
     var j = op === 'up' ? i - 1 : i + 1;
@@ -176,7 +187,7 @@ function queueAction_(op, id, topic, angle) {
   writeQueue_(q);
 }
 
-function queuePage_(t, note, pick) {
+function queuePage_(t, note, pick, pop, ptopic) {
   var q = tabRows_(QSHEET, QHEAD), url = selfUrl_();
   var btn = function (op, id, label, primary) {
     return '<form method="post" action="' + url + '" target="_top" style="display:inline">' +
@@ -186,20 +197,36 @@ function queuePage_(t, note, pick) {
       'font:inherit;font-size:13px;background:' + (primary ? '#67e6a8;color:#06221a' : '#112a42;color:#eff7ff') + '">' + label +
       '</button></form>';
   };
+  var takeForm = function (r) {                      // Steven's own words, read verbatim after the deep dive
+    return '<form method="post" action="' + url + '" target="_top" style="margin-top:6px">' +
+      '<input type="hidden" name="action" value="dd"><input type="hidden" name="t" value="' + esc_(t) + '">' +
+      '<input type="hidden" name="op" value="take"><input type="hidden" name="id" value="' + esc_(r.id) + '">' +
+      '<textarea name="angle" maxlength="800" rows="2" placeholder="Your take (optional): read verbatim as Steven\'s take ' +
+      'at the end of this deep dive" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:10px;' +
+      'border:1px solid #2c4a66;background:#07131f;color:#eff7ff;font:inherit;font-size:14px">' + esc_(r.take || '') +
+      '</textarea><button style="margin-top:4px;padding:6px 12px;border-radius:999px;border:1px solid #2c4a66;' +
+      'background:#112a42;color:#eff7ff;font:inherit;font-size:13px;cursor:pointer">Save my take</button></form>';
+  };
   var row = function (r, n) {
-    return '<div style="padding:12px 0;border-top:1px solid #23415d"><b>' + (r.status === 'queued' ? (n + 1) + '. ' : '') +
+    return '<div id="q-' + esc_(r.id) + '" style="padding:12px 0;border-top:1px solid #23415d"><b>' + (r.status === 'queued' ? (n + 1) + '. ' : '') +
       esc_(r.topic) + '</b>' + (r.why ? '<div style="font-size:13px;color:#9cc4df">' + esc_(r.why) + '</div>' : '') +
       (r.id === 'new' ? '' : '<div>' + (n === 0 && r.status === 'queued' ? '' : btn('next', r.id, 'Make next', true)) +
-        (r.status === 'queued' ? btn('up', r.id, '↑') + btn('down', r.id, '↓') : '') + btn('dismiss', r.id, 'Dismiss') + '</div>') +
+        (r.status === 'queued' ? btn('up', r.id, '↑') + btn('down', r.id, '↓') : btn('queue', r.id, '＋ Up next')) +
+        btn('dismiss', r.id, 'Dismiss') + '</div>' + takeForm(r)) +
       '</div>';
   };
   var queued = q.filter(function (r) { return r.status === 'queued'; });
   var sugg = q.filter(function (r) { return r.status !== 'queued'; });
   var top = '';
-  if (pick) {
+  if (pick) {                                         // from an email link: one tap to confirm (links never change anything)
     var it = q.filter(function (r) { return r.id === pick; })[0];
-    if (it) top = '<div style="padding:12px 14px;border-radius:14px;background:#10314a;margin-bottom:10px">Make <b>' +
-      esc_(it.topic) + '</b> the next deep dive?<div>' + btn('next', it.id, 'Yes, make it next', true) + '</div></div>';
+    var ask = {next: ['Make <b>%</b> the next deep dive?', 'Yes, make it next'], up: ['Move <b>%</b> up?', 'Yes, move it up'],
+      down: ['Move <b>%</b> down?', 'Yes, move it down'], queue: ['Add <b>%</b> to the end of Up next?', 'Yes, add it'],
+      dismiss: ['Dismiss <b>%</b>?', 'Yes, dismiss it']}[pop || 'next'];
+    if (it && pop === 'take') top = '<div style="padding:12px 14px;border-radius:14px;background:#10314a;margin-bottom:10px">' +
+      'Your take on <b>' + esc_(it.topic) + '</b>' + takeForm(it) + '</div>';
+    else if (it && ask) top = '<div style="padding:12px 14px;border-radius:14px;background:#10314a;margin-bottom:10px">' +
+      ask[0].split('%').join(esc_(it.topic)) + '<div>' + btn(pop || 'next', it.id, ask[1], true) + '</div></div>';
   }
   var body = (note ? '<p style="color:#67e6a8">' + esc_(note) + '</p>' : '') + top +
     '<h3 style="margin:14px 0 4px">Up next</h3><p style="font-size:13px;color:#9cc4df;margin:0">The first one airs ' +
@@ -209,7 +236,7 @@ function queuePage_(t, note, pick) {
     '<h3 style="margin:18px 0 4px">Suggest a topic</h3><form method="post" action="' + url + '" target="_top">' +
     '<input type="hidden" name="action" value="dd"><input type="hidden" name="t" value="' + esc_(t) + '">' +
     '<input type="hidden" name="op" value="add">' +
-    '<input name="topic" maxlength="200" required placeholder="Topic" style="width:100%;box-sizing:border-box;margin:4px 0;' +
+    '<input name="topic" maxlength="200" required placeholder="Topic" value="' + esc_(ptopic || '') + '" style="width:100%;box-sizing:border-box;margin:4px 0;' +
     'padding:10px 12px;border-radius:12px;border:1px solid #2c4a66;background:#07131f;color:#eff7ff;font:inherit">' +
     '<textarea name="angle" maxlength="400" rows="2" placeholder="Angle (optional): what you want explained" ' +
     'style="width:100%;box-sizing:border-box;margin:4px 0;padding:10px 12px;border-radius:12px;border:1px solid #2c4a66;' +
@@ -285,6 +312,52 @@ function page_(title, body) {
 
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 
+// ---- Drive: the folder the edition and deep dive are written to (Steven, 2026-10-26: to read and give feedback
+// on, e.g. while driving). Script property DRIVE_FOLDER_ID, else the mailer account's folder named "Briefings".
+function briefingsFolder_() {
+  var id = props_().getProperty('DRIVE_FOLDER_ID');
+  if (id) return DriveApp.getFolderById(id);
+  var it = DriveApp.getFoldersByName('Briefings');
+  if (!it.hasNext()) throw new Error('no Drive folder named Briefings');
+  return it.next();
+}
+
+function docIn_(folder, name) {
+  var it = folder.getFilesByName(name);
+  while (it.hasNext()) { var f = it.next(); if (f.getMimeType() === MimeType.GOOGLE_DOCS && !f.isTrashed()) return f; }
+  return null;
+}
+
+// One Google Doc per name: rewritten in place on a rerun (never deleted); REPLACE renames an earlier doc (the
+// held draft becomes the published edition). Markdown: #/##/### headings, "- " bullets, **bold** and links as text.
+function saveDoc_(name, replace, md) {
+  var folder = briefingsFolder_();
+  var f = docIn_(folder, name) || (replace ? docIn_(folder, replace) : null), doc;
+  if (f) { doc = DocumentApp.openById(f.getId()); if (f.getName() !== name) f.setName(name); }
+  else { doc = DocumentApp.create(name); DriveApp.getFileById(doc.getId()).moveTo(folder); }
+  var body = doc.getBody();
+  body.clear();
+  var H = { '#': DocumentApp.ParagraphHeading.HEADING1, '##': DocumentApp.ParagraphHeading.HEADING2,
+            '###': DocumentApp.ParagraphHeading.HEADING3 };
+  var plain = function (t) {
+    return t.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '$1 ($2)');
+  };
+  String(md).replace(/\r\n/g, '\n').split('\n').forEach(function (ln) {
+    var m = /^(#{1,3})\s+(.*)$/.exec(ln), b = /^\s*[-*]\s+(.*)$/.exec(ln);
+    if (m) body.appendParagraph(plain(m[2])).setHeading(H[m[1]]);
+    else if (b) body.appendListItem(plain(b[1])).setGlyphType(DocumentApp.GlyphType.BULLET);
+    else if (ln.trim()) body.appendParagraph(plain(ln));
+  });
+  if (body.getNumChildren() > 1 && !body.getChild(0).asText().getText()) body.getChild(0).removeFromParent();
+  doc.saveAndClose();
+  return { ok: true, id: doc.getId(), url: doc.getUrl() };
+}
+
+// Run once in the editor after deploying v0.2.11 (Run > authorizeDrive): grants Drive and Docs access.
+function authorizeDrive() {
+  Logger.log('Drive folder: ' + briefingsFolder_().getName() + ' · Docs OK: ' + !!DocumentApp.getActiveDocument);
+}
+
 function authed_(p) {
   var s = props_().getProperty('SECRET');
   return s && s.length >= 24 && p.key === s;
@@ -344,9 +417,21 @@ function doGet(e) {
     return page_('Unsubscribed', '<p><b>' + esc_(r.email) + '</b> won\'t get the AI Briefing by email any more.</p>' +
       '<p><a style="color:#d9f7ff" href="' + selfUrl_() + '?action=confirm&t=' + r.token + '">Changed your mind? Resubscribe</a></p>');
   }
+  if (p.action === 'review') {                       // the held edition with a box per section (owner token t only)
+    if (!ownerOf_(p.t, 't')) return page_('Link not recognised', '<p>This link only works from your own takes email, ' +
+      'and expires after two days.</p>');
+    if (!validDay_(p.d)) return page_('Link not recognised', '<p>Unknown day.</p>');
+    var rv = tab_(VSHEET, VHEAD).getDataRange().getValues(), parts = [];
+    for (var ri = 1; ri < rv.length; ri++) if (dayStr_(rv[ri][0]) === String(p.d)) parts.push([Number(rv[ri][1]), String(rv[ri][2])]);
+    if (!parts.length) return page_('Not ready', '<p>The review page for ' + esc_(p.d) + ' isn\'t here yet. Reply to the takes email instead.</p>');
+    parts.sort(function (a, b) { return a[0] - b[0]; });
+    var body = parts.map(function (x) { return x[1]; }).join('').split('{{SCRIPT}}').join(selfUrl_()).split('{{T}}').join(esc_(String(p.t)));
+    return HtmlService.createHtmlOutput(body).setTitle('Your takes · ' + p.d)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
   if (p.action === 'queue') {
     if (!isOwnerToken_(p.t)) return page_('Link not recognised', '<p>This link only works from your own evening note.</p>');
-    return queuePage_(String(p.t), '', clean_(p.pick, 20));
+    return queuePage_(String(p.t), '', clean_(p.pick, 20), clean_(p.op, 10), clean_(p.topic, 200));
   }
   if (p.action === 'rate') {
     if (!validDay_(p.d)) return page_('Link not recognised', '<p>This rating link is old or incomplete.</p>');
@@ -392,11 +477,12 @@ function doPost_(e) {
   if (p.action === 'dd') {                            // the queue page's buttons: owner token only
     if (!isOwnerToken_(p.t)) return page_('Link not recognised', '<p>This link only works from your own evening note.</p>');
     var op = String(p.op || '');
-    if (['next', 'up', 'down', 'dismiss', 'add'].indexOf(op) < 0) return page_('That didn\'t work', '<p>Unknown action.</p>');
+    if (['next', 'up', 'down', 'dismiss', 'add', 'queue', 'take'].indexOf(op) < 0) return page_('That didn\'t work', '<p>Unknown action.</p>');
     if (op === 'add' && !clean_(p.topic, 200)) return queuePage_(String(p.t), 'Type a topic first.', '');
     queueAction_(op, String(p.id || ''), p.topic, p.angle);
     return queuePage_(String(p.t), {next: 'Done: that airs next.', up: 'Moved up.', down: 'Moved down.',
-      dismiss: 'Dismissed.', add: 'Added to Up next.'}[op], '');
+      dismiss: 'Dismissed.', add: 'Added to Up next.', queue: 'Added to the end of Up next.',
+      take: clean_(p.angle, 800) ? 'Your take is saved: read after the deep dive when it airs.' : 'Your take is cleared.'}[op], '');
   }
   if (p.action === 'rate') {                          // the confirm page above; public, token optional
     if (p.website) return page_('Thanks', '<p>Thanks.</p>');
@@ -421,23 +507,47 @@ function doPost_(e) {
     if (!validDay_(p.d)) return page_('That didn\'t work', '<p>Unknown day.</p>');
     var tk = {};
     try { tk = JSON.parse(String(p.takes || '{}')); } catch (err) { tk = {}; }
-    var sh = tab_(TSHEET, THEAD), n = 0, done = String(p.done || '') === '1';
+    Object.keys(p).forEach(function (k) { if (/^s_(\d{1,2}|T|W)$/i.test(k) && String(p[k]).trim()) tk[k.slice(2)] = p[k]; });
+    var sh = tab_(TSHEET, THEAD), n = 0, done = String(p.done || '') === '1', at = isoStr_(new Date());
+    var put = function (row) {                       // as text: Sheets would turn "2026-10-25" into a date cell
+      sh.getRange(sh.getLastRow() + 1, 1, 1, THEAD.length).setNumberFormat('@').setValues([row.map(safeCell_)]);
+    };
     Object.keys(tk).slice(0, 20).forEach(function (k) {
       var slot = String(k).toUpperCase().slice(0, 2), text = clean_(tk[k], 1500);
       if (!/^(\d{1,2}|T|W)$/.test(slot) || !text) return;
-      sh.appendRow([now_(), String(p.d), slot, text, ''].map(safeCell_));
+      put([at, String(p.d), slot, text, '']);
       n++;
     });
-    if (done) sh.appendRow([now_(), String(p.d), 'DONE', '', '1'].map(safeCell_));
+    if (done) put([at, String(p.d), 'DONE', '', '1']);
     return page_('Takes saved', '<p>' + n + ' take' + (n === 1 ? '' : 's') + ' saved for ' + esc_(p.d) +
       (done ? '. The edition goes out within a few minutes.' : '. The edition goes out at the cutoff, or when you send done.') +
       '</p><p style="color:#9cc4df;font-size:14px">Anything with a private name or detail is held back and listed to you, ' +
       'never published. Submitting again replaces a take for the same section.</p>');
   }
   if (!authed_(p)) return json_({ ok: false, error: 'unauthorised' });
+  if (p.action === 'savedoc') {                     // the edition and deep dive as Google Docs in Drive (key only)
+    var dn = clean_(p.name, 200), dt = String(p.text || '');
+    if (!dn || !dt || dt.length > 300000) return json_({ ok: false, error: 'bad doc' });
+    return json_(saveDoc_(dn, clean_(p.replace, 200), dt));
+  }
+  if (p.action === 'setreview') {                   // the pipeline uploads the held edition's review page (key only)
+    if (!validDay_(p.d)) return json_({ ok: false, error: 'bad day' });
+    var html = String(p.html || '');
+    if (!html || html.length > 450000) return json_({ ok: false, error: 'bad page' });
+    var vs = tab_(VSHEET, VHEAD);
+    if (vs.getLastRow() > 1) vs.getRange(2, 1, vs.getLastRow() - 1, VHEAD.length).clearContent();   // only the latest day
+    var rows = [];
+    for (var i = 0; i * 40000 < html.length; i++) rows.push([String(p.d), String(i), html.slice(i * 40000, (i + 1) * 40000)]);
+    vs.getRange(2, 1, rows.length, VHEAD.length).setNumberFormat('@').setValues(rows);
+    return json_({ ok: true, parts: rows.length });
+  }
   if (p.action === 'takes_pull') {                  // the pipeline reads the day's site takes (key only)
-    return json_({ ok: true, takes: tabRows_(TSHEET, THEAD).filter(function (r) { return dayStr_(r.day) === String(p.d); })
-      .map(function (r) { return { at: isoStr_(r.at), slot: String(r.slot), text: String(r.text || ''), done: String(r.done) === '1' }; }) });
+    var tv = tab_(TSHEET, THEAD).getDataRange().getValues(), tout = [];
+    for (var ti = 1; ti < tv.length; ti++) {         // raw values: a day may be a date cell (rows before v0.2.9)
+      if (dayStr_(tv[ti][1]) !== String(p.d)) continue;
+      tout.push({ at: isoStr_(tv[ti][0]), slot: String(tv[ti][2]), text: String(tv[ti][3] || ''), done: String(tv[ti][4]) === '1' });
+    }
+    return json_({ ok: true, takes: tout });
   }
   if (p.action === 'setqueue') {                    // the pipeline's queue snapshot for the page
     var rows = [];

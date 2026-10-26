@@ -107,6 +107,7 @@ case "$cmd" in
   factcheck) run $PY run.py --factcheck "$@" ;;                 # [DAY] | probe "sentence" FIGURE: fact check + search-before-cut, dry run
   consistency) run $PY run.py --consistency "${@:-all}" ;;     # [DAY|all]: first lines vs body, cross-day; dry run
   takes)     run $PY run.py --takes "${@:-status}" ;;            # status | email | preview | done [DAY]: your takes
+  drive)     run $PY run.py --drive "${@:-save}" ;;              # save [DAY] [draft]: edition + deep dive as Google Docs
   mailer)    run $PY run.py --mailer "${@:-status}" ;;            # status | setup SCRIPT_ID | deploy: the mail script via clasp
   critic)    run $PY run.py --critic "${@:-preview}" ;;          # preview | email | list [DATE]: the weekly critic (to you only)
   reader)    run $PY run.py --reader "${@:-check}" ;;             # check [DAYS]: article reader on past items (dry run)

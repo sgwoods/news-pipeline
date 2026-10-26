@@ -40,6 +40,14 @@ class Parse(unittest.TestCase):
         self.assertEqual(r["takes"], {"2": "Chips are a capex story"})
         self.assertTrue(r["skip"])
 
+    def test_section_names_as_headers_and_signature_dropped(self):    # Steven's reply, 2026-10-26 (made-up sig)
+        r = takes.parse("0. Value ramps slowly\nthen fast.\n\nWorth Knowing:\n\nVendors will carry the liability\n"
+                        "<https://example.com/me?promo=sig>\nSam Example\nFind me on the Web <https://example.org/sam>\n")
+        self.assertEqual(r["takes"], {"0": "Value ramps slowly then fast.", "W": "Vendors will carry the liability"})
+        self.assertEqual(takes.parse("Top of mind: Costs matter.\nMust read 2: Distribution wins.")["takes"],
+                         {"T": "Costs matter.", "2": "Distribution wins."})
+        self.assertEqual(takes.parse("Overall, looks good")["takes"], {})              # prose, not a header
+
     def test_prose_without_numbers_is_not_a_take(self):
         self.assertEqual(takes.parse("Thanks, looks good")["takes"], {})
 
@@ -65,7 +73,9 @@ class Slots(unittest.TestCase):
         self.assertIn("mailto:briefing@example.com?subject=Re%3A%20AI%20Briefing%20%C2%B7%20Your%20takes", m["html"])
         self.assertIn("&amp;body=1%3A%20", m["html"])                           # the reply opens with "1: "
         self.assertIn("Add your take on this (T)", m["html"])
-        self.assertIn("https://sgwoods.github.io/ai-briefing/2026-10-24/", m["html"])
+        self.assertNotIn("sgwoods.github.io/ai-briefing/2026-10-24/", m["html"])  # not published yet (2026-10-26)
+        self.assertIn("__SCRIPT__?action=review&d=2026-10-24&t=__OWNERT__", m["html"])  # the private review page
+        self.assertNotIn("action=review", takes.build_email(root, CFG, DAY, review=False)["html"])
         r = takes.parse("1: Margins matter.")                                   # what the reply contains parses
         self.assertEqual(r["takes"], {"1": "Margins matter."})
 
@@ -257,9 +267,11 @@ class Sending(unittest.TestCase):
                 mock.patch.object(mailer, "ecfg", return_value={"test_to": "owner@example.com"}):
             self.assertIn("sent", takes.send_email(root, CFG, DAY))
             takes.report_email(root, CFG, DAY, {"published": [], "held": [{"slot": "1", "title": "x", "why": ["a private name"]}]})
-        self.assertEqual(sent[0]["to"], "owner@example.com")
-        self.assertTrue(sent[0]["subject"].startswith("AI Briefing · Your takes"))
-        self.assertIn("held back", sent[1]["subject"])
+        self.assertEqual(sent[0]["d"], DAY)                                      # the review page goes up first
+        self.assertIn("{{SCRIPT}}", sent[0]["html"])
+        self.assertEqual(sent[1]["to"], "owner@example.com")
+        self.assertTrue(sent[1]["subject"].startswith("AI Briefing · Your takes"))
+        self.assertIn("held back", sent[2]["subject"])
         self.assertEqual(takes.send_email(root, CFG, DAY)[:28], "takes email already sent at ")
 
 
@@ -324,10 +336,14 @@ class SiteTakes(unittest.TestCase):
                 mock.patch.object(mailer, "ecfg", return_value={"test_to": "owner@example.com"}), \
                 mock.patch("pipeline.mailsource.mcfg", return_value={"account": "briefing@example.com"}):
             takes.send_email(root, CFG, DAY)
-        html = sent[0]["html"]
-        self.assertIn("2026-10-24/?v=2026-10-24#takes={{OWNERT}}", html)     # ?v= so the browser fetches it fresh
-        self.assertEqual(html.count("{{OWNERT}}"), 1)                 # a story can't inject the placeholder
-        self.assertIn("#takes={{OWNERT}}", sent[0]["text"])
+        page, mail = sent[0]["html"], sent[1]["html"]
+        self.assertIn("{{SCRIPT}}?action=review&d=2026-10-24&t={{OWNERT}}", mail)
+        self.assertEqual(mail.count("{{OWNERT}}"), 1)                 # a story can't inject the placeholder
+        self.assertEqual(mail.count("{{SCRIPT}}"), 1)
+        self.assertIn("t={{OWNERT}}", sent[1]["text"])
+        self.assertEqual(page.count("{{T}}"), 1)                      # the review page: one token, one script URL
+        self.assertEqual(page.count("{{SCRIPT}}"), 1)
+        self.assertNotIn("{{OWNERT}}", page)
 
     def test_takes_pull_is_a_read_action(self):
         self.assertIn("takes_pull", mailer.READ_ACTIONS)
@@ -336,6 +352,34 @@ class SiteTakes(unittest.TestCase):
 class SitePageAndScript(unittest.TestCase):
     ROOT = Path(__file__).resolve().parent.parent
 
+    def test_review_page_is_served_by_the_script_behind_the_owner_token(self):
+        gs = (self.ROOT / "scripts" / "apps-script" / "Code.gs").read_text("utf-8")
+        get = gs[gs.index("if (p.action === 'review')"):]
+        self.assertLess(get.index("ownerOf_(p.t, 't')"), get.index("createHtmlOutput"))      # token before content
+        self.assertIn("esc_(String(p.t))", get[:get.index("createHtmlOutput")])
+        auth = gs.index("if (!authed_(p)) return json_")
+        self.assertGreater(gs.index("if (p.action === 'setreview')"), auth)                   # upload: key only
+        self.assertIn("/^s_(\\d{1,2}|T|W)$/i", gs)                                             # the page's boxes
+
+    def test_review_page_has_a_box_per_section_and_no_script(self):
+        root = make_root()
+        (root / "briefings").mkdir()
+        (root / "briefings" / f"{DAY}.md").write_text(MD, "utf-8")
+        page = takes.review_page(root, CFG, DAY)
+        for slot in ("0", "T", "1"):
+            self.assertIn(f'name="s_{slot}"', page)
+        self.assertNotIn("<script", page.lower())
+        self.assertIn('action="__SCRIPT__"', page)
+        self.assertIn('name="t" value="__T__"', page)
+        self.assertIn("Corvane raised $550M.", page)
+        got = []
+        with mock.patch.object(mailer, "call", side_effect=lambda cfg, a, _alert=False, **p: got.append((a, p)) or {"ok": True}):
+            self.assertTrue(takes.upload_review(root, CFG, DAY))
+        self.assertEqual(got[0][0], "setreview")
+        self.assertNotIn("__T__", got[0][1]["html"])
+        with mock.patch.object(mailer, "call", side_effect=mailer.MailError("down")):
+            self.assertFalse(takes.upload_review(root, CFG, DAY))                            # never stops the email
+
     def test_mail_script_checks_the_takes_token(self):
         gs = (self.ROOT / "scripts" / "apps-script" / "Code.gs").read_text("utf-8")
         self.assertIn("t: 2", gs)
@@ -343,6 +387,11 @@ class SitePageAndScript(unittest.TestCase):
         self.assertLess(gs.index("p.action === 'takes')"), gs.index("if (!authed_(p)) return json_"))
         self.assertGreater(gs.index("p.action === 'takes_pull'"), gs.index("if (!authed_(p)) return json_"))
         self.assertIn(".split('{{OWNERT}}').join(ownt)", gs)
+        pull = gs[gs.index("p.action === 'takes_pull'"):gs.index("p.action === 'takes_pull'") + 700]
+        self.assertIn("getValues()", pull)                     # raw cells: a date-converted day still matches
+        self.assertIn("dayStr_(tv[ti][1])", pull)
+        self.assertNotIn("tabRows_(TSHEET", pull)
+        self.assertIn("setNumberFormat('@')", gs[gs.index("p.action === 'takes')"):gs.index("p.action === 'takes_pull'")])
 
     def test_takes_script_only_with_the_token_and_a_script_url(self):
         from pipeline import site

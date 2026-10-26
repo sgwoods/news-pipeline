@@ -1331,6 +1331,19 @@ def cmd_critic(cfg: dict, argv: list) -> int:
         return 1
 
 
+def cmd_drive(cfg: dict, argv: list) -> int:
+    """./np drive save [DAY] [draft]: write DAY's edition and deep dive to the Briefings folder in Drive."""
+    from pipeline import drivedocs
+    if (argv or ["save"])[0] != "save":
+        print("usage: ./np drive save [DAY] [draft]")
+        return 2
+    day = next((a for a in argv[1:] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)), dt.date.today().isoformat())
+    out = drivedocs.save_day(ROOT, cfg, day, final="draft" not in argv, log=print)
+    for k, v in out.items():
+        print(f"  {k}: {v or 'not saved'}")
+    return 0 if out and all(out.values()) else 1
+
+
 def cmd_mailer(cfg: dict, argv: list) -> int:
     """./np mailer status | setup SCRIPT_ID | deploy: the mail script via clasp (pipeline/clasp.py)."""
     from pipeline import clasp
@@ -2308,7 +2321,9 @@ def _takes_step(cfg: dict, today: str) -> dict:
         return {}
     import os
     try:
-        print(takes.send_email(ROOT, cfg, today))
+        from pipeline import drivedocs                # the held edition as a Google Doc too (to read anywhere)
+        drive = drivedocs.save_day(ROOT, cfg, today, final=False, log=print)
+        print(takes.send_email(ROOT, cfg, today, drive=drive.get("briefing", "")))
         takes.mark_pending(ROOT, today, os.getpid())
         print(f"Holding the edition for your takes until {takes.tcfg(cfg)['cutoff']} (or a \"done\" reply)...")
         st = takes.wait(ROOT, cfg, today, log=print)
@@ -2351,6 +2366,8 @@ def _retry_outbound(cfg: dict, today: str) -> int:
     if cfg.get("publish", {}).get("auto") and not _publish_and_verify(cfg, today):
         print("Email held: the site isn't safely published.")
         return 0
+    from pipeline import drivedocs
+    drivedocs.save_day(ROOT, cfg, today, final=True, log=print)
     if cmd_email(cfg, ["send", today]):
         _alert(cfg, "email", detail="See the latest logs/cmd-daily-*.txt for the error.")
     if (cfg.get("email") or {}).get("editor_note", True):
@@ -2478,6 +2495,9 @@ def cmd_daily(cfg: dict) -> int:
     published = True
     if w.get("status") == "ok" and cfg.get("publish", {}).get("auto"):
         published = _publish_and_verify(cfg, today, alert=not gate_blocked)
+        if published and not gate_blocked:
+            from pipeline import drivedocs            # the published edition (with takes) and deep dive in Drive
+            drivedocs.save_day(ROOT, cfg, today, final=True, log=print)
     if w.get("status") == "ok" and (cfg.get("email") or {}).get("enabled") and not published:
         print("Email held: the site isn't safely published (it goes out once a publish passes).")
     elif w.get("status") == "ok" and (cfg.get("email") or {}).get("enabled"):
@@ -2675,6 +2695,7 @@ def main() -> int:
     ap.add_argument("--due", metavar="KIND", help="daily|preflight: exit 0 if a scheduled time just passed (local clock)")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
     ap.add_argument("--runner", nargs="*", metavar="ARG", help="status | tick | approve ID | reject ID | install | remove")
+    ap.add_argument("--drive", nargs="*", metavar="ARG", help="save [DAY] [draft]: the edition and deep dive as Google Docs")
     ap.add_argument("--mailer", nargs="*", metavar="ARG", help="status | setup SCRIPT_ID | deploy: the mail script via clasp")
     ap.add_argument("--critic", nargs="*", metavar="ARG", help="preview | email | list [DATE]: the weekly critic")
     ap.add_argument("--takes", nargs="*", metavar="ARG", help="status | email | preview | done [DAY]: Steven's takes")
@@ -2759,6 +2780,8 @@ def main() -> int:
         return cmd_critic(cfg, args.critic)
     if args.mailer is not None:
         return cmd_mailer(cfg, args.mailer)
+    if args.drive is not None:
+        return cmd_drive(cfg, args.drive)
     if args.runner is not None:
         return cmd_runner(cfg, args.runner)
     if args.preflight:

@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.8-beta (2026-10-25)
+- **Release:** v0.2.11-beta (2026-10-26)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 65 in `pipeline/`
+- **Modules:** 66 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -110,10 +110,12 @@ From v0.2 the owner can add his own view to the day's edition, verbatim and labe
 (`takes.py`, docs/plans/my-takes.md). Once the edition is written, a private email lists numbered slots: 0 for the
 day overall, T for Top of mind, and 1 to N for each Must-read story. The email carries the whole edition, with an
 "Add your take" button after each section that opens a reply with the section's number filled in (mail clients
-strip real text boxes), and a private "Read and comment on the site" link: the day's page with a box after each
-section and one Submit, shown only with his signed token (after the `#`, so it never reaches the web server; it
-expires after two days) and checked again by the mail script, which stores the takes for the pipeline to read
-(`takes.js` on the site, the `takes` / `takes_pull` actions in the Apps Script). He replies from his phone ("1: ..."), or
+strip real text boxes), and a private "Type your takes on one page" link. The day's site page isn't published
+until the cutoff, so that page is served by the mail script instead (v0.2.10): the pipeline uploads the held
+edition with a box after each section and one Submit (`setreview`, key only), and the script shows it only with his
+signed token (scope `t`, two days). The boxes post to the script, which stores the takes for the pipeline to read
+(the `review` / `takes` / `takes_pull` actions in the Apps Script). After publishing, the site page shows the same
+boxes with his token (`takes.js`). He replies from his phone ("1: ..."), or
 posts in his team's Slack channel with the story's link (his own words only; nobody else's text is ever kept).
 The edition waits until the cutoff (09:15) or a "done" reply, then:
 
@@ -215,7 +217,7 @@ three tiers:
 
 | Tier | Recipes | Runs when |
 |---|---|---|
-| auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify`, `consistency`, `critic-email`, `takes-test`, `takes-check`, `mailer-status` | at once |
+| auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify`, `consistency`, `critic-email`, `takes-test`, `takes-check`, `drive-save`, `mailer-status` | at once |
 | chat | `correct`, `publish`, `restore`, `takes-done`, `takes-apply`, `send-held`, `source-add`, `mailer-setup` | the job quotes the owner's yes from the chat |
 | mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, the public code push, `deploy-mailer` | the owner clicks Approve in a dialog on the Mac, or runs `./np runner approve ID` in Terminal |
 
@@ -241,6 +243,14 @@ queue.
   edition is built early and held until the cutoff (09:15) or the owner's "done"; retries at 09:30, 10:30 and
   12:00 send a held edition if the Mac was offline at the cutoff. An evening preflight checks
   that tomorrow's release is approved.
+- **Copies in Drive (v0.2.11):** the edition and the deep dive are also written as Google Docs to the mailer
+  account's `Briefings` folder in Drive, shared with the owner, so he (and Claude, through Drive) can read them
+  anywhere and give feedback. At the pre-release takes email: `<day> · AI Briefing (draft, held for your takes) ·
+  <lead>` and `<day> · Deep dive · <title>`, linked from that email. Once published, the draft is renamed
+  `<day> · AI Briefing · <lead>` and rewritten with the owner's takes, and the deep dive doc is rewritten. The mail
+  script writes them (`savedoc`, key only, `drivedocs.py`); a rerun rewrites the same doc and nothing is deleted.
+  `./np drive save [DAY] [draft]` (run queue: `drive-save`) writes them by hand. A Drive failure never holds the
+  edition.
 - **When something needs the owner:** an action-needed email states the issue and the fix. Approving re-sends
   what was held back.
 - **Outside view:** a cloud watchdog checks the public site after the send window, and the project hub compares
@@ -264,6 +274,7 @@ _Generated from each module's own description at build time._
 | `devenv.py` | The development checkout |
 | `dive.py` | Deep dive on one story |
 | `docs.py` | Public documentation on the site |
+| `drivedocs.py` | The day's edition and deep dive as Google Docs in Drive (Steven, 2026-10-26). |
 | `editor_note.py` | Steven's private evening note |
 | `editorial.py` | Briefing v2 |
 | `env.py` | Production or staging. |

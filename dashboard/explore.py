@@ -336,6 +336,8 @@ def register(app, root, cfg, P, check_post, md_html, DAY_RE):
                 deepdive.move_to(root, qid, pos)
             elif op in ("queued", "dismissed", "suggested"):
                 deepdive.set_status(root, qid, op)
+            elif op == "take":                   # Steven's own words, read verbatim after the deep dive
+                deepdive.set_take(root, qid, request.form.get("take", ""))
             else:
                 abort(404)
         except (KeyError, ValueError):

@@ -30,8 +30,16 @@ at inference time), a change in the trajectory of the field, or a story that has
 - **Where it goes:** briefings/deepdives/<day>.md (show notes + sources), .script.md, .mp3. The podcast feed
   lists it as a bonus episode "Deep dive: <title>" right after that day's briefing; the day's page links to it.
 - **When:** planned during the morning run before the briefing audio (so the briefing hands off to it), written and voiced right after, then published and mentioned in the email.
-- **Picking from the evening note:** your private note (sent by the daily run after the subscriber email) lists the suggestions with a one-click "Make this next"
-  for each, and a link to a private queue page to reorder, dismiss or suggest a topic (signed owner links, 8-day expiry).
+- **Picking from the evening note:** your private note (sent by the daily run after the subscriber email) gives every
+  topic its own buttons: tomorrow's (Add your take, Move down, Dismiss), the rest of Up next (Make next, ↑, ↓, Add your
+  take, Dismiss), each new suggestion (Make next, Add to Up next, Add your take, Dismiss), and "Suggest as a deep dive"
+  on today's deep dive and each watchlist mention. Each button opens the private queue page with that one change ready
+  to confirm (an email link never changes anything by itself); the page has the same buttons and a take box on every
+  topic (signed owner links, 8-day expiry).
+- **Your take on a deep dive (v0.2.11):** type it on the queue page or on the dashboard's Deep dives page, any time
+  before the run that writes it. It is read verbatim as "Steven's take" at the end of the deep dive (its own section
+  on the site and in the podcast), after the same privacy check as morning takes; a take that fails it is held back
+  and stays private. Takes are opinion: never rewritten by a model, outside the fact check.
 - **Queue:** dashboard /deep-dives: Claude adds up to 4 suggestions each morning; queue, reorder, dismiss or add your own. Up next goes first; otherwise the day's best (strength 4+). One a day; Up next is never left empty (the best suggestion is moved up if you queued nothing).
 - **Voices:** briefing am_michael ("Michael", ~131 words a minute), deep dive af_bella ("Bella", ~157), changeable on
   the Tuning page. Script length is set from each voice's measured speed (`audio.voice_wpm`).

@@ -6,6 +6,36 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.11-beta · 2026-10-26
+- **Your take on a deep dive** (Steven, 10-26): a box on every topic on the queue page (from the evening email) and on
+  the dashboard's Deep dives page. The take is read verbatim as "Steven's take" at the end of that deep dive, on the
+  site and in the podcast, after the same privacy check as morning takes.
+- **Every topic in the evening email has its own buttons:** Make next, ↑ / ↓, Add to Up next, Add your take, Dismiss,
+  and "Suggest as a deep dive" on today's deep dive and watchlist mentions. Each opens the queue page with that change
+  ready to confirm. The queue page can now also add a suggestion to the end of Up next. Needs a mail-script deploy.
+- **The edition and deep dive in Drive** (Steven, 10-26): Google Docs in the shared `Briefings` folder, named by date.
+  With the pre-release takes email: "<day> · AI Briefing (draft, held for your takes) · <lead>" and "<day> · Deep
+  dive · <title>" (the takes email links to the draft). Once published, the draft becomes "<day> · AI Briefing ·
+  <lead>" with Steven's takes, and the deep dive doc is rewritten. `./np drive save [DAY]` / run-queue `drive-save`.
+  After the mail-script deploy, run `authorizeDrive` once in the Apps Script editor to grant Drive and Docs access.
+
+## v0.2.10-beta · 2026-10-26
+- **Fix: the takes email linked to a page that doesn't exist yet** (Steven, 10-26). The day's site page is only
+  published after the cutoff, so the link now opens a private review page served by the mail script: the held
+  edition with a box after each section and one Submit ("Done: send the edition now" ticks it out early). The
+  pipeline uploads the page just before the takes email (`setreview`, key only); the script shows it only with
+  Steven's signed takes token. If the upload fails, the email goes without the link (the reply buttons still work).
+- The text version of the takes email numbers each story by its headline again.
+- Email takes: a section name as a header ("Worth knowing:", "Top of mind:", "Must read 2:") now counts like
+  "W:", and a signature (a bare link or "-- " line) ends a take (10-26: a Worth-knowing take was missed).
+- Includes the v0.2.9 mail-script fix below (that release was not shipped on its own). Needs a mail-script deploy:
+  `deploy-mailer`, Approve on the Mac.
+
+## v0.2.9-beta · 2026-10-25 (folded into v0.2.10)
+- Fix (mail script): site takes were saved, but Sheets turned the day ("2026-10-25") into a date cell and the
+  pipeline's read-back compared it as text, so it found none. Takes are now written as text, and the read-back
+  compares raw cells, so the 10-25 test takes are found too. Needs a mail-script deploy (the first via clasp).
+
 ## v0.2.8-beta · 2026-10-25
 - **Takes on the site, fixed for an open page:** the takes email's site link adds `?v=<day>` so the browser loads
   the page fresh, and the boxes also appear when only the `#takes=` part changes (on 10-25 a cached page showed none).

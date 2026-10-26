@@ -267,6 +267,39 @@ def move_to(root: Path, qid: str, pos: int) -> None:
     save_queue(root, items)
 
 
+TAKE_MAX = 800
+
+
+def set_take(root: Path, qid: str, text: str) -> dict:
+    """Steven's own words on a topic (verbatim, read as "Steven's take" after the deep dive when it airs). '' clears."""
+    from .takes import tidy
+    items = load_queue(root)
+    it = next((x for x in items if x["id"] == qid), None)
+    if not it:
+        raise KeyError(qid)
+    text = tidy(text)[:TAKE_MAX]
+    if text:
+        it.update(take=text, take_at=dt.datetime.now().isoformat(timespec="seconds"))
+    else:
+        it.pop("take", None)
+        it.pop("take_at", None)
+    save_queue(root, items)
+    return it
+
+
+def take_part(item: dict, cfg: dict, log=print) -> tuple | None:
+    """("steven_take", spoken text) for the deep dive, or None (no take, or held by the same privacy check as takes)."""
+    from . import takes
+    text = str(item.get("take") or "").strip()
+    if not text:
+        return None
+    why = takes.problems(text, cfg)
+    if why:
+        log(f"Deep dive: your take was held back ({'; '.join(why)}); it stays private")
+        return None
+    return ("steven_take", f"Here's {takes.LABEL}. {text}")
+
+
 def add_manual(root: Path, topic: str, angle: str = "", day: str = "") -> dict:
     day = day or dt.date.today().isoformat()
     it = add_suggestions(root, day, [{"topic": topic, "angle": angle or topic, "kind": "concept",
@@ -281,7 +314,7 @@ def snapshot(root: Path) -> list:
     sugg = sorted([x for x in items if x["status"] == "suggested"],
                   key=lambda x: (x.get("source_day", ""), x.get("strength") or 0), reverse=True)[:10]
     return [{"id": x["id"], "topic": x["topic"], "status": x["status"],
-             "why": (x.get("why_today") or "")[:200]} for x in up + sugg]
+             "why": (x.get("why_today") or "")[:200], "take": x.get("take", "")} for x in up + sugg]
 
 
 REMOTE_STATE = "data/state/dd-actions.json"
@@ -311,6 +344,11 @@ def apply_remote(root: Path, cfg: dict, log=print) -> int:
                 move(root, qid, -1 if op == "up" else 1)
             elif op == "dismiss":
                 set_status(root, qid, "dismissed")
+            elif op == "queue":
+                if next((x for x in load_queue(root) if x["id"] == qid), {}).get("status") != "queued":
+                    set_status(root, qid, "queued")
+            elif op == "take":
+                set_take(root, qid, str(a.get("angle") or ""))
             elif op == "add" and str(a.get("topic") or "").strip():
                 add_manual(root, str(a["topic"]).strip()[:200], str(a.get("angle") or "").strip()[:400])
             n += 1
@@ -526,7 +564,10 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     title = re.sub(r"\s+", " ", str(out.get("title") or pick["topic"])).strip()[:90]
     d = root / DIR
     d.mkdir(parents=True, exist_ok=True)
-    parts = [("Opener", opener(day, title, cfg.get("audio") or {}))] + sections + [("Outro", OUTRO)]
+    tk = take_part(item, cfg, log)               # Steven's take, set from the preview email, queue page or dashboard
+    if tk:
+        rec["take"] = True
+    parts = [("Opener", opener(day, title, cfg.get("audio") or {}))] + sections + ([tk] if tk else []) + [("Outro", OUTRO)]
     from .profiles import profile
     from .editorial import _KIND_WORD
     src_md = "\n".join(f"- [{s.get('title') or s['url']}]({s['url']}) · {_KIND_WORD.get(profile({'url': s['url']})['kind'], 'source')}"
@@ -591,7 +632,7 @@ def voice(root: Path, cfg: dict, day: str, log=print) -> dict | None:
 
 HEADINGS = {"why_today": "Why today", "plainly": "Plainly", "evidence": "What the evidence shows",
             "readings": "How people read it", "so_what": "What it means for builders and investors",
-            "watch": "What to watch"}
+            "watch": "What to watch", "steven_take": "Steven's take"}
 
 
 def written_md(root: Path, day: str) -> str:
@@ -607,6 +648,8 @@ def written_md(root: Path, day: str) -> str:
         if name.lower() in ("opener", "outro", "intro", "close"):
             continue
         body = body.strip()
+        if name == "steven_take":
+            body = re.sub(r"^Here's Steven's take\.\s*", "", body)
         if body:
             out.append(f"## {HEADINGS.get(name, name.replace('_', ' ').capitalize())}\n\n{body}")
     return "\n\n".join(out)

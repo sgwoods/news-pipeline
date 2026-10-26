@@ -32,6 +32,10 @@ SLACK = "data/takes/slack.jsonl"
 _SLOT = re.compile(r"^\s*(?:take\s*)?([0-9]{1,2}|[TtDdWw])\s*[:.)\-–]\s*(.*\S)?\s*$")
 _DONE = re.compile(r"^\s*(done|that's it|thats it|send it)\s*[.!]*\s*$", re.I)
 _SKIP = re.compile(r"^\s*(skip|no takes|none)\s*[.!]*\s*$", re.I)
+_NAMED = re.compile(r"^\s*(worth knowing|top of mind|(?:the )?day overall|the day|must read\s*#?\s*(\d{1,2}))"
+                    r"\s*(?:[:.)\-–]\s*(.*\S)?)?\s*$", re.I)          # "Worth Knowing:" as a header (Steven, 10-26)
+_NAMES = {"worth knowing": "W", "top of mind": "T", "day overall": "0", "the day overall": "0", "the day": "0"}
+_SIG = re.compile(r"^\s*(?:--\s*|<?https?://\S+>?)\s*$")       # a signature starts: a "-- " line or a bare link
 
 
 def tcfg(cfg: dict) -> dict:
@@ -139,17 +143,88 @@ def _li(md: str) -> str:
     return mailer._inline(md, light=True)
 
 
-def build_email(root: Path, cfg: dict, day: str) -> dict:
-    """The whole edition, read in the email, with an "Add your take" button after each section (v0.2.5, Steven
-    2026-10-25: read, then type an observation after each main section). Mail clients strip real text boxes, so
-    each button opens a reply with the section's number filled in; several replies are merged."""
+def _sections(root: Path, cfg: dict, day: str) -> tuple:
+    """(cards, text lines): each section of the held edition as (slot, label, html body, text lines)."""
     from . import mailer
-    t = tcfg(cfg)
     sl = {s["slot"]: s for s in slots(root, day)}
     md_file = root / cfg.get("paths", {}).get("briefings", "briefings") / f"{day}.md"
-    b = mailer.parse(md_file.read_text("utf-8")) if md_file.exists() else {"brief": "", "top": [], "must": []}
-    base = ((cfg.get("publish") or {}).get("site_url") or "https://sgwoods.github.io/ai-briefing/").rstrip("/")
-    page = f"{base}/{day}/"
+    b = mailer.parse(md_file.read_text("utf-8")) if md_file.exists() else {"brief": "", "top": [], "must": [], "worth": []}
+    esc = htmllib.escape
+    P = 'style="margin:0 0 8px;font-size:15px;line-height:1.55;color:#111827"'
+    out = [("0", "The day overall", f'<p {P}>{_li(b.get("brief", ""))}</p>', ["0: The day overall", "   " + mailer._strip_md(b.get("brief", ""))])]
+    if b.get("top"):
+        lis = "".join(f'<li style="margin:0 0 6px;font-size:15px;line-height:1.5">{_li(x)}</li>' for x in b["top"])
+        out.append(("T", "Top of mind", f'<ul style="margin:6px 0 0;padding-left:20px">{lis}</ul>',
+                    ["T: Top of mind"] + [f"   - {mailer._strip_md(x)}" for x in b["top"]]))
+    for n, s in enumerate(b.get("must", []), 1):
+        slot = str(n)
+        if slot not in sl:
+            continue
+        rows = [f'<div style="font-size:17px;font-weight:600;margin:4px 0 6px">{esc(s["headline"])}</div>']
+        for label, key in (("What happened", "what"), ("In today's deep dive", "deep"), ("Evidence check", "crit"),
+                           (s.get("editor_label") or "Our read", "editor"), ("For early-stage", "early"),
+                           (s.get("other_label") or "", "other")):
+            if s.get(key):
+                rows.append(f'<p {P}><span style="color:#6b7280">{esc(label)}:</span> {_li(s[key])}</p>')
+        if s.get("url"):
+            rows.append(f'<p style="margin:0;font-size:13px"><a href="{esc(s["url"])}">Source</a></p>')
+        out.append((slot, "Must read", "".join(rows), [f"{slot}: {s['headline']}", "   " + mailer._strip_md(s.get("what", ""))]))
+    if b.get("worth") and "W" in sl:
+        lis = "".join(f'<li style="margin:0 0 6px;font-size:15px;line-height:1.5">{_li(x)}</li>' for x in b["worth"])
+        out.append(("W", "Worth knowing", f'<ul style="margin:6px 0 0;padding-left:20px">{lis}</ul>',
+                    ["W: Worth knowing"] + [f"   - {mailer._strip_md(x)}" for x in b["worth"]]))
+    return out
+
+
+CARD = 'style="padding:16px 18px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin:0 0 12px"'
+HEAD = 'style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280"'
+SCRIPT_MARK = "__SCRIPT__"          # the mail script's own URL (filled when it sends or serves the page)
+PAGE_TOKEN = "__T__"                # the token of the person opening the review page (filled when it is served)
+
+
+def review_page(root: Path, cfg: dict, day: str) -> str:
+    """The held edition with a box after each section and one Submit, served privately by the mail script (owner
+    token only) before anything is published (Steven 2026-10-26: the site page doesn't exist until the cutoff).
+    A plain form, no script: the boxes post as s_<slot> fields."""
+    from . import mailer
+    esc = htmllib.escape
+    cards = []
+    for slot, label, body, _ in _sections(root, cfg, day):
+        cards.append(f'<div {CARD}><div {HEAD}>{esc(slot)} · {esc(label)}</div>{mailer.defuse(body)}'
+                     f'<label style="display:block;margin:10px 0 4px;font-size:13px;color:#6b7280">Your take ({esc(slot)})</label>'
+                     f'<textarea name="s_{esc(slot)}" rows="3" style="width:100%;box-sizing:border-box;font:inherit;'
+                     f'font-size:15px;padding:8px;border:1px solid #cbd5e1;border-radius:8px"></textarea></div>')
+    return (f'<div style="background:#f3f4f6;min-height:100%;padding:16px 10px;font-family:-apple-system,Segoe UI,'
+            f'Helvetica,Arial,sans-serif"><div style="max-width:660px;margin:0 auto">'
+            f'<h1 style="font-size:20px;margin:0 0 6px;color:#111827">Your takes · {esc(day)}</h1>'
+            f'<p style="margin:0 0 12px;color:#374151;font-size:14px">Private: the held edition, before it is published. '
+            f'Type after any section, then Submit once. It goes out at {esc(tcfg(cfg)["cutoff"])}, or now if you tick '
+            f'Done.</p><form method="post" action="{SCRIPT_MARK}" target="_top">'
+            f'<input type="hidden" name="action" value="takes"><input type="hidden" name="t" value="{PAGE_TOKEN}">'
+            f'<input type="hidden" name="d" value="{esc(day)}">{"".join(cards)}'
+            f'<div style="position:sticky;bottom:0;padding:12px;background:#111827;border-radius:12px">'
+            f'<label style="color:#fff;font-size:14px;margin-right:12px"><input type="checkbox" name="done" value="1"> '
+            f'Done: send the edition now</label><button type="submit" style="padding:8px 16px;border-radius:999px;'
+            f'border:0;background:#2563eb;color:#fff;font-size:15px">Submit my takes</button></div></form></div></div>')
+
+
+def upload_review(root: Path, cfg: dict, day: str) -> bool:
+    """Put today's review page on the mail script (key-authenticated); False if that fails (the email still goes)."""
+    from . import mailer
+    html = review_page(root, cfg, day).replace(SCRIPT_MARK, "{{SCRIPT}}").replace(PAGE_TOKEN, "{{T}}")
+    try:
+        return bool(mailer.call(cfg, "setreview", d=day, html=html).get("ok"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def build_email(root: Path, cfg: dict, day: str, review: bool = True, drive: str = "") -> dict:
+    """The whole edition, read in the email, with an "Add your take" button after each section (v0.2.5, Steven
+    2026-10-25: read, then type an observation after each main section), and a link to the private review page
+    (a box per section, one Submit) that the mail script serves before the edition is published. Mail clients strip
+    real text boxes, so each button opens a reply with the section's number filled in; several replies are merged."""
+    from . import mailer
+    t = tcfg(cfg)
     esc = htmllib.escape
     intro = (f"Today's edition is written and held until {t['cutoff']} for your takes. Read each section, then tap "
              f"\"Add your take\": a reply opens with the section number filled in. Type and send; send as many as you "
@@ -159,59 +234,42 @@ def build_email(root: Path, cfg: dict, day: str) -> dict:
     btn = lambda slot: (f'<p style="margin:10px 0 0"><a href="{esc(_reply_link(cfg, day, slot), quote=True)}" '  # noqa: E731
                         f'style="display:inline-block;padding:8px 14px;border-radius:999px;background:#2563eb;color:#fff;'
                         f'text-decoration:none;font-size:14px">✍ Add your take on this ({esc(slot)})</a></p>')
-    card = 'style="padding:16px 18px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin:0 0 12px"'
     P = 'style="margin:0 0 8px;font-size:15px;line-height:1.55;color:#111827"'
-    H = [f'<div style="max-width:660px;margin:0 auto;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">',
-         f'<p {P}>{esc(intro)}</p>'
-         f'<p {P}><a href="{esc(page)}?v={day}#takes=__OWNERT__" style="display:inline-block;padding:8px 14px;'
-         f'border-radius:999px;background:#111827;color:#fff;text-decoration:none">✍ Read and comment on the site'
-         f'</a> &nbsp; one box after each section, one Submit (your private link, valid two days).</p>'
-         f'<p {P}><a href="{esc(page)}">Read today\'s page as readers will see it</a>.</p>']
-    L = [subject(day), "", intro, "", f"Read and comment on the site (private link): {page}?v={day}#takes=__OWNERT__",
-         f"Today's page: {page}", ""]
-    H.append(f'<div {card}><div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">'
-             f'0 · The day overall</div><p {P}>{_li(b.get("brief", ""))}</p>{btn("0")}</div>')
-    L += ["0: The day overall", "   " + mailer._strip_md(b.get("brief", "")), ""]
-    if b.get("top"):
-        lis = "".join(f'<li style="margin:0 0 6px;font-size:15px;line-height:1.5">{_li(x)}</li>' for x in b["top"])
-        H.append(f'<div {card}><div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">'
-                 f'T · Top of mind</div><ul style="margin:6px 0 0;padding-left:20px">{lis}</ul>{btn("T")}</div>')
-        L += ["T: Top of mind"] + [f"   - {mailer._strip_md(x)}" for x in b["top"]] + [""]
-    for n, s in enumerate(b.get("must", []), 1):
-        slot = str(n)
-        if slot not in sl:
-            continue
-        rows = [f'<div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">{esc(slot)} · '
-                f'Must read</div><div style="font-size:17px;font-weight:600;margin:4px 0 6px">{esc(s["headline"])}</div>']
-        for label, key in (("What happened", "what"), ("In today's deep dive", "deep"), ("Evidence check", "crit"),
-                           (s.get("editor_label") or "Our read", "editor"), ("For early-stage", "early"),
-                           (s.get("other_label") or "", "other")):
-            if s.get(key):
-                rows.append(f'<p {P}><span style="color:#6b7280">{esc(label)}:</span> {_li(s[key])}</p>')
-        if s.get("url"):
-            rows.append(f'<p style="margin:0;font-size:13px"><a href="{esc(s["url"])}">Source</a></p>')
-        H.append(f'<div {card}>{"".join(rows)}{btn(slot)}</div>')
-        L += [f"{slot}: {s['headline']}", "   " + mailer._strip_md(s.get("what", "")), ""]
-    if b.get("worth") and "W" in sl:
-        lis = "".join(f'<li style="margin:0 0 6px;font-size:15px;line-height:1.5">{_li(x)}</li>' for x in b["worth"])
-        H.append(f'<div {card}><div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280">'
-                 f'W · Worth knowing</div><ul style="margin:6px 0 0;padding-left:20px">{lis}</ul>{btn("W")}</div>')
-        L += ["W: Worth knowing"] + [f"   - {mailer._strip_md(x)}" for x in b["worth"]] + [""]
+    review_url = f"{SCRIPT_MARK}?action=review&d={day}&t={TOKEN_MARK}"
+    H = ['<div style="max-width:660px;margin:0 auto;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">',
+         f'<p {P}>{esc(intro)}</p>']
+    L = [subject(day), "", intro, ""]
+    if review:
+        H.append(f'<p {P}><a href="{review_url}" style="display:inline-block;padding:8px 14px;border-radius:999px;'
+                 f'background:#111827;color:#fff;text-decoration:none">✍ Type your takes on one page</a> &nbsp; the '
+                 f'held edition with a box after each section and one Submit (your private link, valid two days).</p>')
+        L += [f"Type your takes on one page (private link): {review_url}", ""]
+    if drive:                                    # the same held edition as a Google Doc (Briefings folder)
+        H.append(f'<p {P}><a href="{esc(drive, quote=True)}">Read it in Google Docs</a> (the Briefings folder in Drive).</p>')
+        L += [f"Read it in Google Docs: {drive}", ""]
+    for slot, label, body, text in _sections(root, cfg, day):
+        H.append(f'<div {CARD}><div {HEAD}>{esc(slot)} · {esc(label)}</div>{body}{btn(slot)}</div>')
+        L += text + [""]
     H.append('<p style="color:#6b7280;font-size:13px">Or reply to this email with one take per line: "1: ...", '
              '"T: ...", "0: ...", then "done".</p></div>')
     L += ["Reply with one take per line, e.g.:", "1: The margin story matters more than the headline.", "done"]
     return {"subject": subject(day), "text": "\n".join(L), "html": "".join(H)}
 
 
+def _fill(s: str) -> str:
+    """Defuse the content, then add only the template's own placeholders (filled by the mail script per recipient)."""
+    from . import mailer
+    return mailer.defuse(s).replace(TOKEN_MARK, "{{OWNERT}}").replace(SCRIPT_MARK, "{{SCRIPT}}")
+
+
 def send_test(root: Path, cfg: dict, day: str) -> str:
     """The takes email for DAY to the owner, marked [TEST], without touching the day's state (run queue: takes-test)."""
     from . import mailer
-    m = build_email(root, cfg, day)
     to = mailer.ecfg(cfg).get("test_to")
     if not to:
         return "takes test skipped: email.test_to is not set"
-    fill = lambda s: mailer.defuse(s).replace(TOKEN_MARK, "{{OWNERT}}")  # noqa: E731
-    mailer.call(cfg, "send", subject=m["subject"] + " [TEST]", html=fill(m["html"]), text=fill(m["text"]), to=to)
+    m = build_email(root, cfg, day, review=upload_review(root, cfg, day))
+    mailer.call(cfg, "send", subject=m["subject"] + " [TEST]", html=_fill(m["html"]), text=_fill(m["text"]), to=to)
     return f"test takes email for {day} sent to the owner"
 
 
@@ -240,18 +298,17 @@ def apply_day(root: Path, cfg: dict, day: str, log=print) -> dict:
     return st
 
 
-def send_email(root: Path, cfg: dict, day: str, log=print) -> str:
+def send_email(root: Path, cfg: dict, day: str, log=print, drive: str = "") -> str:
     st = state(root, day)
     if st.get("emailed_at"):
         return f"takes email already sent at {st['emailed_at'][11:16]}"
     from . import mailer
-    m = build_email(root, cfg, day)
     to = mailer.ecfg(cfg).get("test_to")
     if not to:
         return "takes email skipped: email.test_to (the owner's address) is not set"
-    # content is defused (no placeholder can come from a story); only this template adds the takes token
-    fill = lambda s: mailer.defuse(s).replace(TOKEN_MARK, "{{OWNERT}}")  # noqa: E731
-    r = mailer.call(cfg, "send", subject=m["subject"], html=fill(m["html"]), text=fill(m["text"]), to=to)
+    m = build_email(root, cfg, day, review=upload_review(root, cfg, day), drive=drive)
+    # content is defused (no placeholder can come from a story); only this template adds the token and script URL
+    r = mailer.call(cfg, "send", subject=m["subject"], html=_fill(m["html"]), text=_fill(m["text"]), to=to)
     st["emailed_at"] = dt.datetime.now().isoformat(timespec="seconds")
     _save_state(root, day, st)
     return "takes email sent to the owner" + ("" if (r or {}).get("ok", True) else f" (mailer: {r})")
@@ -274,15 +331,23 @@ def parse(text: str) -> dict:
             skip = True
             cur = None
             continue
+        if _SIG.match(ln) and ln.strip():
+            cur = None                           # signature or a pasted bare link: not part of the take
+            continue
         m = _SLOT.match(ln)
         if m:
             cur = m.group(1).upper()
             takes[cur] = (m.group(2) or "").strip()
             continue
+        n = _NAMED.match(ln)
+        if n:
+            cur = n.group(2) or _NAMES[re.sub(r"\s+", " ", n.group(1).lower())]
+            takes[cur] = (n.group(3) or "").strip()
+            continue
         if cur and ln.strip():
             takes[cur] = (takes[cur] + " " + ln.strip()).strip()
-        elif not ln.strip():
-            cur = None
+        elif not ln.strip() and not (cur and not takes.get(cur)):
+            cur = None                           # a blank line ends a take (but not between a header and its text)
     return {"takes": {k: tidy(v) for k, v in takes.items() if tidy(v)}, "done": done, "skip": skip}
 
 

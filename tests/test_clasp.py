@@ -96,7 +96,7 @@ class Jobs(unittest.TestCase):
         from pipeline import site
         self.assertIn('addEventListener("hashchange", start)', site.TAKES_JS)
         src = Path(takes.__file__).read_text("utf-8")
-        self.assertIn("?v={day}#takes=__OWNERT__", src)
+        self.assertIn("?action=review&d={day}&t={TOKEN_MARK}", src)       # private review page (2026-10-26)
 
 
 if __name__ == "__main__":

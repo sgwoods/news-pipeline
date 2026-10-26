@@ -60,6 +60,7 @@ RECIPES = {
     "takes-done": {"tier": "chat", "args": {}, "steps": [("prod", ["takes", "done"])]},
     "takes-test": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["takes", "test", "{day}"])]},
     "takes-check": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["takes", "check", "{day}"])]},
+    "drive-save": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["drive", "save", "{day}"])]},
     "takes-apply": {"tier": "chat", "args": {"day": "day"},
                     "steps": [("prod", ["takes", "apply", "{day}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "send-held": {"tier": "chat", "args": {}, "steps": [("prod", ["daily"]), ("local", ["verify"])]},

@@ -32,41 +32,59 @@ def build(root: Path, cfg: dict, day: str, new_mentions: list | None = None) -> 
         H.append(f'<h3 style="margin:18px 0 6px;font-size:15px">{htmllib.escape(title)}</h3>')
 
     page = "{{SCRIPT}}?action=queue&t={{OWNER}}"       # filled in by the mail script, for Steven's address only
+    from urllib.parse import quote
+    LABELS = {"next": "Make this next", "up": "↑ Move up", "down": "↓ Move down", "queue": "＋ Add to Up next",
+              "take": "✍ Add your take", "dismiss": "✕ Dismiss", "suggest": "Suggest as a deep dive"}
 
-    def item(text, sub="", pick=""):
-        link = f"{page}&pick={pick}" if pick else ""
-        L.append(f"- {text}" + (f"\n  {sub}" if sub else "") + (f"\n  Make this next: {link}" if link else ""))
-        H.append(f'<p style="margin:0 0 8px"><b>{htmllib.escape(text)}</b>'
+    def link(op, qid="", topic=""):
+        return page + (f"&pick={qid}" if qid else "") + f"&op={op}" + (f"&topic={quote(topic[:200])}" if topic else "")
+
+    def item(text, sub="", ops=(), qid="", take="", topic=""):
+        """Every topic gets its own buttons: each opens the queue page with that one change ready (one tap)."""
+        links = [(LABELS[o], link(o, qid, topic)) for o in ops]
+        L.append(f"- {text}" + (f"\n  {sub}" if sub else "") + (f"\n  Your take: {take}" if take else "")
+                 + "".join(f"\n  {lab}: {u}" for lab, u in links))
+        btns = "".join(f'<a href="{htmllib.escape(u)}" style="display:inline-block;margin:4px 6px 0 0;padding:5px 12px;'
+                       f'border-radius:999px;background:{"#0b6b46" if o in ("next", "take") else "#374151"};color:#fff;'
+                       f'text-decoration:none;font-size:13px">{htmllib.escape(lab)}</a>'
+                       for o, (lab, u) in zip(ops, links))
+        H.append(f'<p style="margin:0 0 10px"><b>{htmllib.escape(text)}</b>'
                  + (f'<br><span style="color:#555">{htmllib.escape(sub)}</span>' if sub else "")
-                 + (f'<br><a href="{htmllib.escape(link)}" style="display:inline-block;margin-top:4px;padding:5px 12px;'
-                    f'border-radius:999px;background:#0b6b46;color:#fff;text-decoration:none;font-size:13px">'
-                    f'Make this next</a>' if link else "") + "</p>")
+                 + (f'<br><span style="color:#0b6b46">Your take: {htmllib.escape(take)}</span>' if take else "")
+                 + (f"<br>{btns}" if btns else "") + "</p>")
 
     nxt = up[0] if up else None
     sec("Tomorrow's deep dive")
     if nxt:
-        item(nxt["topic"], nxt.get("why_today") or nxt.get("angle", ""))
+        item(nxt["topic"], nxt.get("why_today") or nxt.get("angle", ""),
+             ("take", "down", "dismiss") if len(up) > 1 else ("take", "dismiss"), nxt["id"], nxt.get("take", ""))
         if nxt.get("auto"):
-            L.append("  (Claude's pick: nothing was queued. Change it on the Deep dives page.)")
-            H.append('<p style="margin:0 0 8px;color:#555">Claude\'s pick: nothing was queued. Change it on the Deep dives page.</p>')
+            L.append("  (Claude's pick: nothing was queued. Change it below or on the queue page.)")
+            H.append('<p style="margin:0 0 8px;color:#555">Claude\'s pick: nothing was queued. Change it below or on the queue page.</p>')
+        H.append('<p style="margin:0 0 8px;color:#555;font-size:13px">Your take is read verbatim as "Steven\'s take" at the '
+                 'end of the deep dive (site and podcast), after the same privacy check as your morning takes.</p>')
     else:
         item("Nothing queued yet", "Tomorrow's run picks the best of the morning's suggestions.")
     if len(up) > 1:
         sec("Then")
-        for x in up[1:5]:
-            item(x["topic"], pick=x["id"])
+        for n, x in enumerate(up[1:8], 1):
+            ops = ("next",) + (("up",) if n > 1 else ()) + (("down",) if n < len(up) - 1 else ()) + ("take", "dismiss")
+            item(x["topic"], x.get("why_today", ""), ops, x["id"], x.get("take", ""))
     if sugg:
         sec("New suggestions today")
         for x in sugg:
-            item(f"{x['topic']} (strength {x.get('strength', '?')})", x.get("why_today", ""), pick=x["id"])
+            item(f"{x['topic']} (strength {x.get('strength', '?')})", x.get("why_today", ""),
+                 ("next", "queue", "take", "dismiss"), x["id"], x.get("take", ""))
     if today_dd:
         sec("Today's deep dive")
-        item(today_dd.get("title") or (today_dd.get("pick") or {}).get("topic") or "none",
-             f"{today_dd.get('status')}" + (f": {today_dd.get('reason')}" if today_dd.get("reason") else ""))
+        t = today_dd.get("title") or (today_dd.get("pick") or {}).get("topic") or "none"
+        item(t, f"{today_dd.get('status')}" + (f": {today_dd.get('reason')}" if today_dd.get("reason") else ""),
+             ("suggest",), topic=f"Follow-up: {t}" if t != "none" else "")
     if new_mentions:
         sec("Watchlist: new mentions")
         for m in new_mentions[:12]:
-            item(f"{m['company']}: {m['title'] or m['url']}", f"{m['source']} · {m.get('via', '')} · {m['url']}")
+            item(f"{m['company']}: {m['title'] or m['url']}", f"{m['source']} · {m.get('via', '')} · {m['url']}",
+                 ("suggest",), topic=f"{m['company']}: {m['title'] or ''}".strip(": "))
     L.append(f"\nReorder, dismiss or suggest topics (from any device): {page}")
     L.append(f"On your Mac: {dash}/deep-dives · Watchlist: {dash}/watchlist")
     H.append(f'<p style="margin:16px 0 0"><a href="{htmllib.escape(page)}" style="display:inline-block;padding:9px 16px;'
