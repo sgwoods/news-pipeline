@@ -6,6 +6,25 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.17-beta · 2026-10-27
+- **Hear what was published** (Steven, 10-27): after the email, the day's episode is downloaded from the public feed,
+  transcribed locally (Whisper, free) and compared with its script. A missing or garbled section (like 10-27's
+  intro) sends one action-needed email. The as-published transcript is published with the next publish (WebVTT,
+  `podcast:transcript` in the feed, a link on the day's page). `./np listen [DAY]`; run queue `listen`; `setup`
+  (chat tier) installs the new requirement (mlx-whisper, Apple silicon).
+- **The deep dives as their own podcast:** `deepdive.xml`, "AI Briefing: Deep Dive", with its own cover. The daily
+  show still flows from the briefing into the deep dive. The deep-dive feed is promoted on the site (Deep dives
+  section, each deep-dive page, the footer) and in the email ("▶ Listen to the deep dive", "subscribe to the deep
+  dives").
+
+## v0.2.16-beta · 2026-10-27
+- **Podcast brand matches the newsletter** (Steven, 10-27): new 3000×3000 cover in the teal of his photo, with his
+  photo, "AI Briefing", the tagline and "Curated by Steven Woods". Podcast apps pick up new artwork on their own
+  schedule (Apple can take a few days).
+- **The show is named in the first seconds** (Steven, 10-27: "the audio today has no introduction"): the cold open
+  now starts "On today's AI Briefing." Each recording also gets a `.sections.json` with every section's length, so
+  a section that comes out silent or clipped is visible.
+
 ## v0.2.15-beta · 2026-10-27
 - Fix (mail script): rewriting a Drive doc that ends with a list (Steven's takes) failed in clear(); an empty
   paragraph is added first (10-27). Needs a mail-script deploy (the next ship does it).

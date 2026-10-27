@@ -584,6 +584,16 @@ def render_mp3(engine, parts: list, out_mp3: Path, title: str = "", bitrate: str
                         "-ac", "1", "-b:a", bitrate, "-metadata", f"title={title}", "-metadata", "artist=AI Briefing",
                         str(out_mp3)], check=True)
         frames = sum(wave.open(str(f)).getnframes() for f in files)
+        try:                                     # per-section seconds and words: a section that came out silent or
+            import json as _json                 # clipped shows (10-27: "the audio has no introduction")
+            secs = [{"part": n, "words": len(t.split()),
+                     "seconds": round(wave.open(str(td / f"{i:02d}.wav")).getnframes() / 24000, 1)}
+                    for i, (n, t) in enumerate(parts)]
+            for x in secs:
+                x["short"] = x["words"] >= 20 and x["seconds"] < x["words"] / 4.5    # < ~40% of normal speed
+            out_mp3.with_suffix(".sections.json").write_text(_json.dumps(secs, indent=1) + "\n", "utf-8")
+        except Exception:  # noqa: BLE001 - a check, never a failure
+            pass
     return frames / 24000 / 60
 
 

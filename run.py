@@ -829,8 +829,8 @@ def make_audio(run, cfg: dict, day: str, experiment=None) -> None:
                 run.log.warning("script: removed private name(s): %s", ", ".join(sorted(set(scrubbed))))
             if acfg.get("cold_open", True) and not experiment:
                 cold = audio.cold_open(md)
-                if cold:
-                    parts.insert(0, ("Cold open", cold))
+                if cold:                                 # the show is named in the first seconds (Steven, 10-27)
+                    parts.insert(0, ("Cold open", f"On today's AI Briefing. {cold}"))
             title = audio.parse_briefing(md)["title"]
             voice = f"{eng.name}:{getattr(eng, 'voice', '')}"
             script = audio.script_markdown(title, parts, {"script_model": backend.label, "voice": voice})
@@ -1351,6 +1351,31 @@ def cmd_critic(cfg: dict, argv: list) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"Critic: {e}")
         return 1
+
+
+def cmd_listen(cfg: dict, argv: list) -> int:
+    """./np listen [DAY]: transcribe DAY's episode from the public podcast feed and compare it with its script."""
+    day = next((a for a in argv if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)), dt.date.today().isoformat())
+    return 0 if _listen_check(cfg, day, alert=False).get("ok") else 1
+
+
+def _listen_check(cfg: dict, day: str, alert: bool = True) -> dict:
+    """The as-published check (pipeline/listen.py). Never fails the run; one alert when a section is missing."""
+    try:
+        from pipeline import listen
+        res = listen.check(ROOT, cfg, day, log=print)
+    except ImportError:
+        print("listen check skipped: mlx-whisper isn't installed (run-queue job setup installs it)")
+        return {}
+    except Exception as e:  # noqa: BLE001
+        print(f"listen check skipped: {type(e).__name__}: {e}"[:200])
+        return {}
+    if res.get("missing") and alert:
+        _alert(cfg, "audio", day=day, detail="Not heard (coverage of the section's words): " + "; ".join(
+            f"{r['section']} {int(r['coverage'] * 100)}%" for r in res["sections"] if r["flag"]))
+    if cfg.get("archive", {}).get("git_commit", True):
+        print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"listen check {day}", paths=("data/transcripts",)))
+    return res
 
 
 def cmd_drive(cfg: dict, argv: list) -> int:
@@ -2526,6 +2551,8 @@ def cmd_daily(cfg: dict) -> int:
         print("Emailing subscribers...")
         if cmd_email(cfg, ["send", today]) and not gate_blocked:
             _alert(cfg, "email", detail="See logs/last-command.txt for the error.", next_try=_next_try(cfg))
+    if w.get("status") == "ok" and published and not gate_blocked and (cfg.get("audio") or {}).get("listen_check", True):
+        _listen_check(cfg, today)                # hear what was published: the as-published transcript (v0.2.17)
     try:
         from pipeline import record
         if record.search_due(ROOT, cfg):
@@ -2717,6 +2744,7 @@ def main() -> int:
     ap.add_argument("--due", metavar="KIND", help="daily|preflight: exit 0 if a scheduled time just passed (local clock)")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
     ap.add_argument("--runner", nargs="*", metavar="ARG", help="status | tick | approve ID | reject ID | install | remove")
+    ap.add_argument("--listen", nargs="*", metavar="ARG", help="[DAY]: transcribe the published episode and check it")
     ap.add_argument("--drive", nargs="*", metavar="ARG", help="save [DAY] [draft]: the edition and deep dive as Google Docs")
     ap.add_argument("--mailer", nargs="*", metavar="ARG", help="status | setup SCRIPT_ID | deploy: the mail script via clasp")
     ap.add_argument("--critic", nargs="*", metavar="ARG", help="preview | email | list [DATE]: the weekly critic")
@@ -2804,6 +2832,8 @@ def main() -> int:
         return cmd_mailer(cfg, args.mailer)
     if args.drive is not None:
         return cmd_drive(cfg, args.drive)
+    if args.listen is not None:
+        return cmd_listen(cfg, args.listen)
     if args.runner is not None:
         return cmd_runner(cfg, args.runner)
     if args.preflight:

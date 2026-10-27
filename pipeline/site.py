@@ -351,7 +351,8 @@ def _page(title: str, body: str, rel: str = "", cfg: dict | None = None, bare: b
             f'from public sources (every claim links to its source); "Steven\'s take" is personal opinion. '
             + (f'<a href="{rel}index.html#email">Subscribe by email</a> · ' if _script_url(cfg or {}) else "")
             + f'<a href="{rel}index.html#listen">Add the podcast</a> · '
-            f'<a href="{rel}feed.xml">RSS</a> · <a href="{rel}podcast.xml">Podcast feed</a>'
+            f'<a href="{rel}feed.xml">RSS</a> · <a href="{rel}podcast.xml">Podcast feed</a> · '
+            f'<a href="{rel}{DD_FEED}">Deep-dive feed</a>'
             + _version_links(rel, cfg or {}, sc) + '</footer></body></html>')
 
 
@@ -441,6 +442,10 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
             n_audio += 1
             built_keys.append(day)
             ep = {"day": day, "title": title, "md": md, "mp3": mp3, "file": afile, "guid": guid(root, day)}
+            tvtt = root / "data" / "transcripts" / f"{day}.vtt"     # as-published transcript (pipeline/listen.py)
+            if tvtt.exists():
+                shutil.copy2(tvtt, out / "audio" / f"{day}.vtt")
+                ep["vtt"] = f"{day}.vtt"
             full = bdir / f"{day}.podcast.mp3"          # briefing + hand-off + deep dive in one episode
             if full.is_file() and day in dive_by_day:
                 ffile = afile.replace(".mp3", "-full.mp3")
@@ -450,6 +455,8 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
                 play_file = ffile
             episodes.append(ep)
         audio_tag = f'<audio id="mp3" controls preload="none" src="../audio/{play_file}" hidden></audio>' if has_audio else ""
+        if has_audio and (out / "audio" / f"{day}.vtt").exists():
+            audio_tag += f'<p class="small muted"><a href="../audio/{day}.vtt">Transcript of the episode as published</a></p>'
         bar = ('<div class="bar"><button id="read" class="on" type="button">Read</button>'
                '<button id="listen" type="button">Listen</button><span id="ctl" hidden>'
                '<button id="play" type="button">▶ Play</button> <button id="stop" type="button">■ Stop</button> '
@@ -518,7 +525,8 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
                     + _share_box(dd_url, e["title"], "../../", cfg, "this deep dive"))
             (out / e["day"] / "deep-dive" / "index.html").write_text(
                 _page(e["title"], body +
-                      f'<p><a href="../index.html">That day\'s briefing</a> · <a href="../../index.html#deep-dives">All deep dives</a></p>', "../../", cfg), "utf-8")
+                      f'<p><a href="../index.html">That day\'s briefing</a> · <a href="../../index.html#deep-dives">All deep dives</a>'
+                      f' · <a href="../../{DD_FEED}">🎧 Subscribe to the deep dives</a></p>', "../../", cfg), "utf-8")
             day_page = out / e["day"] / "index.html"
             if day_page.exists():
                 html = day_page.read_text("utf-8")
@@ -535,6 +543,11 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
     podcast_url = ""
     if episodes:
         podcast_url = "" if _is_staging() else build_podcast(root, cfg, out, episodes, base_url)
+    dd_eps = [{**x, "type": "full", "guid": x.get("guid", "").replace("ai-briefing-", "ai-briefing-dd-", 1)}
+              for x in dives if x.get("audio")]
+    if dd_eps and not _is_staging():                 # the deep dives as their own podcast (v0.2.17)
+        build_podcast(root, cfg, out, dd_eps, base_url, feed=DD_FEED, title=DD_TITLE, desc=DD_DESC,
+                      cover="deepdive-cover.png")
     (out / "index.html").write_text(_page(cfg.get("podcast", {}).get("title", "AI Briefing"),
                                           landing(cfg, latest, rows, podcast_url, bool(episodes), base_url, dives),
                                           cfg=cfg, bare=True), "utf-8")
@@ -608,7 +621,10 @@ def landing(cfg: dict, latest, rows: list, podcast_url: str, has_podcast: bool, 
                          + f'<a class="button ghost" href="{d["day"]}/index.html">That day\'s briefing</a></div></div>')
         H.append('<section class="panel" id="deep-dives"><h2>Deep dives</h2>'
                  '<p>About ten minutes on the one thing worth understanding properly that day: a breakthrough, a '
-                 'controversy, a shift in the trajectory. Each one follows that morning\'s briefing in the podcast feed.</p>'
+                 'controversy, a shift in the trajectory. Each one follows that morning\'s briefing in the podcast feed, '
+                 'and they also have a podcast of their own.</p>'
+                 f'<div class="actions" style="margin:0 0 12px"><a class="button primary" href="{DD_FEED}">'
+                 '🎧 Subscribe to the deep dives</a><a class="button" href="podcast.xml">The daily show (briefing + deep dive)</a></div>'
                  f'<div class="grid">{"".join(cards)}</div></section>')
     links = "".join(f'<a class="button" href="{e(u)}" rel="noopener">{e(t)}</a>' for t, u in sc["links"])
     H.append('<section class="grid" style="margin-top:22px">'
@@ -671,16 +687,27 @@ def _show_notes(md: str) -> str:
     return _md_to_html("\n\n".join(keep))
 
 
-def build_podcast(root: Path, cfg: dict, out: Path, episodes: list, base_url: str) -> str:
-    """podcast.xml: an RSS feed podcast apps understand (iTunes tags, artwork, durations, show notes)."""
+DD_FEED = "deepdive.xml"
+DD_TITLE = "AI Briefing: Deep Dive"
+DD_DESC = ("The AI Briefing's deep dive on its own: about ten minutes on the one thing worth understanding properly "
+           "that day (a breakthrough, a controversy, a shift in the trajectory), for early-stage investors. Written "
+           "and read by AI from public sources, curated by Steven Woods; every claim links to its source.")
+
+
+def build_podcast(root: Path, cfg: dict, out: Path, episodes: list, base_url: str, feed: str = "podcast.xml",
+                  title: str = "", desc: str = "", cover: str = "podcast-cover.png") -> str:
+    """An RSS feed podcast apps understand (iTunes tags, artwork, durations, show notes, as-published transcripts).
+    podcast.xml is the daily show; deepdive.xml (v0.2.17) is the deep dives on their own."""
     pc = cfg.get("podcast", {})
     base = base_url.rstrip("/")
-    cover_src = root / "assets" / "podcast-cover.png"
+    cover_src = root / "assets" / cover
+    if not cover_src.exists():
+        cover, cover_src = "podcast-cover.png", root / "assets" / "podcast-cover.png"
     if cover_src.exists():
-        shutil.copy2(cover_src, out / "podcast-cover.png")
-    title = pc.get("title", "AI Briefing")
+        shutil.copy2(cover_src, out / cover)
+    title = title or pc.get("title", "AI Briefing")
     author = pc.get("author", "Steven")
-    desc = pc.get("description", "A daily AI briefing for early-stage investors: what happened, a critical read "
+    desc = desc or pc.get("description", "A daily AI briefing for early-stage investors: what happened, a critical read "
                                  "of the claims, and what it means for diligence. Written and read by AI from public "
                                  "sources, curated by Steven Woods; every claim links to its source in the written briefing.")
     ai_note = "This episode is AI-generated: written and voiced by AI from public sources."
@@ -711,17 +738,19 @@ def build_podcast(root: Path, cfg: dict, out: Path, episodes: list, base_url: st
             f"<itunes:summary>{htmllib.escape(summary + ' ' + ai_note)}</itunes:summary>"
             f'<enclosure url="{base}/audio/{e.get("file") or e["day"] + ".mp3"}" length="{mp3.stat().st_size}" type="audio/mpeg"/>'
             + (f"<itunes:duration>{dur}</itunes:duration>" if dur else "")
+            + (f'<podcast:transcript url="{base}/audio/{e["vtt"]}" type="text/vtt"/>' if e.get("vtt") else "")
             + f"<itunes:episodeType>{e.get('type', 'full')}</itunes:episodeType><itunes:explicit>false</itunes:explicit></item>")
     xml = ('<?xml version="1.0" encoding="UTF-8"?>'
            '<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
-           'xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel>'
+           'xmlns:content="http://purl.org/rss/1.0/modules/content/" '
+           'xmlns:podcast="https://podcastindex.org/namespace/1.0"><channel>'
            f"<title>{htmllib.escape(title)}</title><link>{base}/</link><language>en</language>"
            f"<description>{htmllib.escape(desc)}</description><itunes:summary>{htmllib.escape(desc)}</itunes:summary>"
            f"<itunes:author>{htmllib.escape(author)}</itunes:author>"
-           f'<itunes:image href="{base}/podcast-cover.png"/><image><url>{base}/podcast-cover.png</url>'
+           f'<itunes:image href="{base}/{cover}"/><image><url>{base}/{cover}</url>'
            f"<title>{htmllib.escape(title)}</title><link>{base}/</link></image>"
            '<itunes:category text="Technology"/><itunes:category text="Business"><itunes:category text="Investing"/>'
            "</itunes:category><itunes:explicit>false</itunes:explicit><itunes:type>episodic</itunes:type>"
            + "".join(items) + "</channel></rss>")
-    (out / "podcast.xml").write_text(xml, "utf-8")
-    return f"{base}/podcast.xml"
+    (out / feed).write_text(xml, "utf-8")
+    return f"{base}/{feed}"

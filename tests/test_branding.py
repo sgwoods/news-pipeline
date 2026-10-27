@@ -37,6 +37,20 @@ class ShareLabels(unittest.TestCase):
                          "The New York Times")
 
 
+class PodcastBrand(unittest.TestCase):
+    def test_cover_is_the_teal_brand(self):
+        if (ROOT / "owner.yaml").exists():
+            import struct                                                    # no PIL on the Mac: read the PNG header
+            for name in ("podcast-cover.png", "deepdive-cover.png"):
+                head = (ROOT / "assets" / name).read_bytes()[:24]
+                self.assertEqual(head[:8], b"\x89PNG\r\n\x1a\n")
+                self.assertEqual(struct.unpack(">II", head[16:24]), (3000, 3000))   # Apple's maximum
+
+    def test_the_show_is_named_first(self):                               # Steven, 10-27: "no introduction"
+        self.assertIn('"Cold open", f"On today\'s AI Briefing. {cold}"', (ROOT / "run.py").read_text("utf-8"))
+        self.assertIn(".sections.json", (ROOT / "pipeline" / "audio.py").read_text("utf-8"))
+
+
 class DriveTidy(unittest.TestCase):
     def test_no_duplicate_why_today_and_no_flags(self):
         from pipeline import deepdive

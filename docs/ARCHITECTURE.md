@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.15-beta (2026-10-27)
+- **Release:** v0.2.17-beta (2026-10-27)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 66 in `pipeline/`
+- **Modules:** 67 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -245,6 +245,11 @@ queue.
   edition is built early and held until the cutoff (09:15) or the owner's "done"; retries at 09:30, 10:30 and
   12:00 send a held edition if the Mac was offline at the cutoff. An evening preflight checks
   that tomorrow's release is approved.
+- **Hearing what was published (v0.2.17):** after the email, the pipeline reads the public podcast feed, downloads
+  the day's episode, transcribes it locally with Whisper and compares it with the script it was voiced from
+  (`listen.py`). A section that wasn't heard (low coverage) sends one action-needed email. The transcript is kept
+  in `data/transcripts/` and published with the next publish: a WebVTT file next to the episode, a
+  `podcast:transcript` tag in the feed and a link on the day's page. `./np listen [DAY]` (run queue: `listen`).
 - **Copies in Drive (v0.2.11):** the edition and the deep dive are also written as Google Docs to the mailer
   account's `Briefings` folder in Drive, shared with the owner, so he (and Claude, through Drive) can read them
   anywhere and give feedback. At the pre-release takes email: `<day> · AI Briefing (draft, held for your takes) ·
@@ -288,6 +293,7 @@ _Generated from each module's own description at build time._
 | `hub.py` | AI Briefing on Steven's public project hub (sgwoods.github.io/public) |
 | `linkedin.py` | Steven's own LinkedIn posts, from LinkedIn's data export (and from Slack, when he shares one there). |
 | `links.py` | Make every citation point at the real article (runs in the write stage; never fails the briefing). |
+| `listen.py` | Listen to what was published (Steven, 2026-10-27) |
 | `llm.py` | LLM backends behind one tiny interface |
 | `mailer.py` | Daily email to subscribers, sent through Steven's Google Apps Script (scripts/apps-script/Code.gs). |
 | `mailguard.py` | The only way the pipeline talks to Gmail |

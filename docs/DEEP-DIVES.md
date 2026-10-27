@@ -29,6 +29,9 @@ at inference time), a change in the trajectory of the field, or a story that has
   (a deep dive made later by hand), the deep dive stays a separate bonus episode.
 - **Where it goes:** briefings/deepdives/<day>.md (show notes + sources), .script.md, .mp3. The podcast feed
   lists it as a bonus episode "Deep dive: <title>" right after that day's briefing; the day's page links to it.
+- **Its own podcast (v0.2.17):** the deep dives also have a feed of their own, `deepdive.xml` ("AI Briefing: Deep
+  Dive", with its own cover). The daily show keeps the deep dive after the briefing, through the host's hand-off.
+  The site's Deep dives section, each deep-dive page and the email link to the deep-dive feed.
 - **When:** planned during the morning run before the briefing audio (so the briefing hands off to it), written and voiced right after, then published and mentioned in the email.
 - **Picking from the evening note:** your private note (sent by the daily run after the subscriber email) gives every
   topic its own buttons: tomorrow's (Add your take, Move down, Dismiss), the rest of Up next (Make next, ↑, ↓, Add your

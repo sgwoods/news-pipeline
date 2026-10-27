@@ -38,6 +38,11 @@ KINDS = {
     "publish": ("The site and podcast were not published",
                 "The briefing was built but the publish step failed.",
                 ['cd {repo}', './np publish', 'if it fails again, tell Claude "ran ./np publish"']),
+    "audio": ("Part of today's podcast is missing or garbled",
+              "The as-published check transcribed today's episode from the public feed and compared it with its "
+              "script: a section was not heard (details below).",
+              ['Listen to the start of today\'s episode', 'tell Claude "the listen check failed" in the chat: it can '
+               're-voice the day from the same script']),
     "email": ("The subscriber email did not go out",
               "The briefing was built but sending the email failed.",
               ['cd {repo}', './np email send', 'if it fails again, tell Claude "ran ./np email send"']),

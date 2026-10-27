@@ -345,7 +345,10 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
                  + (f'<p {P}>{_inline(deep["summary"])}</p>' if deep.get("summary") else "")
                  + f'<p style="margin:0 0 10px;color:{C["muted"]};font-size:13px">About {deep.get("minutes") or 10} minutes, '
                    f'right after the briefing in your podcast feed, or read it on the site.</p>'
-                   + _btn(deep["url"] + "#read", "Read it") + _btn(deep["url"] + "#listen", "Listen", False) + "</td></tr>")
+                   + _btn(deep["url"] + "#listen", "▶ Listen to the deep dive") + _btn(deep["url"] + "#read", "Read it", False)
+                   + f'<p style="margin:10px 0 0;font-size:13px;color:{C["muted"]}">The deep dives are also a podcast of '
+                     f'their own: <a href="{base}/deepdive.xml" style="color:{C["link"]}">subscribe to the deep dives</a>.</p>'
+                   + "</td></tr>")
     if b.get("reading"):
         rr = b["reading"]
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Recommended reading")}'
@@ -400,7 +403,8 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
                      + ["", "MUST READ"] + [x for n, s in enumerate(b["must"], 1)
                                             for x in [f"{n}. {s['headline']} ({s['who']})\n   {_strip_md(s['what'])}"]
                                             + (tk_line(item_id(s["url"])) if s.get("url") else [])]
-                     + ([ "", f"TODAY'S DEEP DIVE: {deep['title']}", deep.get("summary", ""), deep["url"]] if deep else [])
+                     + ([ "", f"TODAY'S DEEP DIVE: {deep['title']}", deep.get("summary", ""), deep["url"],
+                          f"The deep dives as their own podcast: {base}/deepdive.xml"] if deep else [])
                      + ([ "", "RECOMMENDED READING", f"{b['reading']['title']} ({b['reading']['who']})", b["reading"]["url"],
                           f"Why it matters: {b['reading']['why']}"] if b.get("reading") else [])
                      + ["", f"Full briefing: {page}", f"Podcast feed: {feed}", "",

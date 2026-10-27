@@ -64,6 +64,8 @@ RECIPES = {
     "takes-test": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["takes", "test", "{day}"])]},
     "takes-check": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["takes", "check", "{day}"])]},
     "drive-save": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["drive", "save", "{day}"])]},
+    "listen": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["listen", "{day}"])]},
+    "setup": {"tier": "chat", "args": {}, "steps": [("prod", ["setup"])]},     # install requirements.txt
     "takes-apply": {"tier": "chat", "args": {"day": "day"},
                     "steps": [("prod", ["takes", "apply", "{day}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "send-held": {"tier": "chat", "args": {}, "steps": [("prod", ["daily"]), ("local", ["verify"])]},
@@ -87,7 +89,7 @@ RECIPES = {
     "mailer-status": {"tier": "auto", "args": {}, "steps": [("prod", ["mailer", "status"])]},
     "mailer-setup": {"tier": "chat", "args": {"script": "text"}, "steps": [("prod", ["mailer", "setup", "{script}"])]},
 }
-CHANGES_PRODUCTION = {"correct", "publish", "restore", "ship", "release", "rollback", "approve", "install-hooks",
+CHANGES_PRODUCTION = {"setup", "correct", "publish", "restore", "ship", "release", "rollback", "approve", "install-hooks",
                       "push-code", "source-add", "send-held", "takes-apply", "deploy-mailer"}
 IN_RELEASE_WINDOW = {"ship", "release"}
 NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer"}   # local steps behind the click
