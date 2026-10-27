@@ -29,6 +29,12 @@ at inference time), a change in the trajectory of the field, or a story that has
   (a deep dive made later by hand), the deep dive stays a separate bonus episode.
 - **Where it goes:** briefings/deepdives/<day>.md (show notes + sources), .script.md, .mp3. The podcast feed
   lists it as a bonus episode "Deep dive: <title>" right after that day's briefing; the day's page links to it.
+- **The weekly flagship (v0.2.18):** Saturday's deep dive is a two-voice episode of about 22 minutes on the
+  week's topic most worth understanding (the first topic in Up next, drawing on the whole week's Must reads). Bella
+  hosts; Michael is the sceptic, whose job is to push back on the evidence. Same evidence rules and checks as the
+  daily deep dive; the article reads as a conversation under the usual headings. The evening note on Friday says
+  so. `deepdive.flagship` in config.yaml (weekday, minutes, names, the sceptic's voice) or `enabled: false`.
+  We review it after four weeks with the weekly critic.
 - **Its own podcast (v0.2.17):** the deep dives also have a feed of their own, `deepdive.xml` ("AI Briefing: Deep
   Dive", with its own cover). The daily show keeps the deep dive after the briefing, through the host's hand-off.
   The site's Deep dives section, each deep-dive page and the email link to the deep-dive feed.

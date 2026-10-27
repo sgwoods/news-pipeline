@@ -54,7 +54,9 @@ def build(root: Path, cfg: dict, day: str, new_mentions: list | None = None) -> 
                  + (f"<br>{btns}" if btns else "") + "</p>")
 
     nxt = up[0] if up else None
-    sec("Tomorrow's deep dive")
+    tomorrow = (dt.date.fromisoformat(day) + dt.timedelta(days=1)).isoformat()
+    sec("Tomorrow's deep dive: the weekly flagship (two voices, about 22 minutes)" if deepdive.is_flagship(cfg, tomorrow)
+        else "Tomorrow's deep dive")
     if nxt:
         item(nxt["topic"], nxt.get("why_today") or nxt.get("angle", ""),
              ("take", "down", "dismiss") if len(up) > 1 else ("take", "dismiss"), nxt["id"], nxt.get("take", ""))

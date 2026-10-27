@@ -1354,7 +1354,8 @@ def cmd_critic(cfg: dict, argv: list) -> int:
 
 
 def cmd_listen(cfg: dict, argv: list) -> int:
-    """./np listen [DAY]: transcribe DAY's episode from the public podcast feed and compare it with its script."""
+    """./np audio-check [DAY]: transcribe DAY's episode from the public podcast feed and compare it with its script.
+    (./np listen is older: it plays the day's MP3 on this Mac.)"""
     day = next((a for a in argv if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)), dt.date.today().isoformat())
     return 0 if _listen_check(cfg, day, alert=False).get("ok") else 1
 

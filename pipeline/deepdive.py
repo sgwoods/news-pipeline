@@ -35,6 +35,48 @@ def dcfg(cfg: dict) -> dict:
             "timeout_seconds": 1800, **(cfg.get("deepdive") or {})}
 
 
+# ---------- the weekly flagship (Steven, 2026-10-27): Saturday's deep dive as a two-voice, ~22-minute episode ----------
+def fcfg(cfg: dict) -> dict:
+    return {"enabled": True, "weekday": 5, "minutes": 22, "max_minutes": 26, "host_name": "Bella",
+            "sceptic_name": "Michael", "sceptic_voice": "am_michael", **(dcfg(cfg).get("flagship") or {})}
+
+
+def is_flagship(cfg: dict, day: str) -> bool:
+    f = fcfg(cfg)
+    return bool(f["enabled"]) and dt.date.fromisoformat(day).weekday() == int(f["weekday"])
+
+
+def base_section(name: str) -> str:
+    """'evidence~sceptic' -> 'evidence' (a flagship turn); a normal section name is returned as is."""
+    return name.split("~", 1)[0]
+
+
+def flagship_opener(day: str, title: str, cfg: dict) -> str:
+    f, a = fcfg(cfg), cfg.get("audio") or {}
+    d = dt.date.fromisoformat(day)
+    prev = a.get("host_name") or ""
+    thanks = f"Thanks, {prev}. " if prev else ""
+    return (f"{thanks}This is the AI Briefing weekly deep dive for {d.strftime('%A, %B')} {d.day}: {title.rstrip('.')}. "
+            f"I'm {f['host_name']}, and with me is {f['sceptic_name']}, whose job this week is to push back. "
+            "Like the briefing, it is written and read by AI, from public sources.")
+
+
+class _TwoVoices:
+    """An engine that voices each part with the host or the sceptic, by the part's name ('...~sceptic')."""
+    def __init__(self, host, sceptic, names):
+        self.host, self.sceptic, self.names, self.i = host, sceptic, list(names), 0
+        self.name, self.voice = host.name, f"{getattr(host, 'voice', '')}+{getattr(sceptic, 'voice', '')}"
+
+    def check(self):
+        self.host.check()
+        self.sceptic.check()
+
+    def synth(self, text, path):
+        n = self.names[self.i] if self.i < len(self.names) else ""
+        self.i += 1
+        return (self.sceptic if n.endswith("~sceptic") else self.host).synth(text, path)
+
+
 def records(root: Path) -> list:
     return read_jsonl(root / LOG)
 
@@ -505,7 +547,15 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     wpm = voice_wpm(((cfg.get("audio") or {}).get("deepdive_voice")) or "af_bella", root)
     words = int(float(c["minutes"]) * wpm * 0.95)
     max_words = int(float(c.get("max_minutes", 13)) * wpm)       # a touch longer when the topic needs the detail
-    wt, wv = stages.prompt("deepdive_write")
+    flag = is_flagship(cfg, day) and not topic
+    fc = fcfg(cfg)
+    if flag:                                     # Saturday: the weekly two-voice flagship (Steven, 2026-10-27)
+        words, max_words = int(float(fc["minutes"]) * wpm * 0.95), int(float(fc["max_minutes"]) * wpm)
+        chosen_week = [s for back in range(0, 7) for s in _stories(root, (dt.date.fromisoformat(day)
+                                                                           - dt.timedelta(days=back)).isoformat())
+                       if s.get("section") == "must" and s not in chosen][:6]
+        mat, corpus = material(root, chosen + chosen_week, chars=12000)
+    wt, wv = stages.prompt("deepdive_flagship" if flag else "deepdive_write")
     hints = "; ".join(pick.get("search_hints") or [])
     share = lambda f: str(int(words * f))
     user = (wt.replace("{{words}}", str(words)).replace("{{max_words}}", str(max_words))
@@ -513,11 +563,18 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
               .replace("{{w_readings}}", share(0.17)).replace("{{w_sowhat}}", share(0.14)).replace("{{w_watch}}", share(0.08))
               .replace("{{topic}}", pick["topic"]).replace("{{why_today}}", pick.get("why_today", ""))
               .replace("{{angle}}", pick.get("angle", "") + (f" Look up: {hints}." if hints else ""))
+              .replace("{{minutes}}", str(fc["minutes"])).replace("{{host}}", fc["host_name"])
+              .replace("{{sceptic}}", fc["sceptic_name"])
               .replace("{{material}}", mat or "(no archived text)"))
     llm_write = llm_write or _backend(cfg, bool(c["web"]))
     out = stages._ask(llm_write, system, user, 9000)
     by_id = {s.get("id"): str(s.get("text", "")) for s in out.get("sections") or [] if isinstance(s, dict)}
     sections = [(sid, by_id[sid]) for sid in SECTIONS if by_id.get(sid)]
+    if flag:                                     # turns, in section order: ("evidence~sceptic", text)
+        turns = [t for t in out.get("turns") or [] if isinstance(t, dict) and t.get("section") in SECTIONS
+                 and t.get("speaker") in ("host", "sceptic") and str(t.get("text", "")).strip()]
+        turns.sort(key=lambda t: SECTIONS.index(t["section"]))          # stable: keeps the order within a section
+        sections = [(f"{t['section']}~{t['speaker']}", str(t["text"])) for t in turns]
 
     # 3 check
     srcs = [s for s in out.get("sources") or [] if isinstance(s, dict) and str(s.get("url", "")).startswith("http")][:12]
@@ -536,22 +593,22 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
         return rec
     sections, notes, fatal = check_script(sections, corpus, cfg)
     rec["checks"] = notes
-    if fatal or len(sections) < 4:
+    if fatal or len({base_section(s) for s, _ in sections}) < 4:
         rec.update(status="failed", reason="script failed checks: " + "; ".join(notes[-2:]), title=out.get("title", ""))
         set_status(root, item["id"], "failed", note=rec["reason"])
         append_jsonl(root / LOG, [rec])
         log(f"Deep dive: not published, {rec['reason']}")
         return rec
     cap = max_words
-    while sum(len(t.split()) for _, t in sections) > cap and len(sections) > 4:
-        drop = "readings" if any(s == "readings" for s, _ in sections) else sections[-2][0]
-        sections = [(s, t) for s, t in sections if s != drop]
+    while sum(len(t.split()) for _, t in sections) > cap and len({base_section(s) for s, _ in sections}) > 4:
+        drop = "readings" if any(base_section(s) == "readings" for s, _ in sections) else base_section(sections[-2][0])
+        sections = [(s, t) for s, t in sections if base_section(s) != drop]
         notes.append(f"over {cap} words: left out {drop}")
 
     # 3b the lines readers see first (email, site) come from the CHECKED body, never from the suggestion text
     from .consistency import check_header
     body = " ".join(t for _, t in sections)
-    why_sec = next((t for s, t in sections if s == "why_today"), "")
+    why_sec = " ".join(t for s, t in sections if base_section(s) == "why_today" and not s.endswith("~sceptic"))
     hay_all = " ".join(corpus)
     why_line, wn = check_header(" ".join(re.split(r"(?<=[.!?])\s+", why_sec)[:2]), body, hay_all)
     summary, sn = check_header(str(out.get("summary", "")).strip(), body, hay_all)
@@ -567,14 +624,18 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     tk = take_part(item, cfg, log)               # Steven's take, set from the preview email, queue page or dashboard
     if tk:
         rec["take"] = True
-    parts = [("Opener", opener(day, title, cfg.get("audio") or {}))] + sections + ([tk] if tk else []) + [("Outro", OUTRO)]
+    first = flagship_opener(day, title, cfg) if flag else opener(day, title, cfg.get("audio") or {})
+    parts = [("Opener", first)] + sections + ([tk] if tk else []) + [("Outro", OUTRO)]
+    if flag:
+        rec["format"] = "flagship"
     from .profiles import profile
     from .editorial import _KIND_WORD
     src_md = "\n".join(f"- [{s.get('title') or s['url']}]({s['url']}) · {_KIND_WORD.get(profile({'url': s['url']})['kind'], 'source')}"
                        + (f": {s['what']}" if s.get("what") else "") for s in srcs_live)
     from .links import scrub_output
     notes_md, _ = scrub_output(
-        f"# Deep dive: {title}\n\n*AI Briefing · {day} · follows today's briefing · written and read by AI from public sources*\n\n"
+        f"# Deep dive: {title}\n\n*AI Briefing · {day} · "
+        + ("the weekly flagship, two voices · " if flag else "") + "follows today's briefing · written and read by AI from public sources*\n\n"
         f"{summary}\n\n" + (f"**Why today.** {why_line}\n\n" if why_line else "") + f"## Sources\n\n{src_md}\n", cfg)
     (d / f"{day}.md").write_text(notes_md, "utf-8")
     from .audio import script_markdown
@@ -600,6 +661,8 @@ def _render(root: Path, cfg: dict, day: str, title: str, parts: list) -> float:
     c = dcfg(cfg)
     d = root / DIR
     eng = audio.engine_from(cfg, c.get("voice") or (cfg.get("audio") or {}).get("deepdive_voice") or None)
+    if any(n.endswith("~sceptic") for n, _ in parts):
+        eng = _TwoVoices(eng, audio.engine_from(cfg, fcfg(cfg)["sceptic_voice"]), [n for n, _ in parts])
     eng.check()
     table = speech.load_table(root)
     said = [(n, speech.spoken(t, table)) for n, t in parts]
@@ -635,13 +698,16 @@ HEADINGS = {"why_today": "Why today", "plainly": "Plainly", "evidence": "What th
             "watch": "What to watch", "steven_take": "Steven's take"}
 
 
-def written_md(root: Path, day: str) -> str:
+def written_md(root: Path, day: str, cfg: dict | None = None) -> str:
     """The deep dive as a readable article: the spoken script's sections under plain headings, without the
-    spoken opener and sign-off ('' when there is no script)."""
+    spoken opener and sign-off ('' when there is no script). A flagship reads as a conversation under the same
+    headings ("**Bella:** ...")."""
     p = root / DIR / f"{day}.script.md"
     if not p.exists():
         return ""
-    out = []
+    f = fcfg(cfg or {})
+    who = {"host": f["host_name"], "sceptic": f["sceptic_name"]}
+    out, last = [], None
     for sec in re.split(r"(?m)^## ", p.read_text("utf-8"))[1:]:
         name, _, body = sec.partition("\n")
         name = name.strip()
@@ -650,8 +716,19 @@ def written_md(root: Path, day: str) -> str:
         body = body.strip()
         if name == "steven_take":
             body = re.sub(r"^Here's Steven's take\.\s*", "", body)
-        if body:
-            out.append(f"## {HEADINGS.get(name, name.replace('_', ' ').capitalize())}\n\n{body}")
+        if not body:
+            continue
+        base, _, speaker = name.partition("~")
+        if speaker:                                  # a flagship turn
+            line = f"**{who.get(speaker, speaker.capitalize())}:** {body}"
+            if base == last:
+                out[-1] += "\n\n" + line
+            else:
+                out.append(f"## {HEADINGS.get(base, base.replace('_', ' ').capitalize())}\n\n{line}")
+            last = base
+            continue
+        last = None
+        out.append(f"## {HEADINGS.get(name, name.replace('_', ' ').capitalize())}\n\n{body}")
     return "\n\n".join(out)
 
 
@@ -670,7 +747,8 @@ def episodes_for_feed(root: Path, days: list) -> list:
             continue
         md = (root / DIR / f"{day}.md").read_text("utf-8") if (root / DIR / f"{day}.md").exists() else ""
         key = f"deepdive:{day}"
-        out.append({"key": key, "day": day, "title": f"Deep dive: {r.get('title', '')}", "md": md, "mp3": mp3,
+        label = "Weekly deep dive" if r.get("format") == "flagship" else "Deep dive"
+        out.append({"key": key, "day": day, "title": f"{label}: {r.get('title', '')}", "md": md, "mp3": mp3,
                     "written": written_md(root, day),
                     "file": audio_file(root, key), "guid": guid(root, key), "type": "bonus", "time": "06:50:00",
                     "summary": (re.search(r"\*\n\n(.+?)\n", md) or re.search(r"(.+)", r.get("title", ""))).group(1)})
@@ -708,7 +786,9 @@ def revoice(root: Path, cfg: dict, day: str, log=print) -> dict | None:
         return None
     data = json.loads(p.read_text("utf-8"))
     parts = [tuple(x) for x in data["parts"]]
-    parts = [("Opener", opener(day, data["title"], cfg.get("audio") or {})) if n == "Opener" else
+    two = any(n.endswith("~sceptic") for n, _ in parts)
+    parts = [("Opener", flagship_opener(day, data["title"], cfg) if two else opener(day, data["title"], cfg.get("audio") or {}))
+             if n == "Opener" else
              ("Outro", OUTRO) if n == "Outro" else (n, t) for n, t in parts]
     data["parts"] = parts
     p.write_text(json.dumps(data, ensure_ascii=False), "utf-8")

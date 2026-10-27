@@ -6,11 +6,19 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.18-beta · 2026-10-27
+- **The weekly flagship deep dive** (Steven, 10-27: "lets do this as outlined"): on Saturdays the deep dive is a
+  two-voice episode of about 22 minutes on the week's topic, with Bella as host and Michael as the sceptic who
+  pushes back on the evidence. Same checks as the daily deep dive. Shown as "Weekly deep dive" in the feeds and
+  "This week's deep dive · two voices" in the email; Friday's evening note says so.
+- Fix: the new audio check is `./np audio-check` (and run-queue `audio-check`); `./np listen` already played the
+  day's MP3 on the Mac.
+
 ## v0.2.17-beta · 2026-10-27
 - **Hear what was published** (Steven, 10-27): after the email, the day's episode is downloaded from the public feed,
   transcribed locally (Whisper, free) and compared with its script. A missing or garbled section (like 10-27's
   intro) sends one action-needed email. The as-published transcript is published with the next publish (WebVTT,
-  `podcast:transcript` in the feed, a link on the day's page). `./np listen [DAY]`; run queue `listen`; `setup`
+  `podcast:transcript` in the feed, a link on the day's page). `./np audio-check [DAY]`; run queue `audio-check`; `setup`
   (chat tier) installs the new requirement (mlx-whisper, Apple silicon).
 - **The deep dives as their own podcast:** `deepdive.xml`, "AI Briefing: Deep Dive", with its own cover. The daily
   show still flows from the briefing into the deep dive. The deep-dive feed is promoted on the site (Deep dives

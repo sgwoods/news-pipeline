@@ -338,7 +338,7 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
             items.append(f'<div style="padding:14px 0;border-top:1px solid {C["border"]}">{"".join(rows)}</div>')
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Must read")}{"".join(items)}</td></tr>')
     if deep:
-        dd_label = _label("Today's deep dive")
+        dd_label = _label("This week's deep dive · two voices" if deep.get("flagship") else "Today's deep dive")
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{dd_label}'
                  f'<div style="font-size:18px;font-weight:600;line-height:1.35;margin:0 0 6px;color:{C["text"]}">'
                  f'{htmllib.escape(deep["title"])}</div>'
@@ -439,7 +439,7 @@ def deep_dive_for(root: Path, cfg: dict, day: str) -> dict | None:
     summ = re.search(r"\*\n\n(.+?)\n", md)
     base = ((cfg.get("publish") or {}).get("site_url") or "https://sgwoods.github.io/ai-briefing/").rstrip("/")
     return {"title": rec.get("title", ""), "summary": summ.group(1) if summ else "", "url": f"{base}/{day}/deep-dive/",
-            "minutes": int(round(rec.get("minutes") or 10))}
+            "minutes": int(round(rec.get("minutes") or 10)), "flagship": rec.get("format") == "flagship"}
 
 
 def send_new(root: Path, cfg: dict, day: str) -> dict:

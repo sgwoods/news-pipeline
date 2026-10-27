@@ -13,7 +13,7 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.17-beta (2026-10-27)
+- **Release:** v0.2.18-beta (2026-10-27)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 67 in `pipeline/`
@@ -249,7 +249,7 @@ queue.
   the day's episode, transcribes it locally with Whisper and compares it with the script it was voiced from
   (`listen.py`). A section that wasn't heard (low coverage) sends one action-needed email. The transcript is kept
   in `data/transcripts/` and published with the next publish: a WebVTT file next to the episode, a
-  `podcast:transcript` tag in the feed and a link on the day's page. `./np listen [DAY]` (run queue: `listen`).
+  `podcast:transcript` tag in the feed and a link on the day's page. `./np audio-check [DAY]` (run queue: `audio-check`).
 - **Copies in Drive (v0.2.11):** the edition and the deep dive are also written as Google Docs to the mailer
   account's `Briefings` folder in Drive, shared with the owner, so he (and Claude, through Drive) can read them
   anywhere and give feedback. At the pre-release takes email: `<day> · AI Briefing (draft, held for your takes) ·

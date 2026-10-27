@@ -64,7 +64,7 @@ RECIPES = {
     "takes-test": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["takes", "test", "{day}"])]},
     "takes-check": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["takes", "check", "{day}"])]},
     "drive-save": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["drive", "save", "{day}"])]},
-    "listen": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["listen", "{day}"])]},
+    "audio-check": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["audio-check", "{day}"])]},
     "setup": {"tier": "chat", "args": {}, "steps": [("prod", ["setup"])]},     # install requirements.txt
     "takes-apply": {"tier": "chat", "args": {"day": "day"},
                     "steps": [("prod", ["takes", "apply", "{day}"]), ("prod", ["publish"]), ("local", ["verify"])]},
