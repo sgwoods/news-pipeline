@@ -30,3 +30,6 @@ data/inbox/
 # marks a development checkout as staging (pipeline/env.py); never committed
 .staging
 .clasp-build/
+
+# local transcription tools (scripts/voice/transcribe.py)
+.venv-voice/

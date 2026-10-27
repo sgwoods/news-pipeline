@@ -1176,6 +1176,24 @@ def _runner_summary(cfg: dict, job: dict) -> str:
     return "\n".join(lines)
 
 
+def _follow_through(cfg: dict, argv: list) -> int:
+    """After a release, under the same Approve (v0.2.13): the public code export, and the mail script when the live
+    copy differs from the release. Each part reports; a failure here doesn't undo the release."""
+    code = 0
+    try:
+        from pipeline import clasp
+        st = clasp.status(ROOT, cfg)
+        if st.get("matches") is False:
+            print("Mail script differs from the release: deploying...")
+            code |= cmd_mailer(cfg, ["deploy"])
+        else:
+            print(f"Mail script: {'matches the release' if st.get('matches') else 'not checked (' + str(st.get('error') or 'clasp not set up') + ')'}")
+    except Exception as e:  # noqa: BLE001
+        print(f"mail script check skipped: {e}"[:200])
+        code |= 1
+    return code
+
+
 def cmd_runner(cfg: dict, argv: list) -> int:
     """./np runner status | tick | approve ID | reject ID | install | remove: the run queue (pipeline/runner.py).
     Claude queues jobs (data/queue/pending/); this Mac runs them; mac-tier jobs wait for Approve in a dialog."""
@@ -1189,8 +1207,12 @@ def cmd_runner(cfg: dict, argv: list) -> int:
              "approve": lambda a: cmd_release_check(cfg, ["approve", *a]),
              "install-hooks": lambda a: cmd_release_check(cfg, ["install-hooks"]),
              "deploy-mailer": lambda a: cmd_mailer(cfg, ["deploy"])}
+    local["follow-through"] = lambda a: _follow_through(cfg, a)
+    from pipeline.mailer import sent_days
     r = runner.Runner(ROOT, devenv.dev_path(ROOT, cfg), local, busy=lambda: run_in_progress(ROOT),
-                      summary=lambda job: _runner_summary(cfg, job))
+                      summary=lambda job: _runner_summary(cfg, job),
+                      sent_today=lambda: dt.date.today().isoformat() in sent_days(ROOT),
+                      key=runner.approval_key if sys.platform == "darwin" else None)
     if sub == "tick":
         for line in r.tick():
             print(f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {line}")
@@ -2795,7 +2817,7 @@ def main() -> int:
     if args.staging is not None:
         return cmd_staging(cfg, args.staging)
     if args.release is not None:
-        return cmd_release(cfg, args.release)
+        return cmd_release(cfg, args.release + (["--force"] if args.force else []))   # argparse takes --force (10-27)
     if args.rollback is not None:
         return cmd_release(cfg, args.rollback, rollback=True)
     if args.correct_day is not None:

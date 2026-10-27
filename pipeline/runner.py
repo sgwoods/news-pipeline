@@ -37,7 +37,10 @@ JOB_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 MORNING = (dt.time(3, 30), dt.time(8, 30))
 RELEASE_WINDOW = (dt.time(8, 30), dt.time(20, 0))
 REPROMPT = dt.timedelta(minutes=20)
-DIALOG_SECONDS = 600
+DIALOG_SECONDS = 600                  # for the end-of-window check (no dialog if an answer would land after 20:00)
+DIALOG_SHOWN = 1140                   # the dialog stays up 19 min; REPROMPT (20 min) asks again right after
+EARLIEST = dt.time(5, 0)              # once the morning edition is out, production jobs needn't wait for 08:30
+APPROVED = "data/queue/approved"      # early approvals, signed with a key in this Mac's Keychain (see below)
 STEP_TIMEOUT = 3600
 MAX_JOB_BYTES = 8192
 
@@ -69,13 +72,15 @@ RECIPES = {
                    "steps": [("prod", ["sources", "add", "{name}", "{url}", "{url2}", "{note}"])]},
     "ship":    {"tier": "mac", "args": {"version": "version", "note": "reviewed"},
                 "steps": [("dev", ["staging", "sync"]), ("dev", ["tests"]), APPROVE,
-                          ("local", ["release", "{version}", "{note}"]), ("local", ["verify"])]},
+                          ("local", ["release", "{version}", "{note}"]), ("local", ["verify"]),
+                          ("local?", ["follow-through", "{note}"])]},   # public export + mail script, same Approve
     "release": {"tier": "mac", "args": {"version": "version", "note": "reviewed"},
                 "steps": [APPROVE, ("local", ["release", "{version}", "{note}"]), ("local", ["verify"])]},
     "rollback": {"tier": "mac", "args": {"note": "reviewed"},
                  "steps": [APPROVE, ("local", ["rollback", "{note}"]), ("local", ["verify"])]},
     "approve": {"tier": "mac", "args": {"note": "reviewed"},
-                "steps": [("prod", ["release-check"]), APPROVE, ("local", ["approve", "{note}"])]},
+                "steps": [APPROVE, ("local", ["approve", "{note}"])]},   # approve re-runs the gate and refuses
+                                                                  # if any check but the approval fails (10-26)
     "install-hooks": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["install-hooks"])]},
     "deploy-mailer": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["deploy-mailer"]),
                                                          ("prod", ["mailer", "status"])]},
@@ -104,9 +109,10 @@ def recipe_problems(recipes: dict = RECIPES) -> list:
                     bad.append(f"{name}: an Approve step outside the mac tier")
                 continue
             where, argv = step
-            if where not in ("dev", "prod", "local"):
+            if where not in ("dev", "prod", "local", "local?"):
                 bad.append(f"{name}: unknown place {where}")
-            if where == "local" and argv[0] in NEEDS_APPROVAL and not (r["tier"] == "mac" and seen_approve):
+            if where in ("local", "local?") and (argv[0] in NEEDS_APPROVAL or argv[0] == "follow-through") \
+                    and not (r["tier"] == "mac" and seen_approve):
                 bad.append(f"{name}: {argv[0]} runs without Steven's Approve")
             if where in ("dev", "prod") and argv[0] in ("release", "rollback", "push-code", "release-check") \
                     and len(argv) > 1:
@@ -283,14 +289,16 @@ def _tail(log: Path, n: int = 25) -> list:
         return []
 
 
-def ask_mac(job: dict, summary: str, seconds: int = DIALOG_SECONDS) -> str:
+def ask_mac(job: dict, summary: str, seconds: int = DIALOG_SHOWN) -> str:
     """The approval dialog on this Mac: 'approve', 'reject' or 'timeout'. The text goes in as an argument."""
-    msg = (f"Approve this run-queue job?\n\n{job['recipe']} {' '.join(v for v in job['args'].values() if v)}\n\n"
+    msg = (("Approve now? It runs as soon as the morning edition is out.\n\n" if job.get("early") else "") +
+           f"Approve this run-queue job?\n\n{job['recipe']} {' '.join(v for v in job['args'].values() if v)}\n\n"
            f"{summary}\n\nQueued by {job.get('queued_by') or '?'} · {job['id']}")[:1800]
     script = ['on run argv', 'display dialog (item 1 of argv) with title "AI Briefing · approval" '
               'buttons {"Reject", "Approve"} default button "Reject" cancel button "Reject" '
               f'giving up after {int(seconds)} with icon caution', 'end run']
     args = ["osascript"] + sum((["-e", s] for s in script), []) + [msg]
+    notify_mac("approval waiting", f"{job['recipe']}: Approve in the dialog", sound=True)   # heard, not just seen
     try:
         r = subprocess.run(args, capture_output=True, text=True, timeout=seconds + 30)
     except (OSError, subprocess.TimeoutExpired):
@@ -302,8 +310,21 @@ def ask_mac(job: dict, summary: str, seconds: int = DIALOG_SECONDS) -> str:
     return "approve" if "button returned:Approve" in r.stdout else "reject"
 
 
-def notify_mac(title: str, text: str):
-    script = ['on run argv', 'display notification (item 2 of argv) with title (item 1 of argv)', 'end run']
+def approval_key() -> bytes:
+    """The early-approval key: Keychain only (never .env, which the VM can read). Made on first use; b"" if none."""
+    import secrets
+    from .vault import _keychain, set_keychain
+    k = _keychain("NP_APPROVAL_KEY")
+    if not k and set_keychain("NP_APPROVAL_KEY", secrets.token_hex(32)):
+        k = _keychain("NP_APPROVAL_KEY")
+    if not k:
+        raise RuntimeError("no Keychain: early approvals are off")
+    return k.encode()
+
+
+def notify_mac(title: str, text: str, sound: bool = False):
+    script = ['on run argv', 'display notification (item 2 of argv) with title (item 1 of argv)'
+              + (' sound name "Glass"' if sound else ''), 'end run']
     with contextlib.suppress(OSError, subprocess.TimeoutExpired):
         subprocess.run(["osascript"] + sum((["-e", s] for s in script), []) + [f"AI Briefing · {title}", text[:200]],
                        capture_output=True, timeout=15)
@@ -313,26 +334,80 @@ class Runner:
     """One pass over the queue. `local` maps local step names to functions run.py provides (argv -> exit code)."""
 
     def __init__(self, root: Path, dev: Path, local: dict, now=None, ask=ask_mac, notify=notify_mac,
-                 busy=None, summary=None):
+                 busy=None, summary=None, sent_today=None, key=None):
         self.root, self.dev, self.local = root, dev, local
         self.now = now or dt.datetime.now
         self.ask, self.notify = ask, notify
         self.busy = busy or (lambda: False)               # a production run in progress
         self.summary = summary or (lambda job: "")
+        self.sent_today = sent_today or (lambda: False)   # today's edition is out (published and emailed)
+        self.key = key                                    # () -> bytes: the early-approval key (Keychain); None = off
+
+    def _edition_out(self) -> bool:
+        """The morning is done: today's edition went out and no run is busy (v0.2.13: no waiting for 08:30)."""
+        return self.now().time() >= EARLIEST and not self.busy() and bool(self.sent_today())
+
+    def _release_open(self) -> bool:
+        t = self.now().time()
+        return RELEASE_WINDOW[0] <= t <= RELEASE_WINDOW[1] or (t <= RELEASE_WINDOW[1] and self._edition_out())
 
     def _defer(self, job: dict) -> str:
         t = self.now().time()
-        if job["recipe"] in CHANGES_PRODUCTION and (MORNING[0] <= t < MORNING[1] or self.busy()):
+        if job["recipe"] in CHANGES_PRODUCTION and (self.busy() or (MORNING[0] <= t < MORNING[1] and not self._edition_out())):
             return "the morning run's window or a run in progress"
-        if job["recipe"] in IN_RELEASE_WINDOW and not (RELEASE_WINDOW[0] <= t <= RELEASE_WINDOW[1]):
-            return "releases go out 08:30-20:00"
+        if job["recipe"] in IN_RELEASE_WINDOW and not self._release_open():
+            return "releases go out 08:30-20:00 (earlier once the morning edition is out)"
         return ""
+
+    # ---- early approvals: Approve while the job still waits for the morning to finish (v0.2.13) ----
+    # The click is kept as an HMAC over the job (id, recipe, args) and today's date, keyed by a secret in this
+    # Mac's Keychain. Claude and the VM can write files in data/ but can't read the Keychain, so a file alone
+    # can't stand in for the click. It is used once, and only today.
+    def _fingerprint(self, job: dict) -> str:
+        import hashlib
+        return hashlib.sha256(json.dumps({"id": job["id"], "recipe": job["recipe"], "args": job["args"]},
+                                         sort_keys=True).encode()).hexdigest()
+
+    def _sign(self, job: dict, day: str) -> str:
+        import hmac
+        import hashlib
+        return hmac.new(self.key(), f"{self._fingerprint(job)}|{day}".encode(), hashlib.sha256).hexdigest()
+
+    def _approval_path(self, job: dict) -> Path:
+        return self.root / APPROVED / f"{job['id']}.json"
+
+    def approve_early(self, job: dict):
+        day = self.now().date().isoformat()
+        p = self._approval_path(job)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        _write(p, {"id": job["id"], "day": day, "at": self.now().isoformat(timespec="seconds"), "sig": self._sign(job, day)})
+
+    def approved_early(self, job: dict) -> bool:
+        import hmac
+        if not self.key:
+            return False
+        try:
+            a = json.loads(self._approval_path(job).read_text("utf-8"))
+        except (OSError, ValueError):
+            return False
+        day = self.now().date().isoformat()
+        try:
+            ok = a.get("day") == day and hmac.compare_digest(str(a.get("sig", "")), self._sign(job, day))
+        except Exception:  # noqa: BLE001 - no key, no early approval
+            return False
+        return ok
+
+    def _use_early(self, job: dict):
+        with contextlib.suppress(OSError):
+            self._approval_path(job).unlink()
 
     def _step(self, job: dict, i: int, step, log: Path) -> int:
         where, argv = step
         argv = argv_for(argv, job["args"])
-        if where == "local":
+        if where in ("local", "local?"):
             fn = self.local.get(argv[0])
+            if fn is None and where == "local?":         # optional: a checkout without it skips the step
+                return 0
             if fn is None:
                 with log.open("a", encoding="utf-8") as f:
                     f.write(f"no local step {argv[0]}\n")
@@ -370,6 +445,16 @@ class Runner:
         if why:
             job["deferred"] = why
             _write(src, {**raw, "deferred": why})
+            r0 = RECIPES[job["recipe"]]
+            if APPROVE in r0["steps"] and self.key and not self.approved_early(job) and \
+                    self.now().time() < RELEASE_WINDOW[1]:       # ask now; it runs when the morning is done
+                last = raw.get("prompted_at")
+                if not last or self.now() - dt.datetime.fromisoformat(last) >= REPROMPT:
+                    _write(src, {**raw, "deferred": why, "prompted_at": self.now().isoformat(timespec="seconds")})
+                    if self.ask({**job, "early": True}, "Approve now: it runs as soon as the morning edition is out "
+                                "(or at 08:30).\n\n" + self.summary(job)) == "approve":
+                        self.approve_early(job)
+                        return "deferred (approved)"
             return "deferred"
         r = RECIPES[job["recipe"]]
         steps = r["steps"]
@@ -396,6 +481,10 @@ class Runner:
                 return "waiting"
             if terminal:
                 answer = "approve"
+            elif self.approved_early(job):
+                answer, terminal = "approve", False
+                job["approved_early"] = True
+                self._use_early(job)
             else:
                 last = job.get("prompted_at")
                 if last and self.now() - dt.datetime.fromisoformat(last) < REPROMPT:
@@ -414,13 +503,13 @@ class Runner:
                 job["log"] = str(log.relative_to(self.root))
                 _finish(self.root, src, job, "rejected", "Steven clicked Reject", self.notify)
                 return "rejected"
-            t_now = self.now().time()
-            if job["recipe"] in IN_RELEASE_WINDOW and not (RELEASE_WINDOW[0] <= t_now <= RELEASE_WINDOW[1]):
+            if job["recipe"] in IN_RELEASE_WINDOW and not self._release_open():
                 job["log"] = str(log.relative_to(self.root))
                 _finish(self.root, src, job, "expired", "approved after the 08:30-20:00 release window; queue it "
                         "again in the window", self.notify)
                 return "expired"
-            code = self._run_approved(job, steps, cut + 1, log, "terminal" if terminal else "dialog")
+            code = self._run_approved(job, steps, cut + 1, log, "terminal" if terminal else
+                                      "dialog (early)" if job.get("approved_early") else "dialog")
         else:
             code = 0
         job["log"] = str(log.relative_to(self.root))

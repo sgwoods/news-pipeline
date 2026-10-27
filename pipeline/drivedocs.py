@@ -58,12 +58,17 @@ def deepdive_md(root: Path, cfg: dict, day: str) -> tuple:
     notes = p.read_text("utf-8")
     title = notes.splitlines()[0].lstrip("# ").strip()
     head, _, srcs = notes.partition("## Sources")
+    head = re.sub(r"(?m)^\*\*Why today\.\*\*.*\n?", "", head)     # the article has its own "Why today" section
     body = deepdive.written_md(root, day)
     return title, head.rstrip() + "\n\n" + body + ("\n\n## Sources" + srcs if srcs else "")
 
 
+FLAGS = re.compile("[\U0001F1E6-\U0001F1FF]")                # flag emoji: garbled in Docs (10-26)
+
+
 def _save(cfg: dict, name: str, md: str, replace: str = "") -> dict:
     from . import mailer
+    md = re.sub(r"[ \t]+(?=[·\n])", " ", FLAGS.sub("", md))
     return mailer.call(cfg, "savedoc", name=name, text=md, **({"replace": replace} if replace else {}))
 
 

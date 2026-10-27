@@ -13,7 +13,7 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.11-beta (2026-10-26)
+- **Release:** v0.2.14-beta (2026-10-27)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 66 in `pipeline/`
@@ -219,10 +219,12 @@ three tiers:
 |---|---|---|
 | auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify`, `consistency`, `critic-email`, `takes-test`, `takes-check`, `drive-save`, `mailer-status` | at once |
 | chat | `correct`, `publish`, `restore`, `takes-done`, `takes-apply`, `send-held`, `source-add`, `mailer-setup` | the job quotes the owner's yes from the chat |
-| mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, the public code push, `deploy-mailer` | the owner clicks Approve in a dialog on the Mac, or runs `./np runner approve ID` in Terminal |
+| mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, the public code push, `deploy-mailer` | the owner clicks Approve in a dialog on the Mac (also early, while the morning run is still going: the job then runs as soon as the edition is out); a ship's Approve also covers the public code export and the mail-script deploy |
 
 The click grants presence in memory for that job's approved steps only (`presence.py`). No file or setting can
-stand in for it. Jobs that change production wait out the morning run. Unanswered approvals lapse at 20:00. The
+stand in for it: an early click is kept as a signature over that job, made with a key in the Mac's Keychain (which
+the VM and Claude can't read), used once and only that day. Jobs that change production wait out the morning run,
+which ends when the day's edition has gone out. Unanswered approvals lapse at 20:00. The
 runner refuses to work if production code differs from the release. Release invariant 10 checks the recipes and
 the runner's code. Results go to `data/queue/done/` and `logs/runner-<id>.txt`. `./np runner status` lists the
 queue.

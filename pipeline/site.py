@@ -411,6 +411,9 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
         (out / "robots.txt").write_text("User-agent: *\nDisallow: /\n", "utf-8")
     (out / "share.js").write_text(SHARE_JS, "utf-8")
     (out / "takes.js").write_text(TAKES_JS, "utf-8")
+    from .mailer import PHOTO                    # the email masthead's photo, served from the site
+    if (root / "assets" / PHOTO).exists():
+        shutil.copy2(root / "assets" / PHOTO, out / PHOTO)
     (out / ".nojekyll").write_text("", "utf-8")
     from .episodes import audio_file, guid, hidden_days
     hidden = hidden_days(root)

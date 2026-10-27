@@ -348,7 +348,9 @@ function saveDoc_(name, replace, md) {
     else if (b) body.appendListItem(plain(b[1])).setGlyphType(DocumentApp.GlyphType.BULLET);
     else if (ln.trim()) body.appendParagraph(plain(ln));
   });
-  if (body.getNumChildren() > 1 && !body.getChild(0).asText().getText()) body.getChild(0).removeFromParent();
+  try {                                              // the empty paragraph clear() leaves; Docs refuses to remove the
+    if (body.getNumChildren() > 1 && !body.getChild(0).asText().getText()) body.getChild(0).removeFromParent();
+  } catch (err) {}                                   // last paragraph of a section (10-27): harmless to keep it
   doc.saveAndClose();
   return { ok: true, id: doc.getId(), url: doc.getUrl() };
 }

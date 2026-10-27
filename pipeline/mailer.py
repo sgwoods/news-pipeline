@@ -21,7 +21,10 @@ from .archive import append_jsonl, read_jsonl
 
 LOG = "data/email-log.jsonl"
 C = {"bg": "#07131f", "panel": "#0c2236", "card": "#112a42", "border": "#23415d", "text": "#eff7ff",
-     "muted": "#9cc4df", "strong": "#d7ecff", "accent": "#67e6a8", "accent_ink": "#06221a", "link": "#d9f7ff"}
+     "muted": "#9cc4df", "strong": "#d7ecff", "accent": "#67e6a8", "accent_ink": "#06221a", "link": "#d9f7ff",
+     "brand": "#3e7e8a", "brand_deep": "#36707c", "brand_ink": "#e8f5f7"}   # brand: the teal of Steven's photo
+TAGLINE = "What happened, what holds up, what it means."       # Steven 2026-10-26; email.tagline overrides
+PHOTO = "steven-woods.jpg"                                     # assets/, copied to the site root on each build
 FONT = "'Avenir Next','Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Arial,sans-serif"
 
 
@@ -265,9 +268,23 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
     cell = f'style="padding:22px 26px;background:{C["panel"]};border:1px solid {C["border"]};border-radius:20px"'
     P = f'style="margin:0 0 12px;color:{C["text"]};font-size:16px;line-height:1.6"'
     H = []
+    # masthead: Steven's photo and colour, the name and the tagline (v0.2.12)
+    who = sc.get("name") or "Steven Woods"
+    H.append(f'<tr><td style="padding:16px 20px;background:{C["brand"]};border-radius:20px">'
+             f'<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>'
+             f'<td width="64" style="width:64px;padding:0 14px 0 0;vertical-align:middle">'
+             f'<img src="{htmllib.escape(base)}/{PHOTO}" width="64" height="64" alt="{htmllib.escape(who)}" '
+             f'style="display:block;width:64px;height:64px;border-radius:50%;border:2px solid {C["brand_ink"]}"></td>'
+             f'<td style="vertical-align:middle"><div style="font-size:24px;font-weight:700;letter-spacing:.01em;'
+             f'color:#ffffff;line-height:1.15">AI Briefing</div>'
+             f'<div style="font-size:15px;color:{C["brand_ink"]};margin:3px 0 0;line-height:1.35">'
+             f'{htmllib.escape(e.get("tagline") or TAGLINE)}</div>'
+             f'<div style="font-size:12px;color:{C["brand_ink"]};opacity:.85;margin:4px 0 0">Curated by '
+             f'{htmllib.escape(who)} · for early-stage investors</div></td></tr></table></td></tr>'
+             f'<tr><td style="height:12px"></td></tr>')
     # header
     H.append(f'<tr><td {cell}>'
-             f'<div style="display:inline-block;padding:6px 12px;border-radius:999px;background:{C["card"]};color:{C["strong"]};'
+             f'<div style="display:inline-block;padding:6px 12px;border-radius:999px;background:{C["brand_deep"]};color:#ffffff;'
              f'font-size:11px;letter-spacing:.14em;text-transform:uppercase">Daily AI briefing</div>'
              f'<h1 style="margin:14px 0 8px;font-size:26px;line-height:1.2;color:{C["text"]}">{htmllib.escape(b["title"])}</h1>'
              + (f'<p {P}>{_inline(b["brief"])}</p>' if b["brief"] else "")
@@ -377,7 +394,7 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
             + "".join(H) + "</table></td></tr></table></body></html>")
     from .takes import LABEL
     tk_line = lambda k: [f"   {LABEL}: {defuse(takes[k])}"] if takes.get(k) else []  # noqa: E731
-    text = "\n".join([b["title"], "", _strip_md(b["brief"])] + (["", f"{LABEL}: {defuse(takes['overall'])}"]
+    text = "\n".join([f"AI Briefing · {e.get('tagline') or TAGLINE}", b["title"], "", _strip_md(b["brief"])] + (["", f"{LABEL}: {defuse(takes['overall'])}"]
                       if takes.get("overall") else []) + ["", "TOP OF MIND"] + [f"- {_strip_md(t)}" for t in b["top"]]
                      + tk_line("top")
                      + ["", "MUST READ"] + [x for n, s in enumerate(b["must"], 1)

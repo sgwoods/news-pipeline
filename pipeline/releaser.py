@@ -54,11 +54,22 @@ def run_in_progress(root: Path) -> bool:
     return bool(r.stdout.strip())
 
 
+def _edition_out(root: Path, now, t) -> bool:
+    """Before 08:30, a release may go once today's edition has gone out (v0.2.14; same rule as the run queue)."""
+    if not (dt.time(5, 0) <= t <= WINDOW[1]):
+        return False
+    try:
+        from .mailer import sent_days
+        return (now or dt.datetime.now()).date().isoformat() in sent_days(root)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _checks(root: Path, force: bool, now: dt.datetime | None, window: bool = True):
     if staging(root):
         raise ReleaseError("releases are promoted from the production folder, not from dev")
     t = (now or dt.datetime.now()).time()
-    if window and not force and not (WINDOW[0] <= t <= WINDOW[1]):
+    if window and not force and not (WINDOW[0] <= t <= WINDOW[1]) and not _edition_out(root, now, t):
         raise ReleaseError("releases go out between 08:30 and 20:00 (after the morning send, before the evening "
                            "preflight); use --force only if you must")
     if run_in_progress(root):

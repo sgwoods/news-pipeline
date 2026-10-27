@@ -48,7 +48,9 @@ class SlackLinks(unittest.TestCase):
         items = run("anyone")["items"]
         self.assertEqual(sorted(i["url"] for i in items), ["https://example.org/steven-link", "https://x.com/deepseek_ai/status/1"])
         rob = next(i for i in items if "deepseek" in i["url"])
-        self.assertEqual(rob["person"], "Shared in Steven's team channel")
+        self.assertEqual(rob["person"], "Shared internally")
+        from pipeline.stages import display_name
+        self.assertEqual(display_name(rob), "Shared internally today")              # Steven, 2026-10-27
         blob = str(items)
         for bad in ("U_ROB", "Deepseek open-sourced its engine", "my view: big deal", "cto-musings", "U_STEVEN"):
             self.assertNotIn(bad, blob)

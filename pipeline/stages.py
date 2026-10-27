@@ -336,6 +336,7 @@ def prefilter(items: list, known_urls: set, min_chars: int = 60, exclude=()) -> 
 
 
 OWNER_PERSONS = ("Shared by Steven", "Forwarded by Steven")
+SHARED_INTERNALLY = "Shared internally today"
 _OUTLET_NAMES = {"nytimes.com": "The New York Times", "ft.com": "Financial Times", "wsj.com": "The Wall Street Journal",
                  "theinformation.com": "The Information", "thein.fo": "The Information", "techcrunch.com": "TechCrunch",
                  "theverge.com": "The Verge", "apnews.com": "AP", "bbc.com": "BBC", "bbc.co.uk": "BBC",
@@ -354,6 +355,10 @@ def outlet_name(url: str) -> str:
 def display_name(r: dict) -> str:
     """Who the item is from, for humans: a source label (e.g. Anthropic) beats the tracked-person row. Something
     Steven shared or forwarded is credited to its outlet: he is never named in public copy."""
+    if r.get("source_kind") == "shared" and r.get("source_url") == "slack":
+        return SHARED_INTERNALLY                       # Steven, 2026-10-27: Slack shares are "shared internally today"
+    if str(r.get("person", "")).startswith("Steven Woods (own posts)") and r.get("source_kind") == "bluesky":
+        return "Posted by Steven on Bluesky"           # his public posts may say so directly (Steven, 2026-10-27)
     if r.get("source_label"):
         return r["source_label"]
     if r.get("person", "") in OWNER_PERSONS:

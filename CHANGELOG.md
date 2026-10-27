@@ -6,6 +6,34 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.14-beta · 2026-10-27
+- Fix: the public export's tests failed because the photo isn't exported (the public code push stopped).
+- Fix: `./np release … --force` never reached the release (the command line took `--force` for another command).
+- Fix: the release itself still waited for 08:30 when the run queue let it go early; it now follows the same rule
+  (once today's edition is out).
+- Shares: a link shared in Slack is labelled "Shared internally today" (it said "Shared in Steven's team channel");
+  Steven's own Bluesky posts say "Posted by Steven on Bluesky" (Steven, 10-27).
+
+## v0.2.13-beta · 2026-10-27
+- Fix (mail script): rewriting an existing Drive doc (the draft becoming the published edition) failed with "Can't
+  remove the last paragraph in a document section" (10-27). The tidy-up step is now optional. Needs a mail-script deploy.
+- Voice: `scripts/voice/transcribe.py` transcribes Steven's recorded talks locally (Whisper), from the public record manifest.
+- **Approvals keep moving in the morning** (Steven, 10-27: "get everything moving as soon as I am done"):
+  - Approve early: a release queued before the morning is done asks right away, and runs as soon as the edition
+    is out. The click is kept as a signature made with a key in the Mac's Keychain, which a file alone can't fake;
+    it's used once and only that day.
+  - The morning window ends when today's edition has gone out and no run is busy, not at a fixed 08:30.
+  - One Approve covers the release's follow-through: the public code export, and a mail-script deploy when the
+    live script differs from the release.
+  - The approval dialog stays up 19 minutes and comes back right away, with a sound, until it's answered.
+
+## v0.2.12-beta · 2026-10-26
+- **Email masthead** (Steven, 10-26): his photo and colour (the teal of the photo), "AI Briefing", the tagline
+  "What happened, what holds up, what it means." (`email.tagline` overrides) and "Curated by Steven Woods · for
+  early-stage investors". The photo is served from the site (`assets/steven-woods.jpg`). Visual only.
+- Drive docs: the deep dive no longer repeats "Why today", and flag emoji (garbled in Docs) are left out.
+- Fix: the run queue's `approve` job stopped at its own gate check when only the approval was missing (10-26).
+
 ## v0.2.11-beta · 2026-10-26
 - **Your take on a deep dive** (Steven, 10-26): a box on every topic on the queue page (from the evening email) and on
   the dashboard's Deep dives page. The take is read verbatim as "Steven's take" at the end of that deep dive, on the

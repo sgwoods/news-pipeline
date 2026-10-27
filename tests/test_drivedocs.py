@@ -80,6 +80,8 @@ class Wiring(unittest.TestCase):
         auth = gs.index("if (!authed_(p)) return json_")
         self.assertGreater(gs.index("if (p.action === 'savedoc')"), auth)                   # key only
         self.assertNotIn("setTrashed", gs)                                                   # never deletes
+        doc = gs[gs.index("function saveDoc_"):gs.index("function authorizeDrive")]
+        self.assertLess(doc.index("try {"), doc.index("removeFromParent"))                  # 10-27: rewrite failed
         run = (ROOT / "run.py").read_text("utf-8")
         self.assertIn("drivedocs.save_day(ROOT, cfg, today, final=False", run)              # with the takes email
         self.assertEqual(run.count("drivedocs.save_day(ROOT, cfg, today, final=True"), 2)   # after each publish

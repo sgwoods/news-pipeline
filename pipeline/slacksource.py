@@ -153,7 +153,7 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_hours: int | None = 
                 items.append({
                     "id": item_id(url), "url": url, "title": title or url, "author": site or "",
                     "published": iso(when), "text": text, "text_chars": len(text),
-                    "person": "Shared by Steven" if mine else "Shared in Steven's team channel",
+                    "person": "Shared by Steven" if mine else "Shared internally",
                     "tier": "follow closely", "flags": ["SHARED"], "scrutiny": False,
                     "source_kind": "shared", "source_url": "slack", "source_label": "",
                     "source_note": ("Steven shared this link with his team as worth reading. " if mine else
