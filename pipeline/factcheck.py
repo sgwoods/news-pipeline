@@ -18,7 +18,8 @@ FIG = re.compile(r"(?<![\w.$€£-])(~?[$€£]?)(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+
 MULT = {"k": 1e3, "thousand": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "b": 1e9, "bn": 1e9, "billion": 1e9,
         "t": 1e12, "tn": 1e12, "trillion": 1e12}
 FACTUAL = ("what happened", "day in brief", "top of mind", "worth knowing", "in brief", "recommended reading", "why it matters")
-ANALYSIS = ("evidence check", "critical pass", "editor's view", "our read", "view", "open questions", "settled by", "agenda")
+ANALYSIS = ("evidence check", "critical pass", "editor's view", "our read", "view", "open questions", "settled by", "agenda",
+            "the case for", "the case against", "the deciding question", "our lean")
 
 
 def values(text: str) -> list:

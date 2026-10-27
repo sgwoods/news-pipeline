@@ -14,6 +14,7 @@ import json
 import re
 from collections import Counter
 
+from . import houseviews
 from .stages import _ask, _one_line, display_name, prompt
 
 VERDICT_ORDER = {"unsupported": 0, "overstated": 1, "unverified": 2, "mixed": 2, "holds": 3}
@@ -220,7 +221,28 @@ EDITORIAL_DEFAULTS = {
 }
 
 
-def editorial_prompt(tmpl: str, lines: list, cfg: dict, earlier: list) -> str:
+HOUSE_RULE = (
+    "HOUSE VIEWS (listed just above the stories as V1, V2, ...): each Our read takes its position under the "
+    "ONE house view that fits the story best, and says which way we lean (\"We think...\"). Return each editor_view "
+    "as {\"text\": ..., \"view\": <the view's number>, \"changes\": what specific evidence would change our mind about "
+    "THIS story (at most 15 words)}. A view is a lens, not a conclusion: when the facts point against the view, say "
+    "so plainly. Use 0 for \"view\" when no view fits; never force one. Never quote or paraphrase anyone as holding "
+    "the view: house views are \"our\" views. Never write a view's number (V7) in any text: readers see its name.\n"
+    "3d. \"lead_case\": for MUST READ story 1 only, the bull and bear cases in their strongest honest form: "
+    "{\"for\": the case for (at most 30 words), \"against\": the case against (at most 30 words), \"deciding\": the one "
+    "question whose answer decides between them (at most 20 words), \"lean\": which way we lean and why, under its "
+    "house view (at most 25 words)}. Facts from the story only. No stock counter-view on any other story.\n")
+
+
+def _unnumber(text: str) -> str:
+    """View numbers are for the model (V7); readers see the view's name on the line. "Under V7, we lean..." -> "We lean..."."""
+    t = re.sub(r"(?i)\b(?:under|per|by|following|via)\s+(?:(?:our|the)\s+)?(?:house\s+view\s+)?V\d{1,2}\b\s*[,:;]?\s*", "", text)
+    t = re.sub(r"\(\s*V\d{1,2}\s*\)\s*", "", t)
+    t = re.sub(r"\b(?:house view\s+)?V\d{1,2}\b", "our house view", t).strip()
+    return t[:1].upper() + t[1:] if t else t
+
+
+def editorial_prompt(tmpl: str, lines: list, cfg: dict, earlier: list, views: list | None = None) -> str:
     """Fill the editorial template from the tuning profile (cfg = {"analysis": ..., "editorial": ...})."""
     a, e = cfg.get("analysis") or {}, {**EDITORIAL_DEFAULTS, **(cfg.get("editorial") or {})}
     n_top, n_q = int(a.get("top_of_mind", 4)), int(a.get("open_questions", 0))
@@ -241,11 +263,18 @@ def editorial_prompt(tmpl: str, lines: list, cfg: dict, earlier: list) -> str:
     return (tmpl.replace("{{audience}}", e["audience"]).replace("{{focus}}", e["focus"].rstrip("."))
             .replace("{{tone}}", e["tone"]).replace("{{top_rule}}", top_rule)
             .replace("{{questions_rule}}", q_rule).replace("{{continues_rule}}", c_rule)
+            .replace("{{house_views_rule}}", HOUSE_RULE if views else "")
+            .replace("{{house_views}}", houseviews.prompt_block(views or []))
             .replace("{{stories}}", "\n".join(lines)).replace("{{earlier}}", earlier_block))
 
 
-def run_editorial(llm, sel: dict, system: str, log, cfg: dict | None = None, earlier: list | None = None) -> tuple:
+def run_editorial(llm, sel: dict, system: str, log, cfg: dict | None = None, earlier: list | None = None,
+                  views: list | None = None) -> tuple:
+    """views: house_views.md (pipeline/houseviews.py); none -> Our read as before, with no view or lead case."""
     tmpl, version = prompt("editorial")
+    views = views or []
+    names = {v.n: v.name for v in views}
+    known = set(names)
     cfg = cfg or {}
     earlier = earlier or []
     numbered = sel["must"] + sel["worth"]
@@ -263,7 +292,7 @@ def run_editorial(llm, sel: dict, system: str, log, cfg: dict | None = None, ear
                      + "\n    readable sources: " + "; ".join(f"{display_name(r)} ({profile_kind(r)}): {headline_of(r)[:80]}"
                                                        for r in s["records"][:5]))
     try:
-        out = _ask(llm, system, editorial_prompt(tmpl, lines, cfg, earlier), 2400)
+        out = _ask(llm, system, editorial_prompt(tmpl, lines, cfg, earlier, views), 2400 + (600 if views else 0))
     except Exception as e:  # noqa: BLE001
         log.warning("editorial failed: %s", e)
         return {}, version, [f"editorial: {type(e).__name__}: {e}"[:300]]
@@ -284,8 +313,26 @@ def run_editorial(llm, sel: dict, system: str, log, cfg: dict | None = None, ear
     ev = out.get("editor_view") or {}
     for n, s in enumerate(numbered, 1):
         v = ev.get(str(n)) or ev.get(n)
-        if v:
+        if isinstance(v, dict):
+            text = _unnumber(_one_line(str(v.get("text") or "")))
+            if text:
+                s["editor_view"] = text
+                try:
+                    vn = int(str(v.get("view") or 0).lstrip("Vv") or 0)
+                except ValueError:
+                    vn = 0
+                if vn in known:
+                    s["house_view"] = vn
+                    s["house_view_name"] = names[vn]
+                if v.get("changes") and vn in known:
+                    s["changes_our_mind"] = _one_line(str(v["changes"]))
+        elif v:
             s["editor_view"] = _one_line(v)
+    lc = out.get("lead_case") if views else None
+    if isinstance(lc, dict) and sel["must"]:
+        case = {k: _unnumber(_one_line(str(lc.get(k) or ""))) for k in ("for", "against", "deciding", "lean")}
+        if all(case.values()):
+            sel["must"][0]["lead_case"] = case
     es = out.get("early_stage") or {}
     for n, s in enumerate(sel["must"], 1):
         v = es.get(str(n)) or es.get(n)
@@ -586,10 +633,15 @@ def render(day: str, sel: dict, ed: dict, meta: dict) -> tuple:
             if crit:
                 L.append(f"- **Evidence check:** {_md(crit)}")
             if s.get("editor_view"):
-                L.append(f"- **Our read:** {_md(s['editor_view'])}")
+                hv = f" *(House view: {_md(s['house_view_name'])})*" if s.get("house_view_name") else ""
+                L.append(f"- **Our read:** {_md(s['editor_view'])}{hv}")
+            if s.get("lead_case"):
+                c = s["lead_case"]
+                L += [f"- **The case for:** {_md(c['for'])}", f"- **The case against:** {_md(c['against'])}",
+                      f"- **The deciding question:** {_md(c['deciding'])}", f"- **Our lean:** {_md(c['lean'])}"]
             if s.get("early_stage"):
                 L.append(f"- **For early-stage:** {_md(s['early_stage'])}")
-            if s.get("other_lens"):
+            if s.get("other_lens") and not s.get("lead_case"):
                 L.append(f"- **{s['other_lens']['lens']}:** {_md(s['other_lens']['text'])}")
             if multi:
                 recs = s["records"]
@@ -665,6 +717,7 @@ def story_records(sel: dict, run_id: str, day: str) -> dict:
                 "lead_id": s["lead"]["id"], "lead_url": s["lead"]["url"], "names": s["names"], "score": s["score"],
                 "what_happened": s.get("what_happened", ""), "critical_pass": s.get("critical_pass", ""),
                 "editor_view": s.get("editor_view", ""), "early_stage": s.get("early_stage", ""),
+                "house_view": s.get("house_view", 0), "lead_case": s.get("lead_case") or {},
                 "other_lens": s.get("other_lens") or {}, "thread": s.get("thread") or s["key"],
                 "continues": s.get("continues", ""), "thread_day": s.get("thread_day", 1)}
     stories = [pack(s, "must", n) for n, s in enumerate(sel["must"], 1)]

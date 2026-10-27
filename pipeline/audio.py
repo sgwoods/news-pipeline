@@ -79,7 +79,8 @@ def parse_briefing(md: str) -> dict:
             m = re.match(r"- \*\*(.+?):\*\* (.+)", ln)
             if m and m.group(1) != "Sources":
                 key = "Critical pass" if m.group(1) == "Evidence check" else m.group(1)   # one internal name
-                fields[key] = _strip_links(m.group(2))
+                val = re.sub(r"\s*\*\(House view: [^)]*\)\*\s*$", "", m.group(2))   # the tag is for readers
+                fields[key] = _strip_links(val)
         stories.append({"headline": head, "who": who, **fields})
     worth = [_strip_links(re.sub(r"^- \*\*\d+\.\s*", "- **", ln)[2:])
              for ln in sections.get("Worth knowing", "").splitlines() if ln.startswith("- ")]

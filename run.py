@@ -663,7 +663,9 @@ def write_v2(run, cfg, backends, system, entries, day, dropped, meta, briefings_
             if verrs:
                 st["status"] = "partial"
     with run.stage("editorial") as st:
-        ed, ev, eerrs = editorial.run_editorial(backends["editorial"], sel, system, run.log, cfg, earlier)
+        from pipeline import houseviews
+        views = houseviews.load(ROOT) if (cfg.get("editorial") or {}).get("house_views", True) else []
+        ed, ev, eerrs = editorial.run_editorial(backends["editorial"], sel, system, run.log, cfg, earlier, views)
         if threads_on:
             editorial.mark_threads(sel, stories_dir, day)
         st.update({"top_of_mind": len(ed.get("top_of_mind", [])), "open_questions": len(ed.get("open_questions", [])),
@@ -671,6 +673,8 @@ def write_v2(run, cfg, backends, system, entries, day, dropped, meta, briefings_
                    "editor_views":
                    sum(1 for s in sel["must"] + sel["worth"] if s.get("editor_view")),
                    "day_in_brief": bool(ed.get("day_in_brief")), "model": backends["editorial"].label,
+                   "house_views": len(views), "positions": sum(1 for s in sel["must"] if s.get("house_view")),
+                   "lead_case": bool(sel["must"] and sel["must"][0].get("lead_case")),
                    "errors": eerrs})
         if eerrs:
             st["status"] = "partial"
@@ -685,6 +689,8 @@ def write_v2(run, cfg, backends, system, entries, day, dropped, meta, briefings_
             run.log.info("  write: %d lower item(s) left out to stay within %s words", trimmed, acfg.get("max_words", 1500))
         srec = editorial.story_records(sel, run.run_id, day)
         srec["editorial"] = ed
+        if views:
+            st["positions"] = houseviews.log_positions(ROOT, day, sel, views)
         from pipeline import profiles
         evs = [s.get("evidence") or profiles.evidence(s["records"]) for s in sel["must"] + sel["worth"]]
         musts = [s.get("evidence") or profiles.evidence(s["records"]) for s in sel["must"]]

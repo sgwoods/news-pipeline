@@ -4,7 +4,16 @@ Releases of the AI Briefing pipeline. Versions are `0.MINOR.PATCH` while in beta
 a PATCH release fixes problems. Changes are built and tested on a development branch and reach production
 together as a release (docs/plans/release-process.md).
 
+
 ## Unreleased
+
+## v0.2.21-beta · 2026-10-27
+- **House views.** Our read takes a position under one of the views in `house_views.md` (1–10 plus Steven's
+  theses 11–17) and names it ("House view: …"). The lead story adds the case for, the case against, the deciding
+  question and our lean, in place of its other view. Each position is logged in `data/positions/ledger.jsonl` with
+  what would change our mind and a check date (a thesis's own, else 90 days). Dashboard switch: Editorial lens →
+  "Take positions under the house views". Security: `house_views.md` steers the models, so it joins the files
+  whose changes need release approval.
 
 ## v0.2.20-beta · 2026-10-27
 - **Pending sign-ups** (Steven, 10-27): one reminder email to people who signed up but never confirmed ("One click to

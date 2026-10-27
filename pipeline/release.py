@@ -32,7 +32,8 @@ CODE = ["pipeline/**/*.py", "pipeline/prompts/*.md", "dashboard/**/*.py", "dashb
 # hand-picked list had drifted; run.py and the privacy check itself could change unapproved). Files the dashboard
 # edits day to day (watchlist.yaml, sources.yaml, profiles/*.yaml) stay out, or every click would need approval.
 SENSITIVE = CODE + ["tests/**/*.py", ".gitignore", "config.yaml", "owner.yaml", "author.md", "author-private.md",
-                    "newsletters.yaml", "conflicts.yaml", "source_profiles.yaml", "pronunciations.yaml"]
+                    "newsletters.yaml", "conflicts.yaml", "source_profiles.yaml", "pronunciations.yaml",
+                    "house_views.md"]
 SECRET_PATTERNS = [
     (r"xox[abpr]-\d{6,}-[A-Za-z0-9-]{10,}", "Slack token"),
     (r"sk-ant-[A-Za-z0-9_-]{20,}", "Anthropic key"),

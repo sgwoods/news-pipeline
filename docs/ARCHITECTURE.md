@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.20-beta (2026-10-27)
+- **Release:** v0.2.21-beta (2026-10-27)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 67 in `pipeline/`
+- **Modules:** 68 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -78,6 +78,10 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
   via the API. Each stage picks its backend in config.
 - **Editorial lens** (`perspective.py`): a hand-written perspective file (people, topics, scepticism) steers
   filtering and the editor's view. Code reads it and never rewrites it.
+- **House views** (`houseviews.py`): a second hand-written file, `house_views.md`, holds the views Our read takes
+  positions under and Steven's dated theses. Each Must read's Our read names its view; the lead story adds the case
+  for, the case against, the deciding question and our lean. Every position goes to `data/positions/ledger.jsonl`
+  with what would change our mind and a check date, to be scored when it comes due. Code never rewrites the file.
 - **Tuning** (`tuning.py`, `profiles/`): named presets for lengths, sections and tone, edited from the dashboard.
 - **Dashboard** (`dashboard/`): a local Flask app on 127.0.0.1 for sources, watchlist, tuning, takes, feedback,
   runs, quality and control. It's never exposed to the internet.
@@ -290,6 +294,7 @@ _Generated from each module's own description at build time._
 | `factsearch.py` | Look for a figure before the fact check cuts it (Steven, 2026-10-18 |
 | `feedback.py` | Reader feedback |
 | `fetch.py` | Fetch new items from every verified source. |
+| `houseviews.py` | Read-only parser for house_views.md, and the positions ledger (Steven, 2026-10-27). |
 | `hub.py` | AI Briefing on Steven's public project hub (sgwoods.github.io/public) |
 | `linkedin.py` | Steven's own LinkedIn posts, from LinkedIn's data export (and from Slack, when he shares one there). |
 | `links.py` | Make every citation point at the real article (runs in the write stage; never fails the briefing). |

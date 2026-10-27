@@ -62,6 +62,9 @@ KNOBS = [
      "what it means for an early-stage AI investor, a question worth exploring in diligence, or where we read the source differently",
      "Our read should give", "At most two sentences per Must read story, editorial \"we\".", None),
     ("Editorial lens", "editorial.tone", "text", "Your own judgement, plain and direct.", "Editorial tone", "", None),
+    ("Editorial lens", "editorial.house_views", "bool", True, "Take positions under the house views",
+     "Each Our read names its view (house_views.md); the lead gets the case for and against, the deciding question "
+     "and our lean; positions are logged for scoring.", None),
     ("Audio", "audio.minutes", "int", 15, "Target length (minutes)", "Not padded if there is less to say.", (2, 40)),
     ("Audio", "audio.format", "choice", "classic", "Episode format",
      "spec: 4 main stories, 3 quick hits, a close with the diligence question (format review 10-13). "
