@@ -6,6 +6,10 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.15-beta · 2026-10-27
+- Fix (mail script): rewriting a Drive doc that ends with a list (Steven's takes) failed in clear(); an empty
+  paragraph is added first (10-27). Needs a mail-script deploy (the next ship does it).
+
 ## v0.2.14-beta · 2026-10-27
 - Fix: the public export's tests failed because the photo isn't exported (the public code push stopped).
 - Fix: `./np release … --force` never reached the release (the command line took `--force` for another command).

@@ -82,6 +82,7 @@ class Wiring(unittest.TestCase):
         self.assertNotIn("setTrashed", gs)                                                   # never deletes
         doc = gs[gs.index("function saveDoc_"):gs.index("function authorizeDrive")]
         self.assertLess(doc.index("try {"), doc.index("removeFromParent"))                  # 10-27: rewrite failed
+        self.assertLess(doc.index("body.appendParagraph('')"), doc.index("body.clear()"))   # list item at the end
         run = (ROOT / "run.py").read_text("utf-8")
         self.assertIn("drivedocs.save_day(ROOT, cfg, today, final=False", run)              # with the takes email
         self.assertEqual(run.count("drivedocs.save_day(ROOT, cfg, today, final=True"), 2)   # after each publish

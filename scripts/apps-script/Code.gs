@@ -336,6 +336,7 @@ function saveDoc_(name, replace, md) {
   if (f) { doc = DocumentApp.openById(f.getId()); if (f.getName() !== name) f.setName(name); }
   else { doc = DocumentApp.create(name); DriveApp.getFileById(doc.getId()).moveTo(folder); }
   var body = doc.getBody();
+  body.appendParagraph('');                          // clear() refuses when the doc ends with a list item (10-27)
   body.clear();
   var H = { '#': DocumentApp.ParagraphHeading.HEADING1, '##': DocumentApp.ParagraphHeading.HEADING2,
             '###': DocumentApp.ParagraphHeading.HEADING3 };
