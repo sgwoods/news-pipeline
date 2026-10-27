@@ -124,6 +124,33 @@ def remove(cfg: dict, email: str) -> dict:
     return call(cfg, "remove", email=email.strip())
 
 
+def remind(cfg: dict, emails: list | None = None) -> dict:
+    """One reminder to pending sign-ups (all, or these); the mail script sends each at most once a week."""
+    return call(cfg, "remind", emails=",".join(emails or []))
+
+
+def expire(cfg: dict) -> dict:
+    """Pending 14 days after their reminder -> expired (Steven, 2026-10-27). They can always sign up again."""
+    return call(cfg, "expire")
+
+
+def counts(cfg: dict, subs: list) -> dict:
+    """Subscriber counts by status, without the owner's own addresses (his test copy; Steven, 2026-10-27)."""
+    owners = {a.strip().lower() for a in [ecfg(cfg).get("test_to") or ""] if a.strip()}
+    try:
+        from .owner import addresses
+        owners |= {a.lower() for a in addresses() if a}
+    except Exception:  # noqa: BLE001
+        pass
+    out = {}
+    for x in subs:
+        e = str(x.get("email", "")).lower()
+        if e in owners or e.split("+")[0] + "@" + e.split("@")[-1] in owners:
+            continue
+        out[x.get("status", "?")] = out.get(x.get("status", "?"), 0) + 1
+    return out
+
+
 # ---------- rendering ----------
 
 def _inline(md: str, light: bool = False) -> str:

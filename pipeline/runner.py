@@ -66,6 +66,8 @@ RECIPES = {
     "drive-save": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["drive", "save", "{day}"])]},
     "audio-check": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["audio-check", "{day}"])]},
     "setup": {"tier": "chat", "args": {}, "steps": [("prod", ["setup"])]},     # install requirements.txt
+    "email-remind": {"tier": "chat", "args": {"emails": "emails?"}, "steps": [("prod", ["email", "remind", "{emails}"])]},
+    "email-remove": {"tier": "chat", "args": {"email": "email"}, "steps": [("prod", ["email", "remove", "{email}"])]},
     "takes-apply": {"tier": "chat", "args": {"day": "day"},
                     "steps": [("prod", ["takes", "apply", "{day}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "send-held": {"tier": "chat", "args": {}, "steps": [("prod", ["daily"]), ("local", ["verify"])]},
@@ -170,6 +172,12 @@ def validate(job: dict, name: str = "") -> dict:
             if not isinstance(v, str) or not re.fullmatch(r"https://[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/?#][^\s<>\"']*)?", v) \
                     or len(v) > 300:
                 raise JobError(f"{k}: an https:// URL")
+        elif kind in ("email", "emails"):            # one address, or a comma-separated list of them
+            parts = [x.strip().lower() for x in str(v).split(",") if x.strip()] if isinstance(v, str) else []
+            if not parts or (kind == "email" and len(parts) != 1) or len(parts) > 50 or \
+                    not all(re.fullmatch(r"[^\s@<>\"',]+@[^\s@<>\"',]+\.[A-Za-z]{2,}", x) for x in parts):
+                raise JobError(f"{k}: an email address" + ("" if kind == "email" else " or a comma-separated list"))
+            v = ",".join(parts)
         elif kind == "reviewed":
             v = _text(v, 300)
             if not v.lower().startswith("reviewed"):

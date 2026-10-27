@@ -445,9 +445,21 @@ def cmd_email(cfg: dict, argv: list) -> int:
                 Archive(ROOT, cfg["paths"]).git_commit("email: script_url set", paths=("config.yaml",))
             return 0
         if sub == "list":
-            for x in mailer.subscribers(cfg)["subscribers"]:
+            subs = mailer.subscribers(cfg)["subscribers"]
+            for x in subs:
                 print(f"  {x['status']:13} {x['email']:40} {str(x.get('source', '')):10} {str(x.get('created', ''))[:10]}")
+            c = mailer.counts(cfg, subs)
+            print("Readers (not counting your own test copy): " + " · ".join(f"{v} {k}" for k, v in sorted(c.items())))
             return 0
+        if sub == "remind":                          # one reminder to pending sign-ups (all, or the given ones)
+            emails = [x for a in rest for x in a.split(",") if "@" in x]
+            r = mailer.remind(cfg, emails)
+            print(f"Reminded {len(r.get('reminded') or [])}: {', '.join(r.get('reminded') or []) or 'nobody due'}")
+            return 0 if r.get("ok") else 1
+        if sub == "expire":
+            r = mailer.expire(cfg)
+            print(f"Expired {len(r.get('expired') or [])} pending sign-up(s)")
+            return 0 if r.get("ok") else 1
         if sub == "add" and rest:
             note = "added from the terminal; consent confirmed by Steven" if "--confirmed" in rest else ""
             print(mailer.add(cfg, rest[0], note, source="terminal"))
@@ -2552,6 +2564,14 @@ def cmd_daily(cfg: dict) -> int:
         print("Emailing subscribers...")
         if cmd_email(cfg, ["send", today]) and not gate_blocked:
             _alert(cfg, "email", detail="See logs/last-command.txt for the error.", next_try=_next_try(cfg))
+    if w.get("status") == "ok" and published and not gate_blocked and (cfg.get("email") or {}).get("enabled"):
+        try:                                     # pending sign-ups 14 days after their reminder -> expired
+            from pipeline import mailer as _m
+            gone = _m.expire(cfg).get("expired") or []
+            if gone:
+                print(f"Expired {len(gone)} pending sign-up(s) 14 days after their reminder")
+        except Exception as e:  # noqa: BLE001
+            print(f"expiry skipped: {e}"[:160])
     if w.get("status") == "ok" and published and not gate_blocked and (cfg.get("audio") or {}).get("listen_check", True):
         _listen_check(cfg, today)                # hear what was published: the as-published transcript (v0.2.17)
     try:

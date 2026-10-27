@@ -11,7 +11,7 @@
  *            deep-dive queue page (Steven only: signed owner link from his evening note): pick what airs
  *            next, move up/down, dismiss, suggest a topic; the pipeline applies the clicks at its next run
  *   private  (needs the SECRET script property; used by the pipeline and the dashboard)
- *            list · add (always sends a confirmation) · remove · send (subscribers or OWNER_EMAIL only)
+ *            list · add (always sends a confirmation) · remove · remind / expire (pending sign-ups) · send (subscribers or OWNER_EMAIL only)
  *            ratings (read-only export, no addresses) · setqueue / ddactions (the deep-dive queue page)
  *            takes (Steven's takes from the site or review page, owner token t) · takes_pull (the pipeline reads them)
  *            review (GET: the held edition with a box per section, owner token t) · setreview (the pipeline uploads it)
@@ -30,7 +30,7 @@
  */
 
 var SHEET = 'subscribers';
-var HEAD = ['email', 'status', 'token', 'created', 'confirmed', 'updated', 'source', 'consent'];
+var HEAD = ['email', 'status', 'token', 'created', 'confirmed', 'updated', 'source', 'consent', 'reminded'];
 var RSHEET = 'ratings';
 var RHEAD = ['day', 'who', 'email', 'score', 'note', 'at', 'src'];
 var QSHEET = 'dd_queue', QHEAD = ['id', 'topic', 'status', 'why', 'take'];   // take: Steven's own words on it
@@ -381,6 +381,28 @@ function confirmEmail_(r) {
     '\n\nIf this wasn\'t you, ignore this email.', mailOpts_({ htmlBody: html, name: fromName_() }));
 }
 
+// One reminder for someone who signed up but never clicked the confirmation link (Steven, 2026-10-27).
+function remindEmail_(r) {
+  var link = selfUrl_() + '?action=confirm&t=' + r.token;
+  var html = '<div style="background:#07131f;padding:24px 12px;font-family:\'Avenir Next\',\'Segoe UI\',Arial,sans-serif">' +
+    '<div style="max-width:560px;margin:0 auto;border-radius:20px;overflow:hidden;border:1px solid #23415d">' +
+    '<div style="background:#3e7e8a;padding:16px 26px;color:#fff"><div style="font-size:22px;font-weight:700">AI Briefing</div>' +
+    '<div style="font-size:14px;color:#e8f5f7">Slowly, then fast. Every morning.</div></div>' +
+    '<div style="background:#0c2236;padding:22px 26px;color:#eff7ff">' +
+    '<p style="color:#d7ecff;margin:0 0 14px">You asked to get the AI Briefing by email, but the confirmation link wasn\'t ' +
+    'clicked, so nothing has been sent to you yet.</p>' +
+    '<p style="margin:0 0 16px"><a href="' + link + '" style="display:inline-block;padding:11px 18px;border-radius:999px;' +
+    'background:#67e6a8;color:#06221a;text-decoration:none;font-weight:600">Yes, send me the briefing</a></p>' +
+    '<p style="color:#d7ecff;margin:0 0 14px">A short daily read on AI for early-stage investors: what happened, what holds ' +
+    'up, and what it means, with a ten-minute podcast and a deep dive on the one story worth understanding properly.</p>' +
+    '<p style="font-size:13px;color:#9cc4df;margin:0">If you didn\'t ask for this, ignore this email and you won\'t hear ' +
+    'from us again.</p></div></div></div>';
+  MailApp.sendEmail(r.email, 'AI Briefing · One click to start receiving it',
+    'You asked to get the AI Briefing by email, but the confirmation link wasn\'t clicked, so nothing has been sent yet.\n\n' +
+    'Yes, send me the briefing: ' + link + '\n\nIf you didn\'t ask for this, ignore this email and you won\'t hear from us again.',
+    mailOpts_({ htmlBody: html, name: fromName_() }));
+}
+
 function subscribe_(email, source, confirmed) {
   email = String(email || '').trim().toLowerCase();
   if (!validEmail_(email)) return { ok: false, error: 'invalid email' };
@@ -572,6 +594,26 @@ function doPost_(e) {
     }) });
   }
   if (p.action === 'add') return json_(subscribe_(p.email, p.source === 'terminal' ? 'terminal' : 'dashboard', p.confirmed || ''));
+  if (p.action === 'remind') {                      // one reminder to pending sign-ups (key only); at most once a week each
+    var only = String(p.emails || '').toLowerCase().split(',').map(function (x) { return x.trim(); }).filter(String);
+    var week = Date.now() - 7 * 86400000, sentTo = [], shd = sheet_();
+    if (!shd.getRange(1, HEAD.length).getValue()) shd.getRange(1, HEAD.length).setValue('reminded');   // new column
+    rows_().forEach(function (r) {
+      if (r.status !== 'pending' || (only.length && only.indexOf(String(r.email).toLowerCase()) < 0)) return;
+      if (r.reminded && new Date(r.reminded).getTime() > week) return;
+      remindEmail_(r); r.reminded = now_(); r.updated = now_(); put_(r); sentTo.push(r.email);
+    });
+    return json_({ ok: true, reminded: sentTo });
+  }
+  if (p.action === 'expire') {                      // pending 14 days after the reminder -> expired (they can sign up again)
+    var cut = Date.now() - 14 * 86400000, gone = [];
+    rows_().forEach(function (r) {
+      if (r.status === 'pending' && r.reminded && new Date(r.reminded).getTime() < cut) {
+        r.status = 'expired'; r.updated = now_(); put_(r); gone.push(r.email);
+      }
+    });
+    return json_({ ok: true, expired: gone });
+  }
   if (p.action === 'remove') {
     var r = find_('email', p.email);
     if (!r) return json_({ ok: false, error: 'not found' });

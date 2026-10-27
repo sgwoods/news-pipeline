@@ -6,6 +6,13 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.20-beta · 2026-10-27
+- **Pending sign-ups** (Steven, 10-27): one reminder email to people who signed up but never confirmed ("One click to
+  start receiving it"), at most once a week each; 14 days after the reminder a still-pending sign-up is marked
+  expired by the morning run (they can sign up again, and an old confirm link still works). Run-queue jobs
+  `email-remind` and `email-remove` (chat tier). `./np email list` counts readers without the owner's test copy.
+  Needs a mail-script deploy (the ship does it).
+
 ## v0.2.19-beta · 2026-10-27
 - **New taglines** (Steven, 10-27): the AI Briefing is "Slowly, then fast. Every morning." and the deep dive is
   "One story, slowly. Down to the details." On the email masthead and deep-dive section, both podcast covers, both
