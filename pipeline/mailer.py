@@ -23,7 +23,8 @@ LOG = "data/email-log.jsonl"
 C = {"bg": "#07131f", "panel": "#0c2236", "card": "#112a42", "border": "#23415d", "text": "#eff7ff",
      "muted": "#9cc4df", "strong": "#d7ecff", "accent": "#67e6a8", "accent_ink": "#06221a", "link": "#d9f7ff",
      "brand": "#3e7e8a", "brand_deep": "#36707c", "brand_ink": "#e8f5f7"}   # brand: the teal of Steven's photo
-TAGLINE = "What happened, what holds up, what it means."       # Steven 2026-10-26; email.tagline overrides
+TAGLINE = "Slowly, then fast. Every morning."                  # Steven 2026-10-27; email.tagline overrides
+DD_TAGLINE = "One story, slowly. Down to the details."          # the deep dive's line (Steven 2026-10-27)
 PHOTO = "steven-woods.jpg"                                     # assets/, copied to the site root on each build
 FONT = "'Avenir Next','Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Arial,sans-serif"
 
@@ -339,6 +340,7 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Must read")}{"".join(items)}</td></tr>')
     if deep:
         dd_label = _label("This week's deep dive · two voices" if deep.get("flagship") else "Today's deep dive")
+        dd_label += f'<div style="font-size:13px;color:{C["muted"]};margin:-2px 0 8px;font-style:italic">{DD_TAGLINE}</div>'
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{dd_label}'
                  f'<div style="font-size:18px;font-weight:600;line-height:1.35;margin:0 0 6px;color:{C["text"]}">'
                  f'{htmllib.escape(deep["title"])}</div>'

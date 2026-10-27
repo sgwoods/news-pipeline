@@ -386,7 +386,8 @@ def site_cfg(cfg: dict) -> dict:
     """Public-page text and links: neutral defaults, then the owner's bio (owner.yaml site:), then `site:` in config.yaml."""
     from .owner import get as owner
     return {
-        "tagline": "A daily briefing on AI for early-stage investors: what happened, what holds up, and what it means.",
+        "tagline": "Slowly, then fast. Every morning. A daily briefing on AI for early-stage investors: what happened, "
+                   "what holds up, and what it means.",
         "name": "", "role": "", "photo": "", "bio": "", "why": "",
         "about": ("Every morning this briefing reads a hand-picked list of researchers, builders, sceptics and investors, "
                   "groups what they wrote into stories, and checks the big claims before they reach you. It is written by "
@@ -620,6 +621,7 @@ def landing(cfg: dict, latest, rows: list, podcast_url: str, has_podcast: bool, 
                             if d.get("audio") else "")
                          + f'<a class="button ghost" href="{d["day"]}/index.html">That day\'s briefing</a></div></div>')
         H.append('<section class="panel" id="deep-dives"><h2>Deep dives</h2>'
+                 '<p class="lead" style="margin-top:0"><i>One story, slowly. Down to the details.</i></p>'
                  '<p>About ten minutes on the one thing worth understanding properly that day: a breakthrough, a '
                  'controversy, a shift in the trajectory. Each one follows that morning\'s briefing in the podcast feed, '
                  'and they also have a podcast of their own.</p>'
@@ -689,7 +691,7 @@ def _show_notes(md: str) -> str:
 
 DD_FEED = "deepdive.xml"
 DD_TITLE = "AI Briefing: Deep Dive"
-DD_DESC = ("The AI Briefing's deep dive on its own: about ten minutes on the one thing worth understanding properly "
+DD_DESC = ("One story, slowly. Down to the details. The AI Briefing's deep dive on its own: about ten minutes on the one thing worth understanding properly "
            "that day (a breakthrough, a controversy, a shift in the trajectory), for early-stage investors. Written "
            "and read by AI from public sources, curated by Steven Woods; every claim links to its source.")
 
@@ -707,7 +709,7 @@ def build_podcast(root: Path, cfg: dict, out: Path, episodes: list, base_url: st
         shutil.copy2(cover_src, out / cover)
     title = title or pc.get("title", "AI Briefing")
     author = pc.get("author", "Steven")
-    desc = desc or pc.get("description", "A daily AI briefing for early-stage investors: what happened, a critical read "
+    desc = desc or pc.get("description", "Slowly, then fast. Every morning. A daily AI briefing for early-stage investors: what happened, a critical read "
                                  "of the claims, and what it means for diligence. Written and read by AI from public "
                                  "sources, curated by Steven Woods; every claim links to its source in the written briefing.")
     ai_note = "This episode is AI-generated: written and voiced by AI from public sources."

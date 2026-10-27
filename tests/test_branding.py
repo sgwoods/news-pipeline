@@ -51,6 +51,16 @@ class PodcastBrand(unittest.TestCase):
         self.assertIn(".sections.json", (ROOT / "pipeline" / "audio.py").read_text("utf-8"))
 
 
+class Taglines(unittest.TestCase):                    # Steven, 2026-10-27
+    def test_taglines_and_glued_names(self):
+        self.assertEqual(mailer.TAGLINE, "Slowly, then fast. Every morning.")
+        self.assertEqual(mailer.DD_TAGLINE, "One story, slowly. Down to the details.")
+        from pipeline import site, speech
+        self.assertTrue(site.DD_DESC.startswith("One story, slowly. Down to the details."))
+        out = speech.spoken("Alibaba's Qwen3.8 tried it", {"Qwen": "Chwen"})
+        self.assertIn("Chwen three point eight", out)
+
+
 class DriveTidy(unittest.TestCase):
     def test_no_duplicate_why_today_and_no_flags(self):
         from pipeline import deepdive

@@ -191,9 +191,13 @@ def pronounce(text: str, table: dict) -> tuple:
     return text, hits
 
 
+_GLUED = re.compile(r"\b([A-Z][a-z]{2,})(\d+(?:\.\d+)?)\b")      # 'Qwen3.8' -> 'Qwen 3.8' (10-27: heard "QN3, 8")
+
+
 def spoken(text: str, table: dict) -> str:
-    """Pronounce first (so names like 'GPT-6.1 Sol' can have entries), then expand figures."""
-    return expand(pronounce(text, table)[0])
+    """Pronounce first (so names like 'GPT-6.1 Sol' can have entries), then expand figures. A name glued to its
+    version number is split first, so the table's entry for the name applies and the number is read as a number."""
+    return expand(pronounce(_GLUED.sub(r"\1 \2", text), table)[0])
 
 
 _ODD = re.compile(r"\b(?:[A-Za-z]+\d+[A-Za-z\d.]*|[A-Z]{4,}|[a-z]+[A-Z][A-Za-z]+)\b")

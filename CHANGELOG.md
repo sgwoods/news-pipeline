@@ -6,6 +6,13 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.19-beta · 2026-10-27
+- **New taglines** (Steven, 10-27): the AI Briefing is "Slowly, then fast. Every morning." and the deep dive is
+  "One story, slowly. Down to the details." On the email masthead and deep-dive section, both podcast covers, both
+  feed descriptions and the site.
+- Speech: a name glued to its version number is split before the pronunciation table ("Qwen3.8" was heard as
+  "QN3, 8"; now "Chwen three point eight").
+
 ## v0.2.18-beta · 2026-10-27
 - **The weekly flagship deep dive** (Steven, 10-27: "lets do this as outlined"): on Saturdays the deep dive is a
   two-voice episode of about 22 minutes on the week's topic, with Bella as host and Michael as the sceptic who
