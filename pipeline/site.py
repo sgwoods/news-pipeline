@@ -185,7 +185,7 @@ TAKES_JS = r"""
     var txt = h.textContent.trim().toLowerCase();
     if (h.tagName === "H2") {
       inMust = txt.indexOf("must read") === 0;
-      if (txt.indexOf("top of mind") === 0) add(sec, "T", "Top of mind");
+      if (txt.indexOf("top of mind") === 0 || txt.indexOf("today in 30 seconds") === 0) add(sec, "T", "Top of mind");
       else if (txt.indexOf("worth knowing") === 0) add(sec, "W", "Worth knowing");
       continue;
     }
@@ -367,6 +367,7 @@ def _version_links(rel: str, cfg: dict, sc: dict) -> str:
     code = cfg.get("code_repo") or ""
     return (f'<br><span class="small"><a href="{rel}releases/index.html">{htmllib.escape(short())}</a>'
             + f' · <a href="{rel}docs/index.html">Docs</a>'
+            + f' · <a href="{rel}calls/index.html">Calls we made</a> · <a href="{rel}accuracy/index.html">Accuracy</a>'
             + (f' · <a href="https://github.com/{htmllib.escape(code)}">Code</a>' if code else "")
             + (f' · <a href="{htmllib.escape(sc["home_url"])}">{htmllib.escape(sc["home_label"] or "All projects")}</a>'
                if sc.get("home_url") else "") + "</span>")
@@ -380,6 +381,75 @@ def releases_page(cfg: dict) -> str:
     for head, md in releases():
         body.append(f'<section class="panel"><h2>{htmllib.escape(head)}</h2>{_md_to_html(md)}</section>')
     return _page("AI Briefing · Release notes", "".join(body), "../", cfg)
+
+
+def _wrap_table(rows: list, head: list) -> str:
+    return ('<div style="overflow-x:auto"><table><tr>' + "".join(f"<th>{h}</th>" for h in head) + "</tr>"
+            + "".join("<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>" for r in rows) + "</table></div>")
+
+
+def calls_page(root: Path, cfg: dict) -> str:
+    """<site>/calls/: every position Our read took under a house view, with what would change our mind and when we
+    check it; scored calls show the verdict and the later evidence (pipeline/houseviews.py)."""
+    from . import houseviews
+    rows = houseviews.load_ledger(root)
+    esc = htmllib.escape
+    scored = [r for r in rows if r.get("status") == "scored"]
+    tally = {v: sum(1 for r in scored if r.get("verdict") == v) for v in ("right", "wrong", "mixed")}
+    body = ['<h1>Calls we made</h1><p class="muted">Every Must read takes a position under one of our house views '
+            '("We think…") and says what would change our mind. Each call is logged here with the date we check it. '
+            'When the date comes, the call is scored against what we have reported since: right, wrong or mixed. '
+            'Calls that are still too early to judge get more time.</p>',
+            f'<p><b>{len(rows)}</b> calls · <b>{len(rows) - len(scored)}</b> open · <b>{len(scored)}</b> scored'
+            + (f" ({tally['right']} right, {tally['wrong']} wrong, {tally['mixed']} mixed)" if scored else "") + "</p>"]
+    if scored:
+        body.append("<h2>Scored</h2>" + _wrap_table(
+            [[esc(r["day"]), f'<a href="../{esc(r["day"])}/index.html">{esc(r.get("headline", ""))}</a>',
+              esc(r.get("position", "")), f'<b>{esc(r.get("verdict", "").capitalize())}</b> ({esc(r.get("scored_on", ""))}): '
+              + esc(r.get("why", ""))] for r in sorted(scored, key=lambda r: r.get("scored_on", ""), reverse=True)],
+            ["Day", "Story", "Our call", "Verdict"]))
+    open_ = sorted((r for r in rows if r.get("status") == "open"), key=lambda r: (r["day"], r.get("key", "")), reverse=True)
+    if open_:
+        body.append("<h2>Open</h2>" + _wrap_table(
+            [[esc(r["day"]), f'<a href="../{esc(r["day"])}/index.html">{esc(r.get("headline", ""))}</a>',
+              esc(r.get("view_name", "")), esc(r.get("position", "")), esc(r.get("changes_our_mind", "")),
+              esc(r.get("check", ""))] for r in open_[:200]],
+            ["Day", "Story", "House view", "Our call", "What would change our mind", "Check"]))
+    if not rows:
+        body.append('<p class="muted">No calls logged yet: the first ones arrive with the next edition.</p>')
+    return _page("AI Briefing · Calls we made", "".join(body), "../", cfg)
+
+
+def accuracy_page(root: Path, cfg: dict) -> str:
+    """<site>/accuracy/: the daily accuracy audit's counts (pipeline/audit.py) and every correction (pipeline/shipped.py)."""
+    from . import audit
+    from .shipped import corrections
+    esc = htmllib.escape
+    days = audit.load_all(root)[::-1]
+    fixes = sorted(corrections(root), key=lambda r: r.get("at", ""), reverse=True)
+    checked = sum(d.get("checked", 0) for d in days[:30])
+    ok = sum(d.get("supported", 0) for d in days[:30])
+    body = ['<h1>Accuracy</h1><p class="muted">Each morning, after the edition goes out, about five of its factual '
+            'claims are checked again against the sources they came from: supported, partly right, not found in '
+            'those sources, or contradicted by them. The checks also count places where the edition disagrees with '
+            'itself or with the last two weeks. Anything partly right or contradicted goes to Steven, who decides '
+            'whether to correct it. The checks are machine-run, and the corrections below are made by hand.</p>']
+    if checked:
+        body.append(f'<p>Last {min(30, len(days))} editions: <b>{ok}</b> of <b>{checked}</b> checked claims fully '
+                    f'supported ({round(100 * ok / checked)}%).</p>')
+    if days:
+        body.append("<h2>Daily checks</h2>" + _wrap_table(
+            [[f'<a href="../{esc(d["day"])}/index.html">{esc(d["day"])}</a>', str(d.get("checked", 0)),
+              str(d.get("supported", 0)), str(len(d.get("issues") or [])), str(len(d.get("contradictions") or []))]
+             for d in days[:60]], ["Edition", "Claims checked", "Supported", "To look at", "Contradiction flags"]))
+    body.append("<h2>Corrections</h2>")
+    if fixes:
+        body.append(_wrap_table([[f'<a href="../{esc(r["day"])}/index.html">{esc(r["day"])}</a>',
+                                  esc(r.get("at", "")[:10]), esc(r.get("note", ""))] for r in fixes],
+                                ["Edition", "Corrected", "What changed"]))
+    else:
+        body.append('<p class="muted">No corrections yet.</p>')
+    return _page("AI Briefing · Accuracy", "".join(body), "../", cfg)
 
 
 def site_cfg(cfg: dict) -> dict:
@@ -481,8 +551,10 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
                         f'data-day="{day}"></script>' if _script_url(cfg) else ""), "../", cfg)
         (out / day).mkdir()
         (out / day / "index.html").write_text(page, "utf-8")
-        brief = re.search(r"\*\*The day in brief\.\*\* (.+)", md)
-        tom = re.findall(r"^- (.+)$", md.split("## Top of mind", 1)[1].split("\n## ", 1)[0], re.M) if "## Top of mind" in md else []
+        from .textutil import is_merged, legacy_top
+        lm = legacy_top(md)
+        brief = None if is_merged(md) else re.search(r"\*\*The day in brief\.\*\* (.+)", md)
+        tom = re.findall(r"^- (.+)$", lm.split("## Top of mind", 1)[1].split("\n## ", 1)[0], re.M) if "## Top of mind" in lm else []
         preview = brief.group(1) if brief else (tom[0] if tom else "")
         preview = re.sub(r"\[(\d+)\]\(https?://[^)]+\)", "", preview).replace("**", "").strip()
         if latest is None:
@@ -554,6 +626,9 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
                                           cfg=cfg, bare=True), "utf-8")
     (out / "releases").mkdir(exist_ok=True)
     (out / "releases" / "index.html").write_text(releases_page(cfg), "utf-8")
+    for name, fn in (("calls", calls_page), ("accuracy", accuracy_page)):   # the public record of our calls and checks
+        (out / name).mkdir(exist_ok=True)
+        (out / name / "index.html").write_text(fn(root, cfg), "utf-8")
     try:                                         # <site>/docs/: the public documentation (pipeline/docs.py)
         from . import docs
         docs.build(root, cfg, out, _page)
@@ -684,7 +759,7 @@ def _show_notes(md: str) -> str:
         if sec.startswith("## Must read"):
             heads = re.findall(r"(?m)^### (.+)$\n\*\*(.+?)\*\*.*?\[source\]\((https?://[^)]+)\)", sec)
             keep.append("## Must read\n\n" + "\n".join(f"- [{h}]({u}) ({w})" for h, w, u in heads))
-        elif sec.startswith("## Top of mind") or sec.startswith("# "):
+        elif sec.startswith(("## Top of mind", "## Today in 30 seconds")) or sec.startswith("# "):
             keep.append(sec.strip())
     return _md_to_html("\n\n".join(keep))
 
@@ -717,7 +792,7 @@ def build_podcast(root: Path, cfg: dict, out: Path, episodes: list, base_url: st
     for e in episodes:
         mp3 = e["mp3"]
         d = dt.datetime.fromisoformat(e["day"] + "T" + e.get("time", "06:45:00")).astimezone()
-        brief = re.search(r"\*\*The day in brief\.\*\* (.+)", e["md"])
+        brief = re.search(r"\*\*The day in brief\.\*\* (.+)", e["md"]) or re.search(r"(?m)^- (.+)$", e["md"].split("## Today in 30 seconds", 1)[-1]) if "## Today in 30 seconds" in e["md"] else re.search(r"\*\*The day in brief\.\*\* (.+)", e["md"])
         summary = re.sub(r"\[(\d+)\]\(https?://[^)]+\)", "", e.get("summary") or (brief.group(1) if brief else e["title"])).replace("**", "")
         notes = (f"<p><i>{ai_note}</i></p>" + (e.get("notes_html") or _show_notes(e["md"]))
                  + (f'<p><a href="{base}/{e["day"]}/">Full briefing with every source</a></p>' if not e.get("notes_html") else "")

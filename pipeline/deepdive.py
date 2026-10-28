@@ -106,7 +106,8 @@ def _stories(root: Path, day: str) -> list:
 def today_block(root: Path, cfg: dict, day: str) -> tuple:
     """(text for the prompt, numbered stories)."""
     md_file = root / cfg["paths"]["briefings"] / f"{day}.md"
-    md = md_file.read_text("utf-8") if md_file.exists() else ""
+    from .textutil import legacy_top
+    md = legacy_top(md_file.read_text("utf-8")) if md_file.exists() else ""
     brief = re.search(r"\*\*The day in brief\.\*\* (.+)", md)
     stories = [s for s in _stories(root, day) if s.get("section") in ("must", "worth")]
     lines = [f"Day in brief: {brief.group(1) if brief else ''}"]

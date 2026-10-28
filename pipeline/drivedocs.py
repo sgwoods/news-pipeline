@@ -19,6 +19,8 @@ from pathlib import Path
 
 def _lead(md: str) -> str:
     """The first Top of mind headline (what the subscriber email's subject uses), else the edition title."""
+    from .textutil import legacy_top
+    md = legacy_top(md)
     m = re.search(r"(?m)^-\s+\*\*(.+?)\*\*", md.split("## Top of mind", 1)[-1]) if "## Top of mind" in md else None
     if m:
         return m.group(1).strip().rstrip(".")

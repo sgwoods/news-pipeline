@@ -16,6 +16,9 @@
  *            takes (Steven's takes from the site or review page, owner token t) · takes_pull (the pipeline reads them)
  *            review (GET: the held edition with a box per section, owner token t) · setreview (the pipeline uploads it)
  *            savedoc (the edition and deep dive as Google Docs in the Briefings folder in Drive)
+ *            approvalmail / getapprovals: phone approvals. The pipeline asks for an approval link (sent to
+ *            OWNER_EMAIL only); the approve page (GET, the link's nonce) takes Steven's answer with a proof made on
+ *            his phone from his passphrase, which never leaves the phone; only the Mac can check the proof.
  *
  * Script properties (Project Settings -> Script properties):
  *   SHEET_ID     the shared subscriber Sheet's ID (from its URL, between /d/ and /edit)
@@ -428,8 +431,53 @@ function subscribe_(email, source, confirmed) {
   return { ok: true, status: r.status };
 }
 
+// ---------- phone approvals (v0.2.22) ----------
+function appr_(id) {
+  if (!/^[A-Za-z0-9_.-]{6,80}$/.test(String(id || ''))) return null;
+  try { return JSON.parse(props_().getProperty('appr:' + id) || 'null'); } catch (err) { return null; }
+}
+function putAppr_(a) { props_().setProperty('appr:' + a.id, JSON.stringify(a)); }
+
+function approvePage_(a) {
+  var J = esc_(a.id), N = esc_(a.nonce);
+  var js = '<script>' +
+    'async function go(ans){var m=document.getElementById("m"),pw=document.getElementById("pw").value;' +
+    'if(!pw){m.textContent="Type your approval passphrase first.";return}' +
+    'if(!(window.crypto&&crypto.subtle)){m.textContent="This browser cannot make the proof. Use Safari.";return}' +
+    'm.textContent="Checking…";var e=new TextEncoder();' +
+    'var b=await crypto.subtle.importKey("raw",e.encode(pw),"PBKDF2",false,["deriveBits"]);' +
+    'var d=await crypto.subtle.deriveBits({name:"PBKDF2",salt:e.encode("' + N + '"),iterations:300000,hash:"SHA-256"},b,256);' +
+    'var k=await crypto.subtle.importKey("raw",d,{name:"HMAC",hash:"SHA-256"},false,["sign"]);' +
+    'var s=new Uint8Array(await crypto.subtle.sign("HMAC",k,e.encode(ans+"|' + J + '")));' +
+    'var f=document.getElementById("f");f.a.value=ans;f.proof.value=Array.from(s).map(function(x){return x.toString(16).padStart(2,"0")}).join("");' +
+    'f.submit()}</script>';
+  var btn = 'style="display:inline-block;margin:6px 8px 0 0;padding:12px 20px;border-radius:999px;border:0;font:600 16px sans-serif;';
+  return page_('Approve?', '<p style="font-size:15px;color:#9cc4df">Run-queue job</p><p><b>' + esc_(a.title) + '</b></p>' +
+    '<pre style="white-space:pre-wrap;font:14px/1.5 sans-serif;background:#07131f;padding:12px;border-radius:12px">' +
+    esc_(a.summary) + '</pre>' +
+    '<form id="f" method="post" action="' + selfUrl_() + '" target="_top" onsubmit="return false">' +
+    '<input type="hidden" name="action" value="approve"><input type="hidden" name="j" value="' + J + '">' +
+    '<input type="hidden" name="n" value="' + N + '"><input type="hidden" name="a"><input type="hidden" name="proof">' +
+    '<input type="text" autocomplete="username" value="ai-briefing-approvals" style="display:none" aria-hidden="true">' +
+    '<label style="display:block;font-size:14px;color:#9cc4df;margin:10px 0 4px">Approval passphrase</label>' +
+    '<input id="pw" type="password" autocomplete="current-password" style="width:100%;padding:12px;font-size:17px;' +
+    'border-radius:12px;border:1px solid #2a4a66;background:#07131f;color:#eff7ff;box-sizing:border-box">' +
+    '<div><button type="button" onclick="go(\'approve\')" ' + btn + 'background:#67e6a8;color:#06221a">Approve</button>' +
+    '<button type="button" onclick="go(\'reject\')" ' + btn + 'background:#33475b;color:#eff7ff">Reject</button></div>' +
+    '<p id="m" style="font-size:14px;color:#9cc4df"></p></form>' +
+    '<p style="font-size:13px;color:#9cc4df">Your passphrase stays on this phone: the page sends a proof made from ' +
+    'it, which only your Mac can check. The link works today only.</p>' + js);
+}
+
 function doGet(e) {
   var p = (e && e.parameter) || {};
+  if (p.action === 'approve') {                      // the phone approval page: the link's nonce only
+    var ap = appr_(p.j);
+    if (!ap || String(p.n || '') !== ap.nonce) return page_('Link not recognised', '<p>This approval link is old or incomplete.</p>');
+    if (Date.now() - new Date(ap.created).getTime() > 20 * 3600 * 1000) return page_('Link expired', '<p>Approval links work on the day they are sent. Ask Claude to queue the job again.</p>');
+    if (ap.answer && ap.ok) return page_('Already answered', '<p>You answered ' + esc_(ap.answer) + ' at ' + esc_(ap.at) + '.</p>');
+    return approvePage_(ap);
+  }
   if (p.action === 'confirm' || p.action === 'unsubscribe') {
     var r = p.t && find_('token', p.t);
     if (!r) return page_('Link not recognised', '<p>This link is old or incomplete. You can sign up again on the briefing page.</p>');
@@ -490,6 +538,19 @@ function doPost(e) {
 
 function doPost_(e) {
   var p = (e && e.parameter) || {};
+  if (p.action === 'approve') {                      // the approve page's answer: the nonce, plus a proof only the Mac checks
+    var ap = appr_(p.j);
+    if (!ap || String(p.n || '') !== ap.nonce) return page_('Link not recognised', '<p>This approval link is old or incomplete.</p>');
+    var ans = String(p.a || ''), proof = String(p.proof || '');
+    if (['approve', 'reject'].indexOf(ans) < 0 || !/^[0-9a-f]{64}$/.test(proof)) return page_('That didn\'t work', '<p>Go back and try again.</p>');
+    ap.tries = (ap.tries || 0) + 1;
+    if (ap.tries > 6) return page_('Too many tries', '<p>Ask Claude to queue the job again for a new link.</p>');
+    ap.answer = ans; ap.proof = proof; ap.at = now_(); ap.ok = false;
+    putAppr_(ap);
+    return page_(ans === 'approve' ? 'Sent: approve' : 'Sent: reject', '<p>Your Mac checks it within a minute and ' +
+      (ans === 'approve' ? 'runs the job' : 'drops the job') + '. If the passphrase was wrong, you\'ll get a notification on the Mac and ' +
+      'can open the link again.</p>');
+  }
   if (p.action === 'subscribe') {                    // public form on the landing page
     if (p.website) return page_('Thanks', '<p>Check your inbox.</p>');      // honeypot: bots fill every field
     var res = subscribe_(p.email, 'site', '');
@@ -550,6 +611,28 @@ function doPost_(e) {
       'never published. Submitting again replaces a take for the same section.</p>');
   }
   if (!authed_(p)) return json_({ ok: false, error: 'unauthorised' });
+  if (p.action === 'approvalmail') {                // the runner asks Steven: an approval link to OWNER_EMAIL only (key only)
+    var id = clean_(p.j, 80), n = String(p.n || '');
+    if (!/^[A-Za-z0-9_.-]{6,80}$/.test(id) || !/^[0-9a-f]{32,64}$/.test(n)) return json_({ ok: false, error: 'bad job' });
+    var a = { id: id, nonce: n, title: clean_(p.title, 200), summary: String(p.summary || '').slice(0, 1500), created: now_() };
+    putAppr_(a);
+    var link = selfUrl_() + '?action=approve&j=' + encodeURIComponent(id) + '&n=' + n;
+    MailApp.sendEmail(owners_()[0], 'AI Briefing · Approve? ' + a.title, 'Approve or reject on your phone: ' + link + '\n\n' + a.summary,
+      mailOpts_({ name: fromName_(), htmlBody: '<p style="font:16px sans-serif">Run-queue job waiting for you: <b>' + esc_(a.title) +
+        '</b></p><p><a href="' + link + '" style="display:inline-block;padding:12px 20px;border-radius:999px;background:#3e7e8a;' +
+        'color:#fff;text-decoration:none;font:600 16px sans-serif">Open to approve or reject</a></p>' +
+        '<pre style="white-space:pre-wrap;font:14px/1.5 sans-serif">' + esc_(a.summary) + '</pre>' +
+        '<p style="font:13px sans-serif;color:#555">You type your approval passphrase on the page. The link works today only.</p>' }));
+    return json_({ ok: true });
+  }
+  if (p.action === 'getapprovals') {                // the runner reads answers (key only); a valid one is checked on the Mac
+    var outA = {};
+    String(p.ids || '').split(',').slice(0, 20).forEach(function (jid) {
+      var x = appr_(jid.trim());
+      if (x && x.answer) outA[x.id] = { answer: x.answer, proof: x.proof, at: x.at };
+    });
+    return json_({ ok: true, approvals: outA });
+  }
   if (p.action === 'savedoc') {                     // the edition and deep dive as Google Docs in Drive (key only)
     var dn = clean_(p.name, 200), dt = String(p.text || '');
     if (!dn || !dt || dt.length > 300000) return json_({ ok: false, error: 'bad doc' });

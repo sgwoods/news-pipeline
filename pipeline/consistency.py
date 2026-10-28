@@ -186,8 +186,9 @@ def _sentences(s: str) -> list:
 def _split(md: str):
     """-> (before, day_in_brief_line_index, top_start, top_end, lines). Indexes into md's lines; -1 when absent."""
     lines = md.split("\n")
-    dib = next((i for i, x in enumerate(lines) if x.startswith("**The day in brief.**")), -1)
-    top = next((i for i, x in enumerate(lines) if x.strip() == "## Top of mind"), -1)
+    from .textutil import QUESTION_LEAD, TOP_MERGED
+    dib = next((i for i, x in enumerate(lines) if x.startswith(("**The day in brief.**", QUESTION_LEAD))), -1)
+    top = next((i for i, x in enumerate(lines) if x.strip() in ("## Top of mind", f"## {TOP_MERGED}")), -1)
     end = next((i for i in range(top + 1, len(lines)) if lines[i].startswith("## ")), len(lines)) if top >= 0 else -1
     return lines, dib, top, end
 
@@ -250,10 +251,12 @@ def check_briefing(md: str, corpus: str = "") -> tuple:
     """-> (md, notes). The day in brief and Top of mind must agree with the edition's body and its sources."""
     lines, dib, top, end = _split(md)
     start = end if top >= 0 else next((i for i, x in enumerate(lines) if x.startswith("## ")), len(lines))
+    if top >= 0 and top < dib < end:                   # merged top: the question sits under its bullets
+        end = dib
     units = _units("\n".join(x for x in lines[start:]))
     notes = []
     if dib >= 0:
-        lead = "**The day in brief.**"
+        lead = "**The day in brief.**" if lines[dib].startswith("**The day in brief.**") else lines[dib].split(":**", 1)[0] + ":**"
         out, prev = [], ""
         for s in _sentences(lines[dib][len(lead):].strip()):
             why = _check_sentence(s, units, corpus, prev)

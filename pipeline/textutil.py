@@ -143,3 +143,29 @@ def extract_page(html: str, max_chars: int = 30000) -> dict:
     return {"title": title, "description": m.get("og:description") or m.get("description", ""),
             "published": published, "author": m.get("author") or m.get("article:author", ""),
             "text": text}
+
+
+# ---------- the merged top (critic 2026-10-24, #7A; v0.2.22) ----------
+# With briefing.top_format "merged" the edition opens with one 5-bullet "Today in 30 seconds" section and the
+# diligence question under it, instead of the day in brief paragraph plus Top of mind. Readers of the markdown
+# (audio, email, takes, reports) see it in the classic shape through legacy_top(), so each needs no second parser.
+TOP_MERGED = "Today in 30 seconds"
+QUESTION_LEAD = "**A question worth asking in diligence this week:**"
+
+
+def is_merged(md: str) -> bool:
+    return f"\n## {TOP_MERGED}\n" in f"\n{md}"
+
+
+def legacy_top(md: str) -> str:
+    """A merged-top edition in the classic shape: the question becomes the day in brief, the section Top of mind."""
+    if not is_merged(md):
+        return md
+    lines = md.split("\n")
+    q = next((i for i, x in enumerate(lines) if x.startswith(QUESTION_LEAD)), -1)
+    question = lines.pop(q)[len(QUESTION_LEAD):].strip() if q >= 0 else ""
+    h = next(i for i, x in enumerate(lines) if x.strip() == f"## {TOP_MERGED}")
+    lines[h] = "## Top of mind"
+    if question:
+        lines[h:h] = [f"**The day in brief.** A question worth asking in diligence this week: {question}", ""]
+    return "\n".join(lines)

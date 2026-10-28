@@ -54,7 +54,8 @@ def ready(cfg: dict) -> str:
     return ""
 
 
-READ_ACTIONS = ("list", "ratings", "ddactions", "companylist", "takes_pull")   # Apps Script actions that change nothing
+READ_ACTIONS = ("list", "ratings", "ddactions", "companylist", "takes_pull", "getapprovals")   # change nothing
+OWNER_ONLY = ("approvalmail",)    # the script sends these to OWNER_EMAIL only: never gated (an approval unblocks the gate)
 
 
 def call(cfg: dict, action: str, _alert: bool = False, **params) -> dict:
@@ -73,6 +74,9 @@ def call(cfg: dict, action: str, _alert: bool = False, **params) -> dict:
     if _alert:                                   # pipeline/alerts.py: owner-only action-needed email, never gated
         if not to_owner:
             raise MailError("alert emails go to the owner address only")
+    elif action in OWNER_ONLY:
+        if staging(_root):
+            raise MailError(f"email {action} is switched off in staging")
     elif action not in READ_ACTIONS:             # anything that sends or changes: release gate first
         from .release import ReleaseBlocked, require
         try:
@@ -170,6 +174,9 @@ def _strip_refs(s: str) -> str:
 
 
 def parse(md: str) -> dict:
+    from .textutil import is_merged, legacy_top
+    merged = is_merged(md)
+    md = legacy_top(md)
     title = md.splitlines()[0].lstrip("# ").strip() if md.startswith("# ") else "AI Briefing"
     brief = re.search(r"\*\*The day in brief\.\*\* (.+)", md)
     secs = {m.group(1).strip(): m.group(2) for m in re.finditer(r"(?ms)^## (.+?)\n(.*?)(?=^## |^---|\Z)", md)}
@@ -201,7 +208,7 @@ def parse(md: str) -> dict:
         why = re.search(r"\*Why it matters:\*\s*(.+)", rs)
         rr = {"title": m.group(1), "url": m.group(2), "who": m.group(3).strip(), "why": why.group(1).strip() if why else ""}
     return {"title": title, "brief": brief.group(1).strip() if brief else "", "top": top, "must": must,
-            "worth": worth, "questions": questions, "reading": rr}
+            "worth": worth, "questions": questions, "reading": rr, "merged": merged}
 
 
 def _not_org() -> str:
@@ -315,7 +322,7 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
              f'<div style="display:inline-block;padding:6px 12px;border-radius:999px;background:{C["brand_deep"]};color:#ffffff;'
              f'font-size:11px;letter-spacing:.14em;text-transform:uppercase">Daily AI briefing</div>'
              f'<h1 style="margin:14px 0 8px;font-size:26px;line-height:1.2;color:{C["text"]}">{htmllib.escape(b["title"])}</h1>'
-             + (f'<p {P}>{_inline(b["brief"])}</p>' if b["brief"] else "")
+             + (f'<p {P}>{_inline(b["brief"])}</p>' if b["brief"] and not b.get("merged") else "")
              + (_take_html(takes["overall"]) if takes.get("overall") else "")
              + _btn(page, "Read the full briefing") + (_btn(page, "Listen to the episode", False) if has_audio else "")
              + "</td></tr>")
@@ -327,8 +334,11 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
                  f'You can add a comment on the next page.</div>{stars_block(day)}</td></tr>')
     if b["top"]:
         lis = "".join(f'<li style="margin:0 0 10px;color:{C["text"]};font-size:16px;line-height:1.55">{_inline(t)}</li>' for t in b["top"])
-        H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Top of mind")}'
-                 f'<ul style="margin:0;padding-left:20px">{lis}</ul>'
+        q = (f'<p {P}><b>{_inline(b["brief"].split(":", 1)[0])}:</b>{_inline(b["brief"].split(":", 1)[1])}</p>'
+             if b.get("merged") and ":" in b["brief"] else "")
+        H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>'
+                 f'{_label("Today in 30 seconds" if b.get("merged") else "Top of mind")}'
+                 f'<ul style="margin:0;padding-left:20px">{lis}</ul>{q}'
                  + (_take_html(takes["top"]) if takes.get("top") else "") + '</td></tr>')
     if b["must"]:
         items = []

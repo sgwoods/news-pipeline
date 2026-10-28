@@ -9,6 +9,7 @@ briefing:
   max_items_per_source: 3
   max_words: 1500
   top_of_mind: 4
+  top_format: merged
   open_questions: 3
   threads: true
   thread_days: 7

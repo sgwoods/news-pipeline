@@ -144,7 +144,8 @@ def build(root: Path, cfg: dict, cmd: str = "", exit_code=None, output_file: str
         f = root / b["file"]
         L.append(f"## Latest briefing: {b['file']} (run {b['run_id']}, {len(b.get('item_ids', []))} items)")
         if f.is_file():
-            md = f.read_text("utf-8")
+            from .textutil import legacy_top
+            md = legacy_top(f.read_text("utf-8"))
             secs = re.findall(r"^## (.+)$", md, re.M)
             L.append("Sections: " + " · ".join(f"{s} ({_count_entries(md, s)})" for s in secs))
             tom = md.split("## Top of mind", 1)[1].split("\n## ", 1)[0].strip() if "## Top of mind" in md else ""

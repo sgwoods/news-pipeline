@@ -22,7 +22,8 @@ def _section(md: str, name: str) -> str:
 
 def edition(root: Path, day: str) -> dict:
     p = root / "briefings" / f"{day}.md"
-    md = p.read_text("utf-8") if p.exists() else ""
+    from .textutil import legacy_top
+    md = legacy_top(p.read_text("utf-8")) if p.exists() else ""
     run = {}
     rp = root / "data" / "runs.jsonl"
     if rp.exists():

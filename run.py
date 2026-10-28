@@ -1226,11 +1226,20 @@ def cmd_runner(cfg: dict, argv: list) -> int:
              "install-hooks": lambda a: cmd_release_check(cfg, ["install-hooks"]),
              "deploy-mailer": lambda a: cmd_mailer(cfg, ["deploy"])}
     local["follow-through"] = lambda a: _follow_through(cfg, a)
+    local["phone-setup"] = lambda a: (print("phone approvals:", runner.set_phone_secret()) or 0)
     from pipeline.mailer import sent_days
+    phone = None
+    if sys.platform == "darwin" and (cfg.get("approvals") or {}).get("phone", True) and runner.phone_secret():
+        from pipeline import mailer as _ml
+        phone = runner.Phone(
+            send=lambda jid, n, title, summ: bool(_ml.call(cfg, "approvalmail", j=jid, n=n, title=title,
+                                                           summary=summ).get("ok")),
+            poll=lambda ids: _ml.call(cfg, "getapprovals", ids=",".join(ids)).get("approvals") or {},
+            secret=runner.phone_secret)
     r = runner.Runner(ROOT, devenv.dev_path(ROOT, cfg), local, busy=lambda: run_in_progress(ROOT),
                       summary=lambda job: _runner_summary(cfg, job),
                       sent_today=lambda: dt.date.today().isoformat() in sent_days(ROOT),
-                      key=runner.approval_key if sys.platform == "darwin" else None)
+                      key=runner.approval_key if sys.platform == "darwin" else None, phone=phone)
     if sub == "tick":
         for line in r.tick():
             print(f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {line}")
@@ -1395,6 +1404,70 @@ def _listen_check(cfg: dict, day: str, alert: bool = True) -> dict:
     if cfg.get("archive", {}).get("git_commit", True):
         print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"listen check {day}", paths=("data/transcripts",)))
     return res
+
+
+def _llm_for(cfg: dict, stage: str):
+    from pipeline import llm, perspective
+    system, _ = stages.system_prompt(perspective.load(ROOT / cfg["paths"]["perspective"]).raw)
+    return llm.for_stage(cfg, stage), system
+
+
+def _accuracy_audit(cfg: dict, day: str, alert: bool = True) -> dict:
+    """The daily accuracy audit (pipeline/audit.py). Never fails the run; one alert when a claim needs a look."""
+    try:
+        from pipeline import audit
+        backend, system = _llm_for(cfg, "critique")
+        res = audit.run(ROOT, day, backend, system, log=print)
+    except Exception as e:  # noqa: BLE001
+        print(f"accuracy audit skipped: {type(e).__name__}: {e}"[:200])
+        return {}
+    print("Accuracy audit: " + audit.summary(res))
+    if alert and res["issues"]:
+        _alert(cfg, "accuracy", day=day, detail="; ".join(
+            f"{r['verdict']}: \"{r['claim'][:160]}\" ({r['why']})" for r in res["issues"]))
+    if cfg.get("archive", {}).get("git_commit", True):
+        print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"accuracy audit {day}", paths=("data/audit",)))
+    return res
+
+
+def _score_positions(cfg: dict, day: str) -> list:
+    """Score the house-view calls whose check date has come (pipeline/houseviews.py). Never fails the run."""
+    try:
+        from pipeline import houseviews
+        backend, system = _llm_for(cfg, "editorial")
+        done = houseviews.score_due(ROOT, backend, system, day, log=print)
+    except Exception as e:  # noqa: BLE001
+        print(f"position scoring skipped: {type(e).__name__}: {e}"[:200])
+        return []
+    print(f"Scored {len(done)} call(s): " + ", ".join(f"{r['day']} {r.get('verdict') or 'more time'}" for r in done))
+    if done and cfg.get("archive", {}).get("git_commit", True):
+        print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"positions scored {day}", paths=("data/positions",)))
+    return done
+
+
+def cmd_audit(cfg: dict, argv: list) -> int:
+    """./np audit [DAY]: check about five of DAY's claims against their sources (no alert)."""
+    day = next((a for a in argv if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)), dt.date.today().isoformat())
+    res = _accuracy_audit(cfg, day, alert=False)
+    for r in res.get("claims", []):
+        print(f"  {r['verdict']:12} {r['claim'][:110]}" + (f"\n               {r['why']}" if r.get("why") else ""))
+    for c in res.get("contradictions", []):
+        print(f"  flag         {c[:140]}")
+    return 0 if res else 1
+
+
+def cmd_positions(cfg: dict, argv: list) -> int:
+    """./np positions [list|score [DAY]]: the house-view calls ledger; score scores the ones due by DAY (default today)."""
+    from pipeline import houseviews
+    sub = (argv or ["list"])[0]
+    if sub == "score":
+        day = next((a for a in argv[1:] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)), dt.date.today().isoformat())
+        _score_positions(cfg, day)
+        return 0
+    for r in houseviews.load_ledger(ROOT):
+        print(f"  {r['day']}  {r.get('status', ''):6} check {r.get('check', '')}  {r.get('view_name', '')[:28]:28}  "
+              f"{r.get('headline', '')[:60]}")
+    return 0
 
 
 def cmd_drive(cfg: dict, argv: list) -> int:
@@ -2580,6 +2653,12 @@ def cmd_daily(cfg: dict) -> int:
             print(f"expiry skipped: {e}"[:160])
     if w.get("status") == "ok" and published and not gate_blocked and (cfg.get("audio") or {}).get("listen_check", True):
         _listen_check(cfg, today)                # hear what was published: the as-published transcript (v0.2.17)
+    if w.get("status") == "ok" and published and not gate_blocked:
+        if (cfg.get("analysis") or {}).get("accuracy_audit", True):
+            _accuracy_audit(cfg, today)          # about five claims re-checked against their sources (v0.2.22)
+        from pipeline import houseviews
+        if houseviews.weekly_due(dt.date.fromisoformat(today)):
+            _score_positions(cfg, today)         # Sundays: score the calls whose check date has come
     try:
         from pipeline import record
         if record.search_due(ROOT, cfg):
@@ -2773,6 +2852,8 @@ def main() -> int:
     ap.add_argument("--runner", nargs="*", metavar="ARG", help="status | tick | approve ID | reject ID | install | remove")
     ap.add_argument("--listen", nargs="*", metavar="ARG", help="[DAY]: transcribe the published episode and check it")
     ap.add_argument("--drive", nargs="*", metavar="ARG", help="save [DAY] [draft]: the edition and deep dive as Google Docs")
+    ap.add_argument("--audit", nargs="*", metavar="ARG", help="[DAY]: the accuracy audit (claims against their sources)")
+    ap.add_argument("--positions", nargs="*", metavar="ARG", help="list | score [DAY]: the house-view calls ledger")
     ap.add_argument("--mailer", nargs="*", metavar="ARG", help="status | setup SCRIPT_ID | deploy: the mail script via clasp")
     ap.add_argument("--critic", nargs="*", metavar="ARG", help="preview | email | list [DATE]: the weekly critic")
     ap.add_argument("--takes", nargs="*", metavar="ARG", help="status | email | preview | done [DAY]: Steven's takes")
@@ -2859,6 +2940,10 @@ def main() -> int:
         return cmd_mailer(cfg, args.mailer)
     if args.drive is not None:
         return cmd_drive(cfg, args.drive)
+    if args.audit is not None:
+        return cmd_audit(cfg, args.audit)
+    if args.positions is not None:
+        return cmd_positions(cfg, args.positions)
     if args.listen is not None:
         return cmd_listen(cfg, args.listen)
     if args.runner is not None:

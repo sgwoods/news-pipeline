@@ -51,6 +51,11 @@ KNOBS = [
     ("Briefing structure", "briefing.max_stories_per_source", "int", 2, "Max top stories per source",
      "Keeps one prolific source from dominating.", (1, 6)),
     ("Briefing structure", "briefing.top_of_mind", "int", 4, "Top of mind bullets", "", (0, 6)),
+    ("Briefing structure", "briefing.accuracy_audit", "bool", True, "Accuracy audit after the email",
+     "About five claims re-checked against their sources; one alert if any is partly right or contradicted.", None),
+    ("Briefing structure", "briefing.top_format", "choice", "separate", "Top of the edition",
+     "separate: the day in brief, then Top of mind. merged: one 5-bullet \"Today in 30 seconds\" with the diligence "
+     "question under it (critic 10-24, #7A).", ["separate", "merged"]),
     ("Briefing structure", "briefing.open_questions", "int", 3, "Open questions",
      "Follow-up questions saved with the briefing, tracked on the Questions page.", (0, 6)),
     ("Briefing structure", "briefing.threads", "bool", True, "Link developing stories",

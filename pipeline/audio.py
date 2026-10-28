@@ -63,6 +63,8 @@ def _strip_links(s: str) -> str:
 
 def parse_briefing(md: str) -> dict:
     """Pull the spoken parts out of a v2 briefing (works on v1 too, more coarsely)."""
+    from .textutil import legacy_top
+    md = legacy_top(md)
     title = md.splitlines()[0].lstrip("# ").strip() if md.startswith("# ") else "AI Briefing"
     brief = re.search(r"\*\*The day in brief\.\*\* (.+)", md)
     sections = {m.group(1).strip(): m.group(2) for m in re.finditer(r"(?ms)^## (.+?)\n(.*?)(?=^## |\Z)", md)}

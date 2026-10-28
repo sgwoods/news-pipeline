@@ -39,6 +39,8 @@ RELEASE_WINDOW = (dt.time(8, 30), dt.time(20, 0))
 REPROMPT = dt.timedelta(minutes=20)
 DIALOG_SECONDS = 600                  # for the end-of-window check (no dialog if an answer would land after 20:00)
 DIALOG_SHOWN = 1140                   # the dialog stays up 19 min; REPROMPT (20 min) asks again right after
+PHONE_DIALOG = 90                     # with phone approvals on, the Mac dialog is short: the runner keeps ticking
+PHONE_ITERATIONS = 300_000            # PBKDF2 rounds on the phone page (pipeline/runner.py phone_proof)
 EARLIEST = dt.time(5, 0)              # once the morning edition is out, production jobs needn't wait for 08:30
 APPROVED = "data/queue/approved"      # early approvals, signed with a key in this Mac's Keychain (see below)
 STEP_TIMEOUT = 3600
@@ -65,6 +67,8 @@ RECIPES = {
     "takes-check": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["takes", "check", "{day}"])]},
     "drive-save": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["drive", "save", "{day}"])]},
     "audio-check": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["audio-check", "{day}"])]},
+    "audit":   {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["audit", "{day}"])]},
+    "positions-score": {"tier": "auto", "args": {"day": "day?"}, "steps": [("prod", ["positions", "score", "{day}"])]},
     "setup": {"tier": "chat", "args": {}, "steps": [("prod", ["setup"])]},     # install requirements.txt
     "email-remind": {"tier": "chat", "args": {"emails": "emails?"}, "steps": [("prod", ["email", "remind", "{emails}"])]},
     "email-remove": {"tier": "chat", "args": {"email": "email"}, "steps": [("prod", ["email", "remove", "{email}"])]},
@@ -86,6 +90,7 @@ RECIPES = {
                 "steps": [APPROVE, ("local", ["approve", "{note}"])]},   # approve re-runs the gate and refuses
                                                                   # if any check but the approval fails (10-26)
     "install-hooks": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["install-hooks"])]},
+    "phone-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["phone-setup"])]},   # the passphrase
     "deploy-mailer": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["deploy-mailer"]),
                                                          ("prod", ["mailer", "status"])]},
     "mailer-status": {"tier": "auto", "args": {}, "steps": [("prod", ["mailer", "status"])]},
@@ -94,7 +99,7 @@ RECIPES = {
 CHANGES_PRODUCTION = {"setup", "correct", "publish", "restore", "ship", "release", "rollback", "approve", "install-hooks",
                       "push-code", "source-add", "send-held", "takes-apply", "deploy-mailer"}
 IN_RELEASE_WINDOW = {"ship", "release"}
-NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer"}   # local steps behind the click
+NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup"}   # local steps behind the click
 
 
 class JobError(ValueError):
@@ -332,6 +337,55 @@ def approval_key() -> bytes:
     return k.encode()
 
 
+# ---- phone approvals (Steven, 2026-10-27: approve from the iOS app, not only at the Mac) ----
+# When a mac-tier job reaches its Approve step, the runner emails Steven a one-time link (the mail script's approve
+# page). He types his approval passphrase there and taps Approve or Reject. The page never sends the passphrase: it
+# sends proof = HMAC(PBKDF2(passphrase, nonce), "answer|job id"), and only this Mac, which keeps the passphrase in
+# its Keychain, can check it. The nonce is an HMAC of the job's fingerprint and today's date under the early-
+# approval key, so a link is good for that job and that day only. Claude and the VM can read the email and the mail
+# script's records but not the Keychain, so neither can produce a proof. Set the passphrase with the phone-setup
+# job (a Mac dialog).
+
+def phone_proof(passphrase: str, nonce: str, answer: str, job_id: str) -> str:
+    import hashlib
+    import hmac
+    derived = hashlib.pbkdf2_hmac("sha256", passphrase.encode(), nonce.encode(), PHONE_ITERATIONS, 32)
+    return hmac.new(derived, f"{answer}|{job_id}".encode(), hashlib.sha256).hexdigest()
+
+
+def phone_secret() -> str:
+    from .vault import _keychain
+    return _keychain("NP_APPROVAL_PHRASE")
+
+
+def set_phone_secret(ask=None) -> str:
+    """The phone-setup job: a Mac dialog (hidden answer, twice) stores the approval passphrase in the Keychain."""
+    from .vault import set_keychain
+
+    def ask_hidden(prompt: str) -> str:
+        script = ['on run argv', 'set r to display dialog (item 1 of argv) default answer "" with hidden answer '
+                  'with title "AI Briefing · phone approvals" buttons {"Cancel", "Save"} default button "Save" '
+                  'cancel button "Cancel"', 'return text returned of r', 'end run']
+        r = subprocess.run(["osascript"] + sum((["-e", s] for s in script), []) + [prompt],
+                           capture_output=True, text=True, timeout=600)
+        return r.stdout.strip() if r.returncode == 0 else ""
+    ask = ask or ask_hidden
+    one = ask("Choose a passphrase for approving from your phone (at least 10 characters). You'll type it on "
+              "the approval page; your phone's password manager can keep it. It stays in this Mac's Keychain.")
+    if len(one) < 10:
+        return "not saved: at least 10 characters"
+    if ask("Type the passphrase again.") != one:
+        return "not saved: the two didn't match"
+    return "saved" if set_keychain("NP_APPROVAL_PHRASE", one) else "not saved: the Keychain refused it"
+
+
+class Phone:
+    """send(job_id, nonce, title, summary) -> bool; poll(ids) -> {id: {"answer", "proof", "at"}}; secret() -> str."""
+
+    def __init__(self, send, poll, secret):
+        self.send, self.poll, self.secret = send, poll, secret
+
+
 def notify_mac(title: str, text: str, sound: bool = False):
     script = ['on run argv', 'display notification (item 2 of argv) with title (item 1 of argv)'
               + (' sound name "Glass"' if sound else ''), 'end run']
@@ -344,7 +398,7 @@ class Runner:
     """One pass over the queue. `local` maps local step names to functions run.py provides (argv -> exit code)."""
 
     def __init__(self, root: Path, dev: Path, local: dict, now=None, ask=ask_mac, notify=notify_mac,
-                 busy=None, summary=None, sent_today=None, key=None):
+                 busy=None, summary=None, sent_today=None, key=None, phone=None):
         self.root, self.dev, self.local = root, dev, local
         self.now = now or dt.datetime.now
         self.ask, self.notify = ask, notify
@@ -352,6 +406,7 @@ class Runner:
         self.summary = summary or (lambda job: "")
         self.sent_today = sent_today or (lambda: False)   # today's edition is out (published and emailed)
         self.key = key                                    # () -> bytes: the early-approval key (Keychain); None = off
+        self.phone = phone if (phone and key) else None    # Phone: approve from the phone (needs the key too)
 
     def _edition_out(self) -> bool:
         """The morning is done: today's edition went out and no run is busy (v0.2.13: no waiting for 08:30)."""
@@ -407,6 +462,54 @@ class Runner:
             return False
         return ok
 
+    # ---- phone approvals ----
+    def _nonce(self, job: dict) -> str:
+        return self._sign(job, self.now().date().isoformat() + "|phone")[:40]
+
+    def _phone_send(self, job: dict, raw: dict, src: Path) -> None:
+        """Email the approval link once per job and day (it is good for today only)."""
+        if not self.phone:
+            return
+        day = self.now().date().isoformat()
+        if raw.get("phone_sent") == day:
+            return
+        title = f"{job['recipe']} {' '.join(v for v in job['args'].values() if v)}"[:160]
+        try:
+            ok = self.phone.send(job["id"], self._nonce(job), title, self.summary(job)[:1400])
+        except Exception:  # noqa: BLE001 - the Mac dialog still works
+            ok = False
+        if ok:
+            raw["phone_sent"] = day
+            job["phone_sent"] = day
+            _write(src, {**raw, **{k: job[k] for k in ("phone_sent",)}})
+
+    def _phone_answer(self, job: dict) -> str:
+        """'approve' or 'reject' when the phone page sent a valid proof for this job today; else ''."""
+        import hmac
+        if not self.phone or job.get("phone_sent") != self.now().date().isoformat():
+            return ""
+        try:
+            got = (self.phone.poll([job["id"]]) or {}).get(job["id"]) or {}
+            secret = self.phone.secret()
+        except Exception:  # noqa: BLE001
+            return ""
+        a, proof = str(got.get("answer", "")), str(got.get("proof", ""))
+        if a not in ("approve", "reject") or not secret or len(proof) != 64:
+            return ""
+        ok = hmac.compare_digest(proof, phone_proof(secret, self._nonce(job), a, job["id"]))
+        if not ok:
+            job["phone_bad"] = got.get("at", "?")              # a wrong passphrase: say so once, keep waiting
+            return ""
+        return a
+
+    def _dialog(self, job: dict, summary: str) -> str:
+        if self.phone:
+            try:
+                return self.ask(job, summary, PHONE_DIALOG)
+            except TypeError:
+                pass
+        return self.ask(job, summary)
+
     def _use_early(self, job: dict):
         with contextlib.suppress(OSError):
             self._approval_path(job).unlink()
@@ -448,7 +551,7 @@ class Runner:
             jid = JOB_ID.match(src.stem) and src.stem or f"invalid-{int(self.now().timestamp())}"
             _finish(self.root, src, {"id": jid, "recipe": "?", "args": {}}, "invalid", str(e), self.notify)
             return "invalid"
-        for k in ("steps", "phase", "prompted_at", "started"):
+        for k in ("steps", "phase", "prompted_at", "started", "phone_sent"):
             if k in raw:
                 job[k] = raw[k]
         why = self._defer(job)
@@ -458,10 +561,18 @@ class Runner:
             r0 = RECIPES[job["recipe"]]
             if APPROVE in r0["steps"] and self.key and not self.approved_early(job) and \
                     self.now().time() < RELEASE_WINDOW[1]:       # ask now; it runs when the morning is done
+                self._phone_send(job, raw, src)
+                pa = self._phone_answer(job)
+                if pa == "approve":
+                    self.approve_early(job)
+                    return "deferred (approved)"
+                if pa == "reject":
+                    _finish(self.root, src, job, "rejected", "Steven tapped Reject on his phone", self.notify)
+                    return "rejected"
                 last = raw.get("prompted_at")
                 if not last or self.now() - dt.datetime.fromisoformat(last) >= REPROMPT:
                     _write(src, {**raw, "deferred": why, "prompted_at": self.now().isoformat(timespec="seconds")})
-                    if self.ask({**job, "early": True}, "Approve now: it runs as soon as the morning edition is out "
+                    if self._dialog({**job, "early": True}, "Approve now: it runs as soon as the morning edition is out "
                                 "(or at 08:30).\n\n" + self.summary(job)) == "approve":
                         self.approve_early(job)
                         return "deferred (approved)"
@@ -495,12 +606,15 @@ class Runner:
                 answer, terminal = "approve", False
                 job["approved_early"] = True
                 self._use_early(job)
+            elif (pa := (self._phone_send(job, raw, src) or self._phone_answer(job))):
+                answer, terminal = pa, False
+                job["approved_by"] = "phone"
             else:
                 last = job.get("prompted_at")
                 if last and self.now() - dt.datetime.fromisoformat(last) < REPROMPT:
                     return "waiting"
                 job["prompted_at"] = self.now().isoformat(timespec="seconds")
-                answer = self.ask(job, self.summary(job))
+                answer = self._dialog(job, self.summary(job))
             if answer == "timeout":
                 job["phase"] = "approval"
                 dst = qdir(self.root, "waiting") / src.name
@@ -519,6 +633,7 @@ class Runner:
                         "again in the window", self.notify)
                 return "expired"
             code = self._run_approved(job, steps, cut + 1, log, "terminal" if terminal else
+                                      "phone" if job.get("approved_by") == "phone" else
                                       "dialog (early)" if job.get("approved_early") else "dialog")
         else:
             code = 0

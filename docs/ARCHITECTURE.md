@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.21-beta (2026-10-27)
+- **Release:** v0.2.22-beta (2026-10-28)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 68 in `pipeline/`
+- **Modules:** 69 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -81,7 +81,14 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
 - **House views** (`houseviews.py`): a second hand-written file, `house_views.md`, holds the views Our read takes
   positions under and Steven's dated theses. Each Must read's Our read names its view; the lead story adds the case
   for, the case against, the deciding question and our lean. Every position goes to `data/positions/ledger.jsonl`
-  with what would change our mind and a check date, to be scored when it comes due. Code never rewrites the file.
+  with what would change our mind and a check date. On Sundays the calls that are due are scored against what we
+  have reported since (right, wrong, mixed; "too early" gets more time), and the site's Calls we made page lists them.
+- **Accuracy audit** (`audit.py`): after the edition ships, about five of its claims are checked again against
+  their own sources, and the consistency flags for the day are counted. Partly right or contradicted claims send
+  Steven one alert; the site's Accuracy page shows the daily counts and every correction (`shipped.py`).
+- **The top of the edition** (`textutil.legacy_top`): with `briefing.top_format: merged` one 5-bullet "Today in 30
+  seconds" with the diligence question replaces the day in brief and Top of mind; every reader of the markdown sees
+  it in the classic shape through one function.
 - **Tuning** (`tuning.py`, `profiles/`): named presets for lengths, sections and tone, edited from the dashboard.
 - **Dashboard** (`dashboard/`): a local Flask app on 127.0.0.1 for sources, watchlist, tuning, takes, feedback,
   runs, quality and control. It's never exposed to the internet.
@@ -223,12 +230,20 @@ three tiers:
 |---|---|---|
 | auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify`, `consistency`, `critic-email`, `takes-test`, `takes-check`, `drive-save`, `mailer-status` | at once |
 | chat | `correct`, `publish`, `restore`, `takes-done`, `takes-apply`, `send-held`, `source-add`, `mailer-setup` | the job quotes the owner's yes from the chat |
-| mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, the public code push, `deploy-mailer` | the owner clicks Approve in a dialog on the Mac (also early, while the morning run is still going: the job then runs as soon as the edition is out); a ship's Approve also covers the public code export and the mail-script deploy |
+| mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, `phone-setup`, the public code push, `deploy-mailer` | the owner clicks Approve in a dialog on the Mac, or on his phone (below) (also early, while the morning run is still going: the job then runs as soon as the edition is out); a ship's Approve also covers the public code export and the mail-script deploy |
 
 The click grants presence in memory for that job's approved steps only (`presence.py`). No file or setting can
 stand in for it: an early click is kept as a signature over that job, made with a key in the Mac's Keychain (which
 the VM and Claude can't read), used once and only that day. Jobs that change production wait out the morning run,
-which ends when the day's edition has gone out. Unanswered approvals lapse at 20:00. The
+which ends when the day's edition has gone out. Unanswered approvals lapse at 20:00.
+
+**Phone approvals** (v0.2.22): once the `phone-setup` job has stored an approval passphrase in the Keychain (typed
+into a Mac dialog), each mac-tier job also emails the owner a one-time link to the mail script's approve page, good
+for that job and that day. He types the passphrase there and taps Approve or Reject. The page sends only a proof
+(HMAC of the answer and job id under PBKDF2 of the passphrase, salted with the link's nonce), and the runner checks
+it against the Keychain on its next tick. Neither the mail script's records nor the email can stand in for it, so
+Claude, which can read both, still can't approve. The Mac dialog still appears, for 90 seconds, so the runner keeps
+ticking while it waits. The
 runner refuses to work if production code differs from the release. Release invariant 10 checks the recipes and
 the runner's code. Results go to `data/queue/done/` and `logs/runner-<id>.txt`. `./np runner status` lists the
 queue.
@@ -276,6 +291,7 @@ _Generated from each module's own description at build time._
 | `alerts.py` | Action-needed email to Steven when the daily edition can't go out (Steven, 2026-10-19 |
 | `archive.py` | Append-only archive on plain files. |
 | `audio.py` | Phase 2 |
+| `audit.py` | The daily accuracy audit (critic 2026-10-24, #10D; Steven 2026-10-27). |
 | `bluesky.py` | Bluesky lists and Steven's own posts as sources, via the public AT Protocol API (no key, no login). |
 | `clasp.py` | Deploy the mail script (scripts/apps-script/Code.gs) with Google's clasp CLI instead of copy and paste. |
 | `compare.py` | Staging against production for the same day |

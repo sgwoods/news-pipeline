@@ -242,12 +242,37 @@ def _unnumber(text: str) -> str:
     return t[:1].upper() + t[1:] if t else t
 
 
+def merged(cfg: dict) -> bool:
+    """briefing.top_format "merged": one 5-bullet "Today in 30 seconds" replaces the day in brief and Top of mind."""
+    return str((cfg.get("analysis") or {}).get("top_format", "separate")) == "merged"
+
+
+def top_count(cfg: dict) -> int:
+    return 5 if merged(cfg) else int((cfg.get("analysis") or {}).get("top_of_mind", 4))
+
+
+_QUESTION = re.compile(r"(?i)A question worth asking in diligence this week:\s*(.+)$")
+
+
+def diligence_question(day_in_brief: str) -> str:
+    m = _QUESTION.search(day_in_brief or "")
+    if m:
+        return m.group(1).strip()
+    qs = [s for s in re.split(r"(?<=[.!?])\s+", day_in_brief or "") if s.endswith("?")]
+    return qs[-1].strip() if qs else ""
+
+
 def editorial_prompt(tmpl: str, lines: list, cfg: dict, earlier: list, views: list | None = None) -> str:
     """Fill the editorial template from the tuning profile (cfg = {"analysis": ..., "editorial": ...})."""
     a, e = cfg.get("analysis") or {}, {**EDITORIAL_DEFAULTS, **(cfg.get("editorial") or {})}
-    n_top, n_q = int(a.get("top_of_mind", 4)), int(a.get("open_questions", 0))
+    n_top, n_q = top_count(cfg), int(a.get("open_questions", 0))
     top_rule = (f"exactly {n_top} bullets ({n_top - 1} if there are only {n_top - 1} stories)." if n_top > 1
                 else "exactly 1 bullet." if n_top == 1 else "return an empty list [].")
+    if merged(cfg):
+        top_rule += (" These bullets open the edition on their own, as \"Today in 30 seconds\": the day's two or three "
+                     "main threads first, then the next most important, each a different story. So the day_in_brief "
+                     "is only its last sentence, the diligence question (\"A question worth asking in diligence this "
+                     "week: ...\").")
     q_rule = ("return an empty list []." if n_q <= 0 else
               f"{n_q} questions worth following up in the coming days or weeks: things a careful investor would "
               "want settled, not rhetorical ones. Each has \"q\" (at most 25 words), \"why\" it matters (at most "
@@ -296,7 +321,7 @@ def run_editorial(llm, sel: dict, system: str, log, cfg: dict | None = None, ear
     except Exception as e:  # noqa: BLE001
         log.warning("editorial failed: %s", e)
         return {}, version, [f"editorial: {type(e).__name__}: {e}"[:300]]
-    n_top = int((cfg.get("analysis") or {}).get("top_of_mind", 4))
+    n_top = top_count(cfg)
     n_q = int((cfg.get("analysis") or {}).get("open_questions", 0))
     ed = {"day_in_brief": _one_line(out.get("day_in_brief", "")), "top_of_mind": [], "editor_view": {},
           "open_questions": []}
@@ -368,6 +393,8 @@ def run_editorial(llm, sel: dict, system: str, log, cfg: dict | None = None, ear
                                      "title": headline_of(r), "who": display_name(r), "kind": profile_kind(r),
                                      "url": _cite_url(r)}
     ed["top_of_mind"] = ed["top_of_mind"][: max(n_top, 0) or 5] if n_top else []
+    if merged(cfg):
+        ed["top_format"] = "merged"
     ed["open_questions"] = ed["open_questions"][:n_q] if n_q > 0 else []
     return ed, version, []
 
@@ -602,9 +629,18 @@ def render(day: str, sel: dict, ed: dict, meta: dict) -> tuple:
     numbered = sel["must"] + sel["worth"]
     url = {n: u for n, s in enumerate(numbered, 1) if (u := _cite_url(s["lead"]))}
     L = [f"# AI Briefing · {date.strftime('%A, %B')} {date.day}, {date.year}", ""]
-    if ed.get("day_in_brief"):
+    if ed.get("top_format") == "merged" and ed.get("top_of_mind"):
+        from .textutil import QUESTION_LEAD, TOP_MERGED
+        L += [f"## {TOP_MERGED}", ""]
+        for b in ed["top_of_mind"]:
+            links = " ".join(f"[{n}]({url[n]})" for n in b["refs"] if n in url)
+            lead = f"**{_md(b['lead'])}.** " if b.get("lead") else ""
+            L.append(f"- {lead}{_md(b['text'])} {links}".rstrip())
+        q = diligence_question(ed.get("day_in_brief", ""))
+        L += [""] + ([f"{QUESTION_LEAD} {_md(q)}", ""] if q else [])
+    if ed.get("day_in_brief") and ed.get("top_format") != "merged":
         L += [f"**The day in brief.** {_md(ed['day_in_brief'])}", ""]
-    if ed.get("top_of_mind"):
+    if ed.get("top_of_mind") and ed.get("top_format") != "merged":
         L += ["## Top of mind", ""]
         for b in ed["top_of_mind"]:
             links = " ".join(f"[{n}]({url[n]})" for n in b["refs"] if n in url)

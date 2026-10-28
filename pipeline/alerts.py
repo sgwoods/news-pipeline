@@ -43,6 +43,13 @@ KINDS = {
               "script: a section was not heard (details below).",
               ['Listen to the start of today\'s episode', 'tell Claude "the listen check failed" in the chat: it can '
                're-voice the day from the same script']),
+    "accuracy": ("A claim in today's edition may need a correction",
+                 "The accuracy audit re-checked some of today's claims against their own sources, and at least one "
+                 "came back only partly right or contradicted (details below). It is a machine check: read the claim "
+                 "against its source before deciding.",
+                 ['Open today\'s edition and the source the details name',
+                  'if it is wrong, tell Claude in the chat what to correct: it queues the correction (shown on the '
+                  'page and on the Accuracy page)', 'if it is fine, nothing to do']),
     "email": ("The subscriber email did not go out",
               "The briefing was built but sending the email failed.",
               ['cd {repo}', './np email send', 'if it fails again, tell Claude "ran ./np email send"']),

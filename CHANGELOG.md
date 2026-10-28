@@ -7,6 +7,23 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.22-beta · 2026-10-28
+- **Calls we made** (site page): every house-view call with what would change our mind and its check date. On
+  Sundays the run scores the calls that are due against what we've reported since (right, wrong, mixed; too early
+  gets 90 more days). `./np positions [list|score]`; run-queue job `positions-score`.
+- **Accuracy audit**: after the email, about five of the day's claims are re-checked against their own sources
+  (supported, partly, not found, contradicted), and the consistency flags are counted. Partly right or contradicted
+  claims send one alert email; the site's Accuracy page shows the daily counts and every correction. `./np audit
+  [DAY]`; run-queue job `audit`. Dashboard switch: Briefing structure → "Accuracy audit after the email" (on).
+- **Phone approvals** (Steven, 10-27): mac-tier jobs (ship, release, approve...) can be approved from the phone.
+  The runner emails a one-time link; on the page you type your approval passphrase and tap Approve or Reject. The
+  passphrase never leaves the phone (the page sends a proof the Mac checks against its Keychain), so a link or a
+  record alone can't approve. Turn it on once with the `phone-setup` job (a Mac dialog asks for the passphrase).
+  Security-sensitive: a second approval path. Needs the mail-script deploy (the ship does it).
+- **Merged top, on** (Steven, 10-27): Briefing structure → "Top of the edition" = merged gives one 5-bullet "Today in 30
+  seconds" with the diligence question under it, instead of the day in brief plus Top of mind (critic #7A). Audio,
+  email, takes, Drive and the checks read both shapes.
+
 ## v0.2.21-beta · 2026-10-27
 - **House views.** Our read takes a position under one of the views in `house_views.md` (1–10 plus Steven's
   theses 11–17) and names it ("House view: …"). The lead story adds the case for, the case against, the deciding
