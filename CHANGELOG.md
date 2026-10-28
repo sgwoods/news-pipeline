@@ -7,6 +7,10 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.26-beta · 2026-10-28
+- Fix: the runner's minute tick exited before the Drive check when the queue was empty, so edited takes were never
+  noticed on their own. It now runs the check every 20 minutes regardless.
+
 ## v0.2.25-beta · 2026-10-28
 - **Takes edited in the Docs count** (Steven, 10-28: a take written in the morning boxes, then augmented in the car
   with Claude editing the shared Doc). The pipeline reads the published edition's "Steven's takes" and the deep

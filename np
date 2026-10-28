@@ -93,7 +93,9 @@ case "$cmd" in
   preflight) run $PY run.py --preflight ;;                     # evening: is the release gate approval current? (notifies)
   runner)    if [ "${1:-}" = tick ]; then                        # launchd, every minute: quiet unless a job is queued
                found=""; for f in data/queue/pending/*.json data/queue/waiting/*.json; do [ -e "$f" ] && { found=1; break; }; done
-               [ -n "$found" ] || exit 0                         # (ls fails when either folder is empty: v0.1.12 bug)
+               if [ -z "$found" ]; then                          # (ls fails when either folder is empty: v0.1.12 bug)
+                 [ -z "$(find data/state/drive-docs.json -mmin -20 2>/dev/null)" ] || exit 0   # Drive takes checked <20 min ago
+               fi
                exec $PY run.py --runner tick >>logs/runner.log 2>&1
              fi
              run $PY run.py --runner "${@:-status}" ;;          # status | approve ID | reject ID | install | remove

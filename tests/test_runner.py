@@ -235,8 +235,11 @@ class NpTick(unittest.TestCase):
     def test_tick_runs_with_only_waiting_jobs(self):
         self.assertEqual(self._tick(["data/queue/waiting/a.json"]), "--runner tick")
 
-    def test_tick_is_quiet_when_idle(self):
-        self.assertEqual(self._tick(["data/queue/done/a.json"]), "")
+    def test_tick_is_quiet_when_idle_and_the_drive_check_is_recent(self):
+        self.assertEqual(self._tick(["data/queue/done/a.json", "data/state/drive-docs.json"]), "")
+
+    def test_tick_runs_when_the_drive_check_is_due(self):     # v0.2.26: edited takes are noticed every 20 minutes
+        self.assertEqual(self._tick(["data/queue/done/a.json"]), "--runner tick")
 
 
 class Presence(unittest.TestCase):
