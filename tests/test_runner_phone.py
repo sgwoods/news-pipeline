@@ -55,8 +55,17 @@ class Phone(Base):
         p = self.queue("release", {"version": "0.2.22-beta", "note": "reviewed: x"})
         self.make3(ph).run_job(p)
         w = runner.qdir(self.root, "waiting") / p.name
-        ph.tap("j-release", "approve", phrase="wrong phrase here")
         self.assertEqual(self.make3(ph).run_job(w), "waiting")
+        self.assertEqual(json.loads(w.read_text())["phone_check"]["result"], "no answer yet")
+        ph.tap("j-release", "approve", phrase="wrong phrase here")
+        told = []
+        r = runner.Runner(self.root, self.dev, self.local, now=lambda: NOON, ask=lambda *a: "timeout",
+                          notify=lambda *a: told.append(a), busy=lambda: False, sent_today=lambda: True, key=KEY,
+                          phone=runner.Phone(ph.send, ph.poll, lambda: PHRASE))
+        self.assertEqual(r.run_job(w), "waiting")
+        self.assertIn("does not match", json.loads(w.read_text())["phone_check"]["result"])
+        self.assertEqual(r.run_job(w), "waiting")
+        self.assertEqual(len(told), 1)                                     # told once per answer
         ph.answers["j-release"] = {"answer": "approve", "proof": "0" * 64}
         self.assertEqual(self.make3(ph).run_job(w), "waiting")
         self.assertEqual(self.calls, [])

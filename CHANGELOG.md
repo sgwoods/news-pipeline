@@ -7,6 +7,10 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.23-beta · 2026-10-28
+- Phone approvals: the job file now says why a phone answer wasn't accepted (no answer yet, the check failed, or the
+  passphrase didn't match), and a passphrase that doesn't match gets one Mac notification, as promised.
+
 ## v0.2.22-beta · 2026-10-28
 - **Calls we made** (site page): every house-view call with what would change our mind and its check date. On
   Sundays the run scores the calls that are due against what we've reported since (right, wrong, mixed; too early

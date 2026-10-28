@@ -483,22 +483,43 @@ class Runner:
             job["phone_sent"] = day
             _write(src, {**raw, **{k: job[k] for k in ("phone_sent",)}})
 
-    def _phone_answer(self, job: dict) -> str:
-        """'approve' or 'reject' when the phone page sent a valid proof for this job today; else ''."""
+    def _phone_answer(self, job: dict, src: Path | None = None) -> str:
+        """'approve' or 'reject' when the phone page sent a valid proof for this job today; else ''. Why not is kept
+        in the job file (phone_check), and a proof that doesn't match gets one Mac notification per answer."""
         import hmac
         if not self.phone or job.get("phone_sent") != self.now().date().isoformat():
             return ""
+
+        def note(result: str, at: str = ""):
+            job["phone_check"] = {"at": self.now().isoformat(timespec="seconds"), "result": result[:200], "answered": at}
+            if src is not None:
+                with contextlib.suppress(OSError, ValueError):
+                    _write(src, {**_load(src), "phone_check": job["phone_check"]})
         try:
             got = (self.phone.poll([job["id"]]) or {}).get(job["id"]) or {}
+        except Exception as e:  # noqa: BLE001
+            note(f"poll failed: {type(e).__name__}: {e}")
+            return ""
+        try:
             secret = self.phone.secret()
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
+            note(f"no passphrase: {type(e).__name__}")
             return ""
         a, proof = str(got.get("answer", "")), str(got.get("proof", ""))
-        if a not in ("approve", "reject") or not secret or len(proof) != 64:
+        if not got:
+            note("no answer yet")
             return ""
-        ok = hmac.compare_digest(proof, phone_proof(secret, self._nonce(job), a, job["id"]))
-        if not ok:
-            job["phone_bad"] = got.get("at", "?")              # a wrong passphrase: say so once, keep waiting
+        if a not in ("approve", "reject") or len(proof) != 64:
+            note(f"malformed answer ({a!r}, proof length {len(proof)})", str(got.get("at", "")))
+            return ""
+        if not secret:
+            note("no passphrase in the Keychain")
+            return ""
+        if not hmac.compare_digest(proof, phone_proof(secret, self._nonce(job), a, job["id"])):
+            seen = (job.get("phone_check") or {}).get("answered")
+            note("proof does not match: the passphrase typed on the phone differs from the Mac's", str(got.get("at", "")))
+            if seen != got.get("at") and self.notify:
+                self.notify("phone approval", f"{job['recipe']}: the passphrase didn't match. Open the link again.")
             return ""
         return a
 
@@ -551,7 +572,7 @@ class Runner:
             jid = JOB_ID.match(src.stem) and src.stem or f"invalid-{int(self.now().timestamp())}"
             _finish(self.root, src, {"id": jid, "recipe": "?", "args": {}}, "invalid", str(e), self.notify)
             return "invalid"
-        for k in ("steps", "phase", "prompted_at", "started", "phone_sent"):
+        for k in ("steps", "phase", "prompted_at", "started", "phone_sent", "phone_check"):
             if k in raw:
                 job[k] = raw[k]
         why = self._defer(job)
@@ -562,7 +583,7 @@ class Runner:
             if APPROVE in r0["steps"] and self.key and not self.approved_early(job) and \
                     self.now().time() < RELEASE_WINDOW[1]:       # ask now; it runs when the morning is done
                 self._phone_send(job, raw, src)
-                pa = self._phone_answer(job)
+                pa = self._phone_answer(job, src)
                 if pa == "approve":
                     self.approve_early(job)
                     return "deferred (approved)"
@@ -606,7 +627,7 @@ class Runner:
                 answer, terminal = "approve", False
                 job["approved_early"] = True
                 self._use_early(job)
-            elif (pa := (self._phone_send(job, raw, src) or self._phone_answer(job))):
+            elif (pa := (self._phone_send(job, raw, src) or self._phone_answer(job, src))):
                 answer, terminal = pa, False
                 job["approved_by"] = "phone"
             else:
