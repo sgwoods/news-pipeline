@@ -91,6 +91,8 @@ RECIPES = {
                                                                   # if any check but the approval fails (10-26)
     "install-hooks": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["install-hooks"])]},
     "phone-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["phone-setup"])]},   # the passphrase
+    "ntfy-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["ntfy-setup"])]},     # phone notifications
+    "ntfy-test": {"tier": "auto", "args": {}, "steps": [("prod", ["ntfy", "test"])]},
     "deploy-mailer": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["deploy-mailer"]),
                                                          ("prod", ["mailer", "status"])]},
     "mailer-status": {"tier": "auto", "args": {}, "steps": [("prod", ["mailer", "status"])]},
@@ -99,7 +101,7 @@ RECIPES = {
 CHANGES_PRODUCTION = {"setup", "correct", "publish", "restore", "ship", "release", "rollback", "approve", "install-hooks",
                       "push-code", "source-add", "send-held", "takes-apply", "deploy-mailer"}
 IN_RELEASE_WINDOW = {"ship", "release"}
-NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup"}   # local steps behind the click
+NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup", "ntfy-setup"}   # local steps behind the click
 
 
 class JobError(ValueError):
@@ -380,10 +382,12 @@ def set_phone_secret(ask=None) -> str:
 
 
 class Phone:
-    """send(job_id, nonce, title, summary) -> bool; poll(ids) -> {id: {"answer", "proof", "at"}}; secret() -> str."""
+    """send(job_id, nonce, title, summary) -> bool; poll(ids) -> {id: {"answer", "proof", "at"}}; secret() -> str.
+    kind "passphrase": proof = phone_proof(passphrase, nonce, answer, id) (the mail script's approve page).
+    kind "ntfy": proof = the nonce itself, sent back by a tap on the notification (pipeline/ntfy.py)."""
 
-    def __init__(self, send, poll, secret):
-        self.send, self.poll, self.secret = send, poll, secret
+    def __init__(self, send, poll, secret=None, kind="passphrase"):
+        self.send, self.poll, self.secret, self.kind = send, poll, secret or (lambda: ""), kind
 
 
 def notify_mac(title: str, text: str, sound: bool = False):
@@ -509,9 +513,14 @@ class Runner:
         if not got:
             note("no answer yet")
             return ""
-        if a not in ("approve", "reject") or len(proof) != 64:
+        if a not in ("approve", "reject") or not (20 <= len(proof) <= 64):
             note(f"malformed answer ({a!r}, proof length {len(proof)})", str(got.get("at", "")))
             return ""
+        if self.phone.kind == "ntfy":
+            if not hmac.compare_digest(proof, self._nonce(job)):
+                note("the tap's token doesn't match this job", str(got.get("at", "")))
+                return ""
+            return a
         if not secret:
             note("no passphrase in the Keychain")
             return ""

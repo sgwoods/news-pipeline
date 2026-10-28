@@ -309,6 +309,10 @@ def send_email(root: Path, cfg: dict, day: str, log=print, drive: str = "") -> s
     m = build_email(root, cfg, day, review=upload_review(root, cfg, day), drive=drive)
     # content is defused (no placeholder can come from a story); only this template adds the token and script URL
     r = mailer.call(cfg, "send", subject=m["subject"], html=_fill(m["html"]), text=_fill(m["text"]), to=to)
+    if r.get("ok"):
+        from . import ntfy
+        ntfy.notify(cfg, "AI Briefing · your takes", f"{day}: the edition is ready for your takes. Tap to review.",
+                    click=ntfy.owner_link(cfg, "t", day), tags=("pencil",), root=root)
     st["emailed_at"] = dt.datetime.now().isoformat(timespec="seconds")
     _save_state(root, day, st)
     return "takes email sent to the owner" + ("" if (r or {}).get("ok", True) else f" (mailer: {r})")

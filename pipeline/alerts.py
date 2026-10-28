@@ -129,5 +129,11 @@ def send(root: Path, cfg: dict, kind: str, day: str = "", detail: str = "", file
         log(f"alert email not sent: {e}")
     if ok:                                       # a failed attempt is retried by the next scheduled run
         _mark(root, day, kind, ok)
+    try:
+        from . import ntfy
+        ntfy.notify(cfg, f"AI Briefing · {KINDS[kind][0]}", mailer.defuse(detail[:300]) or KINDS[kind][1][:300],
+                    priority=4, tags=("warning",), root=root)
+    except Exception:  # noqa: BLE001
+        pass
     log(f"alert: {kind} ({'emailed' if ok else 'notification only'})")
     return ok

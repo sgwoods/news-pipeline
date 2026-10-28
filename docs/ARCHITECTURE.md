@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.23-beta (2026-10-28)
+- **Release:** v0.2.24-beta (2026-10-28)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 69 in `pipeline/`
+- **Modules:** 70 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -243,7 +243,14 @@ for that job and that day. He types the passphrase there and taps Approve or Rej
 (HMAC of the answer and job id under PBKDF2 of the passphrase, salted with the link's nonce), and the runner checks
 it against the Keychain on its next tick. Neither the mail script's records nor the email can stand in for it, so
 Claude, which can read both, still can't approve. The Mac dialog still appears, for 90 seconds, so the runner keeps
-ticking while it waits. The
+ticking while it waits.
+
+**Phone notifications** (`ntfy.py`, v0.2.24): the preferred phone path. The Mac publishes to a private ntfy topic
+(a random name kept only in its Keychain; the phone's ntfy app subscribes once). An approval is a notification
+with Approve and Reject buttons; a tap posts the job's one-time token to a second private topic the runner polls,
+so no passphrase is typed. Nudges (the takes page is ready, the evening note is out, a run needs attention) open
+the owner pages in one tap, with owner links minted the way the mail script mints them. Set up with the
+`ntfy-setup` job (a Mac Approve), then `./np ntfy test`. The
 runner refuses to work if production code differs from the release. Release invariant 10 checks the recipes and
 the runner's code. Results go to `data/queue/done/` and `logs/runner-<id>.txt`. `./np runner status` lists the
 queue.
@@ -320,6 +327,7 @@ _Generated from each module's own description at build time._
 | `mailguard.py` | The only way the pipeline talks to Gmail |
 | `mailsource.py` | Newsletters as a source |
 | `netguard.py` | Requests to URLs that came from content (links in posts, newsletters, model output) may only reach the public internet |
+| `ntfy.py` | Notifications on Steven's phone through ntfy (Steven, 2026-10-28 |
 | `numbers.py` | Number check for one edition |
 | `owner.py` | Who runs this instance |
 | `pages.py` | Sources without RSS |

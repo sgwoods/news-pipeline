@@ -1227,17 +1227,25 @@ def cmd_runner(cfg: dict, argv: list) -> int:
              "deploy-mailer": lambda a: cmd_mailer(cfg, ["deploy"])}
     local["follow-through"] = lambda a: _follow_through(cfg, a)
     local["phone-setup"] = lambda a: (print("phone approvals:", runner.set_phone_secret()) or 0)
+    local["ntfy-setup"] = lambda a: (print("phone notifications:", ntfy.setup()) or 0)
+    from pipeline import ntfy
     from pipeline.mailer import sent_days
     phone = None
-    if sys.platform == "darwin" and (cfg.get("approvals") or {}).get("phone", True) and runner.phone_secret():
+    if sys.platform == "darwin" and ntfy.enabled() and (cfg.get("approvals") or {}).get("ntfy", True):
+        phone = runner.Phone(send=ntfy.send_approval, poll=ntfy.poll, kind="ntfy")
+    elif sys.platform == "darwin" and (cfg.get("approvals") or {}).get("phone", True) and runner.phone_secret():
         from pipeline import mailer as _ml
         phone = runner.Phone(
             send=lambda jid, n, title, summ: bool(_ml.call(cfg, "approvalmail", j=jid, n=n, title=title,
                                                            summary=summ).get("ok")),
             poll=lambda ids: _ml.call(cfg, "getapprovals", ids=",".join(ids)).get("approvals") or {},
             secret=runner.phone_secret)
+    def notify(title, text, sound=False):
+        runner.notify_mac(title, text, sound)
+        if not title.startswith("approval waiting"):              # the approval itself is the ntfy message
+            ntfy.notify(cfg, f"AI Briefing · {title}", text)
     r = runner.Runner(ROOT, devenv.dev_path(ROOT, cfg), local, busy=lambda: run_in_progress(ROOT),
-                      summary=lambda job: _runner_summary(cfg, job),
+                      summary=lambda job: _runner_summary(cfg, job), notify=notify,
                       sent_today=lambda: dt.date.today().isoformat() in sent_days(ROOT),
                       key=runner.approval_key if sys.platform == "darwin" else None, phone=phone)
     if sub == "tick":
@@ -1467,6 +1475,22 @@ def cmd_positions(cfg: dict, argv: list) -> int:
     for r in houseviews.load_ledger(ROOT):
         print(f"  {r['day']}  {r.get('status', ''):6} check {r.get('check', '')}  {r.get('view_name', '')[:28]:28}  "
               f"{r.get('headline', '')[:60]}")
+    return 0
+
+
+def cmd_ntfy(cfg: dict, argv: list) -> int:
+    """./np ntfy test | status: phone notifications (pipeline/ntfy.py)."""
+    from pipeline import ntfy
+    sub = (argv or ["status"])[0]
+    if not ntfy.enabled():
+        print("phone notifications are off: queue the ntfy-setup job")
+        return 1
+    if sub == "test":
+        ok = ntfy.notify(cfg, "AI Briefing · hello", "Phone notifications work. Approvals and nudges arrive here.",
+                         click=ntfy.owner_link(cfg, "q"))
+        print("test notification", "sent" if ok else "NOT sent")
+        return 0 if ok else 1
+    print("phone notifications: on")
     return 0
 
 
@@ -2853,6 +2877,7 @@ def main() -> int:
     ap.add_argument("--listen", nargs="*", metavar="ARG", help="[DAY]: transcribe the published episode and check it")
     ap.add_argument("--drive", nargs="*", metavar="ARG", help="save [DAY] [draft]: the edition and deep dive as Google Docs")
     ap.add_argument("--audit", nargs="*", metavar="ARG", help="[DAY]: the accuracy audit (claims against their sources)")
+    ap.add_argument("--ntfy", nargs="*", metavar="ARG", help="test | status: phone notifications")
     ap.add_argument("--positions", nargs="*", metavar="ARG", help="list | score [DAY]: the house-view calls ledger")
     ap.add_argument("--mailer", nargs="*", metavar="ARG", help="status | setup SCRIPT_ID | deploy: the mail script via clasp")
     ap.add_argument("--critic", nargs="*", metavar="ARG", help="preview | email | list [DATE]: the weekly critic")
@@ -2942,6 +2967,8 @@ def main() -> int:
         return cmd_drive(cfg, args.drive)
     if args.audit is not None:
         return cmd_audit(cfg, args.audit)
+    if args.ntfy is not None:
+        return cmd_ntfy(cfg, args.ntfy)
     if args.positions is not None:
         return cmd_positions(cfg, args.positions)
     if args.listen is not None:

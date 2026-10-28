@@ -128,6 +128,10 @@ def send(root: Path, cfg: dict, day: str, new_mentions: list | None = None, forc
     except Exception:  # noqa: BLE001 - the note still goes out; the page shows the previous snapshot
         pass
     out = call(cfg, "send", subject=msg["subject"], html=msg["html"], text=msg["text"], to=to)
+    if out.get("ok"):
+        from . import ntfy
+        ntfy.notify(cfg, "AI Briefing · tomorrow's deep dive", "The evening note is out: pick what airs next, add "
+                    "your take or a topic.", click=ntfy.owner_link(cfg, "q"), tags=("night_with_stars",), root=root)
     p = root / STAMP
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps({"day": day, "at": dt.datetime.now().isoformat(timespec="seconds"), "ok": bool(out.get("ok"))}) + "\n")

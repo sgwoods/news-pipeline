@@ -7,6 +7,15 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.24-beta · 2026-10-28
+- **Phone notifications and one-tap approvals** (Steven, 10-28: "more control from my iPhone"): through the free,
+  open-source ntfy app. Approvals arrive as a notification with Approve and Reject buttons; one tap, no passphrase,
+  no browser. The tap sends a one-time token the Mac checks, over private topics only the Mac's Keychain and the
+  phone know. Nudges: the takes page is ready (tap opens it), the evening deep-dive note is out (tap opens the
+  queue page), a run needs attention, a run-queue job finished. Turn on with the `ntfy-setup` job (a Mac Approve;
+  the topic lands on the clipboard for the phone), then "ntfy test". The passphrase path stays as a fallback.
+  Security-sensitive: a third approval path.
+
 ## v0.2.23-beta · 2026-10-28
 - Phone approvals: the job file now says why a phone answer wasn't accepted (no answer yet, the check failed, or the
   passphrase didn't match), and a passphrase that doesn't match gets one Mac notification, as promised.
