@@ -1506,15 +1506,24 @@ def cmd_positions(cfg: dict, argv: list) -> int:
 
 
 def cmd_slack_post(cfg: dict, argv: list) -> int:
-    """./np slack-post preview DAY | send DAY: the morning post in the team channel (pipeline/slackpost.py)."""
+    """./np slack-post preview DAY | send DAY | deepdive DAY: the morning post in the team channel, and the deep dive
+    as a reply in its thread (pipeline/slackpost.py)."""
     from pipeline import slackpost
     sub = (argv or ["preview"])[0]
     day = next((a for a in argv[1:] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)), dt.date.today().isoformat())
     if sub == "preview":
-        out = slackpost.build(ROOT, {**cfg, "slack": {**(cfg.get("slack") or {}), "post": {**slackpost.pcfg(cfg), "enabled": True}}}, day)
+        out = slackpost.build(ROOT, cfg, day)
         print(out["text"])
         print("card:", out.get("card") or out.get("card_error") or "none")
+        dd = slackpost.build_dd(ROOT, cfg, day)
+        if dd:
+            print("\n--- deep dive (thread reply) ---\n" + dd["text"])
+            print("card:", dd.get("card") or dd.get("card_error") or "none")
         return 0
+    if sub == "deepdive":
+        r = slackpost.post_dd(ROOT, cfg, day, log=print)
+        print(r if not r.get("ok") else "posted")
+        return 0 if r.get("ok") else 1
     r = slackpost.post(ROOT, cfg, day, log=print)
     print(r if not r.get("ok") else "posted")
     return 0 if r.get("ok") else 1

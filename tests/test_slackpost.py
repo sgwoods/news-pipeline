@@ -49,7 +49,7 @@ class Card(unittest.TestCase):
 
     def test_render_makes_a_png(self):
         try:
-            import PIL  # noqa: F401
+            from PIL import Image  # noqa: F401
         except ImportError:
             self.skipTest("Pillow not installed here")
         root = make_root()
@@ -99,6 +99,44 @@ class Post(unittest.TestCase):
         with mock.patch.object(slackpost, "token", return_value=""):
             self.assertIn("SLACK_BOT_TOKEN", slackpost.post(root, CFG, "2026-10-29", log=lambda *a: None)["skipped"])
         self.assertIn("off", slackpost.post(root, {**CFG, "slack": {"channel": "x"}}, "2026-10-29")["skipped"])
+
+    def test_deep_dive_replies_in_the_morning_thread(self):
+        root = make_root()
+        (root / "briefings" / "deepdives").mkdir()
+        (root / "briefings" / "deepdives" / f"{DAY}.md").write_text("# Deep dive: Merging the Labs\n\n*x*\n\nOne story.\n")
+        (root / "briefings" / "deepdives" / f"{DAY}.mp3").write_bytes(b"x")
+        (root / "data").mkdir(exist_ok=True)
+        (root / "data" / "deepdives.jsonl").write_text(json.dumps({"day": DAY, "status": "published", "title": "Deep dive: Merging the Labs", "minutes": 10.4}) + "\n")
+        calls = []
+
+        class R:
+            def __init__(self, data):
+                self.data, self.status_code = data, 200
+
+            def json(self):
+                return self.data
+
+        class Client:
+            def post(self, url, **kw):
+                calls.append((url, kw))
+                if url.endswith("conversations.list"):
+                    return R({"ok": True, "channels": [{"name": "cto-musings", "id": "C1"}]})
+                if url.endswith("chat.postMessage"):
+                    return R({"ok": True, "ts": "100.1" if "thread_ts" not in (kw.get("data") or {}) else "100.2"})
+                return R({"ok": True})
+        with mock.patch.object(slackpost, "token", return_value="xoxb-test"), \
+             mock.patch.object(card, "render", return_value=None), mock.patch.object(card, "render_dd", return_value=None), \
+             mock.patch.object(release, "require", side_effect=lambda *a, **k: None):
+            r = slackpost.post(root, CFG, DAY, log=lambda *a: None, client=Client())
+        self.assertEqual(r["ts"], "100.1")
+        self.assertTrue(r["deepdive"]["ok"])
+        replies = [kw["data"] for url, kw in calls if url.endswith("chat.postMessage") and "thread_ts" in (kw.get("data") or {})]
+        self.assertEqual(replies[0]["thread_ts"], "100.1")
+        self.assertIn("Deep dive · Merging the Labs", replies[0]["text"])
+        rows = slackpost._stamps(root)
+        self.assertEqual([x["kind"] for x in rows], ["main", "deepdive"])
+        with mock.patch.object(slackpost, "token", return_value="xoxb-test"):
+            self.assertIn("already posted", slackpost.post_dd(root, CFG, DAY, log=lambda *a: None, client=Client())["skipped"])
 
     def test_outbound_invariant_lists_the_post(self):
         self.assertIn(("pipeline/slackpost.py", "post"), release.OUTBOUND)

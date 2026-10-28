@@ -86,6 +86,26 @@ def _wrap(draw, text: str, font, width: int) -> list:
     return lines
 
 
+def _fit(draw, text: str, font, width: int, max_lines: int) -> list:
+    """Wrap to at most max_lines; when the text is longer, end at the last full sentence that fits, else cut with
+    an ellipsis. Never a line that stops mid-sentence."""
+    lines = _wrap(draw, text, font, width)
+    if len(lines) <= max_lines:
+        return lines
+    kept = " ".join(lines[:max_lines])
+    ends = [m.end() for m in re.finditer(r"[.!?][\u201d\"')]?(?=\s|$)", kept)]
+    if ends and ends[-1] > len(kept) * 0.45:
+        return _wrap(draw, kept[:ends[-1]].strip(), font, width)[:max_lines]
+    words = kept.split()
+    while words:
+        cand = " ".join(words) + "\u2026"
+        w = _wrap(draw, cand, font, width)
+        if len(w) <= max_lines:
+            return w
+        words.pop()
+    return lines[:max_lines]
+
+
 def render(root: Path, day: str, md: str, notes: dict, dd_title: str = "", dd_line: str = "", dd_take: str = "",
            out: Path | None = None) -> Path:
     from PIL import Image, ImageDraw, ImageOps
@@ -128,7 +148,7 @@ def render(root: Path, day: str, md: str, notes: dict, dd_title: str = "", dd_li
                font=_font(root, "SemiBold", 20), fill=TEAL)
         y += 34
         f_q = _font(root, "Regular", 32)
-        lines = _wrap(d, "\u201c" + take + "\u201d", f_q, W - 64 - 140)[:3]
+        lines = _fit(d, "\u201c" + take + "\u201d", f_q, W - 64 - 140, 3)
         for i, ln in enumerate(lines):
             d.text((96, y + i * 42), ln, font=f_q, fill=INK)
         d.rectangle([64, y - 36, 70, y + len(lines) * 42 - 6], fill=TEAL)
@@ -152,5 +172,62 @@ def render(root: Path, day: str, md: str, notes: dict, dd_title: str = "", dd_li
             f_l = _font(root, "Regular", 25)
             ll = _wrap(d, dd_line, f_l, W - 128)[:1]
             d.text((64, H - 48), ll[0], font=f_l, fill="#d8e9ec")
+    img.save(out, "PNG", optimize=True)
+    return out
+
+
+def render_dd(root: Path, day: str, title: str, summary: str, take: str, minutes: int = 0, out: Path | None = None) -> Path:
+    """The deep-dive card for the thread reply: the deep-teal of the deep-dive cover, the title, the summary and
+    Steven's take on it."""
+    from PIL import Image, ImageDraw, ImageOps
+    out = out or root / "data" / "cards" / f"{day}-deepdive.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img = Image.new("RGB", (W, H), DEEP)
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([64, 52, 64 + 196, 52 + 48], radius=24, fill=TEAL)
+    d.text((64 + 24, 52 + 9), "AI Briefing", font=_font(root, "SemiBold", 24), fill="white")
+    photo = root / "assets" / "steven-woods.jpg"
+    if photo.exists():
+        p = ImageOps.fit(Image.open(photo).convert("RGB"), (112, 112))
+        mask = Image.new("L", (112, 112), 0)
+        ImageDraw.Draw(mask).ellipse([0, 0, 111, 111], fill=255)
+        ring = Image.new("RGB", (120, 120), "white")
+        rmask = Image.new("L", (120, 120), 0)
+        ImageDraw.Draw(rmask).ellipse([0, 0, 119, 119], fill=255)
+        img.paste(ring, (W - 64 - 120, 36), rmask)
+        img.paste(p, (W - 64 - 116, 40), mask)
+    d.text((64, 150), "Deep Dive", font=_font(root, "Bold", 72), fill="white")
+    date = dt.date.fromisoformat(day).strftime("%A, %B %-d, %Y")
+    d.text((66, 240), f"{date}  ·  One story, slowly. Down to the details." + (f"  ·  {minutes} min" if minutes else ""),
+           font=_font(root, "Regular", 26), fill="#b9d3d7")
+    y = 320
+    f_t = _font(root, "Bold", 46)
+    for ln in _wrap(d, title, f_t, W - 128)[:2]:
+        d.text((64, y), ln, font=f_t, fill="white")
+        y += 56
+    y += 14
+    f_s = _font(root, "Regular", 28)
+    for ln in _fit(d, summary, f_s, W - 128, 3):
+        d.text((64, y), ln, font=f_s, fill="#d8e9ec")
+        y += 38
+    if take:
+        y += 30
+        d.text((96, y), "STEVEN'S TAKE", font=_font(root, "SemiBold", 20), fill="#9fcfd6")
+        y += 34
+        f_q = _font(root, "Regular", 30)
+        lines = _fit(d, "“" + take + "”", f_q, W - 64 - 140, 4)
+        for i, ln in enumerate(lines):
+            d.text((96, y + i * 40), ln, font=f_q, fill="white")
+        d.rectangle([64, y - 36, 70, y + len(lines) * 40 - 8], fill=TEAL)
+    # the band and waveform, as on the cover
+    d.rectangle([0, H - 72, W, H], fill=TEAL)
+    d.text((64, H - 50), "For early-stage investors  ·  Curated by Steven Woods", font=_font(root, "Regular", 22), fill="#eaf4f6")
+    import random
+    rnd = random.Random(day + "dd")
+    x = 64
+    while x < W - 64:
+        h = rnd.choice([6, 10, 14, 20, 26])
+        d.rounded_rectangle([x, H - 72 - 22 - h, x + 8, H - 72 - 22], radius=3, fill="#3f6f78")
+        x += 16
     img.save(out, "PNG", optimize=True)
     return out

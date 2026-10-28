@@ -7,6 +7,12 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.28-beta · 2026-10-28
+- **The deep dive in the thread** (Steven, 10-28): right after the morning post, a reply in its thread with the deep
+  dive: title, summary, Steven's take on it and the links, with its own card in the deep-dive cover's colours.
+  `./np slack-post deepdive DAY`; run-queue job `slack-deepdive` (chat). Card text now ends at a full sentence or
+  an ellipsis, never mid-sentence.
+
 ## v0.2.27-beta · 2026-10-28
 - **The morning Slack post** (Steven, 10-28): when the email goes out, one post in cto-musings from the bot user
   "AI Briefing": the day's three leads, one of Steven's published takes (his words, the one with the most bite that

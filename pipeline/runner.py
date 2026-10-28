@@ -99,13 +99,14 @@ RECIPES = {
     "slack-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["slack-setup"])]},   # the bot token
     "slack-card": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "preview", "{day}"])]},
     "slack-post": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "send", "{day}"])]},
+    "slack-deepdive": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "deepdive", "{day}"])]},
     "deploy-mailer": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["deploy-mailer"]),
                                                          ("prod", ["mailer", "status"])]},
     "mailer-status": {"tier": "auto", "args": {}, "steps": [("prod", ["mailer", "status"])]},
     "mailer-setup": {"tier": "chat", "args": {"script": "text"}, "steps": [("prod", ["mailer", "setup", "{script}"])]},
 }
 CHANGES_PRODUCTION = {"setup", "correct", "publish", "restore", "ship", "release", "rollback", "approve", "install-hooks",
-                      "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post"}
+                      "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive"}
 IN_RELEASE_WINDOW = {"ship", "release"}
 NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup", "ntfy-setup",
                   "slack-setup"}   # local steps behind the click
