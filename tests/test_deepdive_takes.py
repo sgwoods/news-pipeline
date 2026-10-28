@@ -92,7 +92,7 @@ class Script(unittest.TestCase):
     def test_queue_page_take_and_queue_ops(self):
         gs = (ROOT / "scripts" / "apps-script" / "Code.gs").read_text("utf-8")
         self.assertIn("'queue', 'take'].indexOf(op)", gs)
-        self.assertIn("QHEAD = ['id', 'topic', 'status', 'why', 'take']", gs)
+        self.assertIn("QHEAD = ['id', 'topic', 'status', 'why', 'take', 'by']", gs)
         self.assertIn("ask[0].split('%').join(esc_(it.topic))", gs)             # topic text is escaped, never a pattern
         page = gs[gs.index("function queuePage_"):gs.index("function stars_")]
         self.assertIn("esc_(r.take || '')", page)

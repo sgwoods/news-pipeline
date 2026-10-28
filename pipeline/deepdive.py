@@ -358,7 +358,54 @@ def snapshot(root: Path) -> list:
     sugg = sorted([x for x in items if x["status"] == "suggested"],
                   key=lambda x: (x.get("source_day", ""), x.get("strength") or 0), reverse=True)[:10]
     return [{"id": x["id"], "topic": x["topic"], "status": x["status"],
-             "why": (x.get("why_today") or "")[:200], "take": x.get("take", "")} for x in up + sugg]
+             "why": (x.get("why_today") or "")[:200], "take": x.get("take", ""), "by": x.get("suggested_by", "")}
+            for x in up + sugg]
+
+
+READER_STATE = "data/state/dd-suggestions.json"
+
+
+def pull_reader_suggestions(root: Path, cfg: dict, log=print) -> int:
+    """Readers' ideas from the mail script's suggestions tab (v0.2.29) -> queue items with origin "reader" and
+    "suggested_by" (the name they gave, else "a reader"). Addresses stay in data/, never in output. -> how many new."""
+    from .mailer import call
+    try:
+        rows = call(cfg, "suggestions").get("suggestions") or []
+    except Exception as e:  # noqa: BLE001
+        log(f"reader suggestions: not read ({e})")
+        return 0
+    try:
+        seen = set(json.loads((root / READER_STATE).read_text("utf-8")).get("seen", []))
+    except (OSError, json.JSONDecodeError):
+        seen = set()
+    n = 0
+    day = dt.date.today().isoformat()
+    for r in sorted(rows, key=lambda r: str(r.get("at", ""))):
+        key = f"{r.get('at', '')}|{r.get('email', '')}|{r.get('topic', '')}"[:300]
+        topic = str(r.get("topic") or "").strip()
+        if key in seen or len(topic) < 6:
+            continue
+        seen.add(key)
+        name = re.sub(r"\s+", " ", str(r.get("name") or "")).strip()[:40]
+        by = name or "a reader"
+        added = add_suggestions(root, day, [{"topic": topic[:120], "kind": "concept", "angle": str(r.get("why") or "")[:400] or topic,
+                                             "why_today": f"Suggested by {by}." + (f" {str(r.get('why') or '')[:200]}" if r.get("why") else ""),
+                                             "strength": 3}], [], origin="reader")
+        for it in added:
+            items = load_queue(root)
+            for x in items:
+                if x["id"] == it["id"]:
+                    x["suggested_by"] = by
+                    x["suggested_email"] = str(r.get("email") or "")      # private: the queue file only
+                    x["suggested_at"] = str(r.get("at") or "")
+            save_queue(root, items)
+            n += 1
+    p = root / READER_STATE
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({"seen": sorted(seen)[-2000:]}), "utf-8")
+    if n:
+        log(f"reader suggestions: {n} new")
+    return n
 
 
 REMOTE_STATE = "data/state/dd-actions.json"
@@ -367,6 +414,10 @@ REMOTE_STATE = "data/state/dd-actions.json"
 def apply_remote(root: Path, cfg: dict, log=print) -> int:
     """Apply Steven's clicks on the email queue page (Make next, up/down, dismiss, suggest) -> how many."""
     from .mailer import call
+    try:
+        pull_reader_suggestions(root, cfg, log)
+    except Exception as e:  # noqa: BLE001
+        log(f"reader suggestions skipped: {e}"[:160])
     try:
         acts = call(cfg, "ddactions").get("actions") or []
     except Exception as e:  # noqa: BLE001
@@ -638,7 +689,8 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     notes_md, _ = scrub_output(
         f"# Deep dive: {title}\n\n*AI Briefing · {day} · "
         + ("the weekly flagship, two voices · " if flag else "") + "follows today's briefing · written and read by AI from public sources*\n\n"
-        f"{summary}\n\n" + (f"**Why today.** {why_line}\n\n" if why_line else "") + f"## Sources\n\n{src_md}\n", cfg)
+        f"{summary}\n\n" + (f"*Suggested by {item.get('suggested_by')}.*\n\n" if item.get("suggested_by") else "")
+        + (f"**Why today.** {why_line}\n\n" if why_line else "") + f"## Sources\n\n{src_md}\n", cfg)
     (d / f"{day}.md").write_text(notes_md, "utf-8")
     from .audio import script_markdown
     (d / f"{day}.script.md").write_text(script_markdown(f"Deep dive: {title}", parts, {"script_model": getattr(llm_write, "label", ""),

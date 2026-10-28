@@ -4,7 +4,7 @@
 {% macro takeform(x) %}<form method="post" action="/api/deep-dives/{{ x.id }}/take" style="margin-top:6px"><input type="hidden" name="csrf" value="{{ csrf }}"><textarea name="take" rows="2" maxlength="800" style="width:100%;max-width:640px" placeholder="Your take (optional): read verbatim as &quot;Steven's take&quot; at the end of this deep dive, site and podcast">{{ x.take or '' }}</textarea><br><button class="mini">{{ 'Update my take' if x.take else 'Save my take' }}</button>{% if x.take %} <span class="small muted">saved {{ (x.take_at or '')[:16]|replace('T', ' ') }} · empty it and save to remove</span>{% endif %}</form>{% endmacro %}
 {% macro card(x, ops) %}<div class="card" style="margin-bottom:8px">
 <b>{{ x.topic }}</b> {% if x.kind %}<span class="pill">{{ x.kind }}</span>{% endif %}{% if x.strength %} <span class="pill {{ 'flag' if x.strength >= 4 }}">strength {{ x.strength }}</span>{% endif %}
-{% if x.origin == 'steven' %}<span class="pill flag">yours</span>{% endif %}
+{% if x.origin == 'steven' %}<span class="pill flag">yours</span>{% endif %}{% if x.suggested_by %}<span class="pill">suggested by {{ x.suggested_by }}</span>{% endif %}
 <span class="small muted"> · suggested {{ x.source_day }}{% if x.for_day %} · scheduled for {{ x.for_day }}{% endif %}{% if x.done_day %} · aired {{ x.done_day }}{% endif %}</span>
 {{ ops }}
 {% if x.why_today %}<div class="small">{{ x.why_today }}</div>{% endif %}

@@ -75,7 +75,8 @@ def build(root: Path, cfg: dict, day: str, new_mentions: list | None = None) -> 
     if sugg:
         sec("New suggestions today")
         for x in sugg:
-            item(f"{x['topic']} (strength {x.get('strength', '?')})", x.get("why_today", ""),
+            tag = f" · suggested by {x['suggested_by']}" if x.get("suggested_by") else f" (strength {x.get('strength', '?')})"
+            item(f"{x['topic']}{tag}", x.get("why_today", ""),
                  ("next", "queue", "take", "dismiss"), x["id"], x.get("take", ""))
     if today_dd:
         sec("Today's deep dive")

@@ -7,6 +7,14 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.29-beta · 2026-10-28
+- **Readers suggest deep dives** (Steven, 10-28): a "Suggest a deep dive" link in the email's deep-dive section (with
+  the reader's own token) and on every deep-dive page on the site. The page asks for a topic, why now, and an
+  optional name. Suggestions land in the queue as "suggested by <name>" (else "a reader") and show that way in
+  the evening note, on the queue page and in the dashboard; when one runs, the deep dive's notes say who suggested
+  it. Addresses stay in the private queue file. Capped per reader and per day. Needs the mail-script deploy (the
+  ship does it).
+
 ## v0.2.28-beta · 2026-10-28
 - **The deep dive in the thread** (Steven, 10-28): right after the morning post, a reply in its thread with the deep
   dive: title, summary, Steven's take on it and the links, with its own card in the deep-dive cover's colours.

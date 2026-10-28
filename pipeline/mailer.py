@@ -237,7 +237,7 @@ def defuse(s: str) -> str:
     return re.sub(r"\{\s*\{|%7B%7B|&#123;&#123;", "{ {", str(s or ""), flags=re.I).replace("}}", "} }")
 
 
-TEMPLATE_PLACEHOLDERS = {"{{UNSUBSCRIBE}}", "{{RATE}}"}
+TEMPLATE_PLACEHOLDERS = {"{{UNSUBSCRIBE}}", "{{RATE}}", "{{SUGGEST}}"}
 
 
 def privacy_gate(msg: dict, cfg: dict) -> list:
@@ -386,7 +386,8 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
                    f'right after the briefing in your podcast feed, or read it on the site.</p>'
                    + _btn(deep["url"] + "#listen", "▶ Listen to the deep dive") + _btn(deep["url"] + "#read", "Read it", False)
                    + f'<p style="margin:10px 0 0;font-size:13px;color:{C["muted"]}">The deep dives are also a podcast of '
-                     f'their own: <a href="{base}/deepdive.xml" style="color:{C["link"]}">subscribe to the deep dives</a>.</p>'
+                     f'their own: <a href="{base}/deepdive.xml" style="color:{C["link"]}">subscribe to the deep dives</a>. '
+                     f'Got a story that deserves a whole episode? <a href="{{{{SUGGEST}}}}" style="color:{C["link"]}">Suggest a deep dive</a>.</p>'
                    + "</td></tr>")
     if b.get("reading"):
         rr = b["reading"]

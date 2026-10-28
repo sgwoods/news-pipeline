@@ -37,8 +37,9 @@ var SHEET = 'subscribers';
 var HEAD = ['email', 'status', 'token', 'created', 'confirmed', 'updated', 'source', 'consent', 'reminded'];
 var RSHEET = 'ratings';
 var RHEAD = ['day', 'who', 'email', 'score', 'note', 'at', 'src'];
-var QSHEET = 'dd_queue', QHEAD = ['id', 'topic', 'status', 'why', 'take'];   // take: Steven's own words on it
+var QSHEET = 'dd_queue', QHEAD = ['id', 'topic', 'status', 'why', 'take', 'by'];   // take: Steven's own words; by: who suggested it
 var ASHEET = 'dd_actions', AHEAD = ['at', 'op', 'id', 'topic', 'angle'];
+var SGSHEET = 'dd_suggestions', SGHEAD = ['at', 'email', 'name', 'topic', 'why', 'status'];   // readers' deep-dive ideas (v0.2.29)
 var TSHEET = 'takes', THEAD = ['at', 'day', 'slot', 'text', 'done'];   // Steven's takes from the site page
 var VSHEET = 'review', VHEAD = ['day', 'part', 'html'];                 // the held edition as a private review page
 var CONSENT = 'Asked to receive the daily AI Briefing by email and confirmed by clicking the link sent to this address.';
@@ -213,7 +214,8 @@ function queuePage_(t, note, pick, pop, ptopic) {
   };
   var row = function (r, n) {
     return '<div id="q-' + esc_(r.id) + '" style="padding:12px 0;border-top:1px solid #23415d"><b>' + (r.status === 'queued' ? (n + 1) + '. ' : '') +
-      esc_(r.topic) + '</b>' + (r.why ? '<div style="font-size:13px;color:#9cc4df">' + esc_(r.why) + '</div>' : '') +
+      esc_(r.topic) + '</b>' + (r.by ? ' <span style="font-size:12px;padding:2px 8px;border-radius:999px;background:#2a4a66;color:#d9f7ff">suggested by ' + esc_(r.by) + '</span>' : '') +
+      (r.why ? '<div style="font-size:13px;color:#9cc4df">' + esc_(r.why) + '</div>' : '') +
       (r.id === 'new' ? '' : '<div>' + (n === 0 && r.status === 'queued' ? '' : btn('next', r.id, 'Make next', true)) +
         (r.status === 'queued' ? btn('up', r.id, '↑') + btn('down', r.id, '↓') : btn('queue', r.id, '＋ Up next')) +
         btn('dismiss', r.id, 'Dismiss') + '</div>' + takeForm(r)) +
@@ -254,6 +256,21 @@ function stars_(n) {
   var o = '';
   for (var i = 1; i <= 5; i++) o += '<span style="color:' + (i <= n ? '#ffd166' : '#3b5874') + '">&#9733;</span>';
   return o;
+}
+
+function suggestPage_(t, note) {
+  var inp = 'style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #2c4a66;' +
+    'background:#07131f;color:#eff7ff;font:inherit;font-size:16px;margin:4px 0 12px"';
+  return page_('Suggest a deep dive', (note ? '<p style="color:#ffb4a2">' + esc_(note) + '</p>' : '') +
+    '<p style="color:#9cc4df;font-size:15px">One story, slowly. What should the briefing take a whole episode on? Steven reads every ' +
+    'suggestion; if it runs, you get the credit.</p>' +
+    '<form method="post" action="' + selfUrl_() + '" target="_top"><input type="hidden" name="action" value="suggest">' +
+    '<input type="hidden" name="t" value="' + esc_(t) + '"><input type="text" name="website" tabindex="-1" autocomplete="off" ' +
+    'style="position:absolute;left:-9999px">' +
+    '<label>Topic</label><input name="topic" maxlength="200" required placeholder="e.g. Who actually pays for inference at scale" ' + inp + '>' +
+    '<label>Why now (optional)</label><textarea name="why" maxlength="600" rows="3" placeholder="A link, a question, an angle" ' + inp + '></textarea>' +
+    '<label>Your name, as it would appear (optional)</label><input name="name" maxlength="60" placeholder="First name, or a handle" ' + inp + '>' +
+    '<button style="padding:12px 20px;border-radius:999px;border:0;background:#67e6a8;color:#06221a;font:600 16px sans-serif;cursor:pointer">Send it</button></form>');
 }
 
 function ratePage_(day, score, t) {
@@ -503,6 +520,10 @@ function doGet(e) {
     return HtmlService.createHtmlOutput(body).setTitle('Your takes · ' + p.d)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
   }
+  if (p.action === 'suggest') {                      // a reader suggests a deep dive (from the email, with their token, or the site)
+    var sg = rater_(p.t);
+    return suggestPage_(sg ? String(p.t) : '', '');
+  }
   if (p.action === 'queue') {
     if (!isOwnerToken_(p.t)) return page_('Link not recognised', '<p>This link only works from your own evening note.</p>');
     return queuePage_(String(p.t), '', clean_(p.pick, 20), clean_(p.op, 10), clean_(p.topic, 200));
@@ -570,6 +591,19 @@ function doPost_(e) {
     return queuePage_(String(p.t), {next: 'Done: that airs next.', up: 'Moved up.', down: 'Moved down.',
       dismiss: 'Dismissed.', add: 'Added to Up next.', queue: 'Added to the end of Up next.',
       take: clean_(p.angle, 800) ? 'Your take is saved: read after the deep dive when it airs.' : 'Your take is cleared.'}[op], '');
+  }
+  if (p.action === 'suggest') {                       // a reader's deep-dive suggestion; token optional (site), capped
+    if (p.website) return page_('Thanks', '<p>Thanks.</p>');
+    var sgTopic = clean_(p.topic, 200), sgWhy = clean_(p.why, 600), sgName = clean_(p.name, 60);
+    if (sgTopic.length < 6) return suggestPage_(rater_(p.t) ? String(p.t) : '', 'Say what the deep dive should be about (a few words at least).');
+    var sgSub = rater_(p.t), sgCache = CacheService.getScriptCache();
+    var sgKey = 'sg:' + (sgSub ? sgSub.email : 'anon'), sgN = Number(sgCache.get(sgKey) || '0');
+    if (sgN >= (sgSub ? 5 : 20)) return page_('Thanks', '<p>That\'s plenty for today: thank you. Try again tomorrow.</p>');
+    sgCache.put(sgKey, String(sgN + 1), 86400);
+    tab_(SGSHEET, SGHEAD).appendRow([now_(), sgSub ? sgSub.email : '', sgName, sgTopic, sgWhy, 'new'].map(safeCell_));
+    return page_('Thanks for the idea', '<p><b>' + esc_(sgTopic) + '</b> is on the list for Steven to look at. ' +
+      (sgName ? 'If it runs, the briefing says it was your suggestion' + (sgSub ? '' : ' (by the name you gave)') + '.' :
+       'It will be credited to "a reader" unless you add your name.') + '</p>');
   }
   if (p.action === 'rate') {                          // the confirm page above; public, token optional
     if (p.website) return page_('Thanks', '<p>Thanks.</p>');
@@ -671,6 +705,7 @@ function doPost_(e) {
     return json_({ ok: true, n: rows.length });
   }
   if (p.action === 'ddactions') return json_({ ok: true, actions: tabRows_(ASHEET, AHEAD) });
+  if (p.action === 'suggestions') return json_({ ok: true, suggestions: tabRows_(SGSHEET, SGHEAD) });   // key only
   if (p.action === 'ratings') {                     // read-only export for the scorecard: never addresses
     return json_({ ok: true, ratings: rrows_().map(function (r) {
       var id = r.email ? Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
@@ -731,7 +766,8 @@ function doPost_(e) {
       var isOwner = owners_().indexOf(String(r.email).toLowerCase()) >= 0;
       var own = isOwner ? ownerToken_(r.email, 'q') : '';
       var ownt = isOwner ? ownerToken_(r.email, 't') : '';
-      var fill = function (x) { return String(x || '').split('{{UNSUBSCRIBE}}').join(un).split('{{RATE}}').join(rate)
+      var sgl = selfUrl_() + '?action=suggest' + (rt ? '&t=' + rt : '');
+      var fill = function (x) { return String(x || '').split('{{UNSUBSCRIBE}}').join(un).split('{{RATE}}').join(rate).split('{{SUGGEST}}').join(sgl)
         .split('{{OWNERT}}').join(ownt).split('{{OWNER}}').join(own).split('{{SCRIPT}}').join(selfUrl_()); };
       try {
         MailApp.sendEmail(r.email, p.subject, fill(p.text), mailOpts_({ htmlBody: fill(p.html), name: fromName_() }));

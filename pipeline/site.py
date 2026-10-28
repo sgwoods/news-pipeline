@@ -270,7 +270,9 @@ def _share_box(url: str, title: str, rel: str, cfg: dict, what: str = "this epis
             f'<a class="button primary" href="{e(url or "#")}" data-share data-url="{e(url)}" data-title="{e(title)}">Share</a>'
             f'<a class="button" href="{e(url or "#")}" data-copy data-url="{e(url)}">Copy link</a>'
             f'<a class="button" href="{e(mail)}">Email it</a>{sub}'
-            f'<a class="button ghost" href="{rel}index.html#listen">🎧 Add the podcast</a></div>')
+            f'<a class="button ghost" href="{rel}index.html#listen">🎧 Add the podcast</a>'
+            + (f'<a class="button ghost" href="{e(_script_url(cfg))}?action=suggest">💡 Suggest a deep dive</a>'
+               if _script_url(cfg) and what == "this deep dive" else "") + '</div>')
 
 
 def _subscribe_form(cfg: dict) -> str:
