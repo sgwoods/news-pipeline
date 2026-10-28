@@ -13,7 +13,7 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.24-beta (2026-10-28)
+- **Release:** v0.2.25-beta (2026-10-28)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 70 in `pipeline/`
@@ -78,6 +78,10 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
   via the API. Each stage picks its backend in config.
 - **Editorial lens** (`perspective.py`): a hand-written perspective file (people, topics, scepticism) steers
   filtering and the editor's view. Code reads it and never rewrites it.
+- **Drive copies and takes from the Docs** (`drivedocs.py`): the edition and deep dive are written to the Briefings
+  folder as Google Docs. Steven's edits to their takes sections (alone or with Claude in the Doc) are read back
+  every 20 minutes and applied like any other take, through the same privacy check; an edited deep-dive take
+  re-records the deep dive.
 - **House views** (`houseviews.py`): a second hand-written file, `house_views.md`, holds the views Our read takes
   positions under and Steven's dated theses. Each Must read's Our read names its view; the lead story adds the case
   for, the case against, the deciding question and our lean. Every position goes to `data/positions/ledger.jsonl`

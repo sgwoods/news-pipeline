@@ -288,8 +288,20 @@ def check(root: Path, cfg: dict, day: str, log=print) -> dict:
 
 def apply_day(root: Path, cfg: dict, day: str, log=print) -> dict:
     """Collect DAY's takes now and save the clean ones (site and email boxes on the next publish). For a day already
-    shipped, only the written takes change: its email has gone and its audio stays as published."""
+    shipped, only the written takes change: its email has gone and its briefing audio stays as published. A deep-dive
+    take edited in the Doc re-records the deep dive (its episode is re-published; no email is re-sent)."""
     st = collect(root, cfg, day, fetch_all(root, cfg, day, log), log)
+    try:
+        from . import deepdive, drivedocs
+        dd = drivedocs.fetch_takes(root, cfg, day, log)["deepdive"]
+        if dd:
+            cur = (deepdive.latest(root, day) or {})
+            r = deepdive.retake(root, cfg, day, dd, log)
+            st["deepdive_take"] = "re-recorded" if r and r.get("retake") else ("unchanged" if r else "no deep dive")
+            if r and r.get("retake") and cur.get("status") == "published":
+                deepdive.make_podcast(root, cfg, day, log)
+    except Exception as e:  # noqa: BLE001
+        log(f"deep-dive take from the Doc not applied: {e}"[:200])
     if st.get("held") or st.get("unknown"):
         try:
             report_email(root, cfg, day, st)
@@ -426,6 +438,11 @@ def fetch_all(root: Path, cfg: dict, day: str, log=print) -> list:
         rows += fetch_site(cfg, day)
     except Exception as e:  # noqa: BLE001
         log(f"takes: site takes read failed ({e})")
+    try:                                         # the Docs, edited by Steven (alone or with Claude) after we wrote them
+        from . import drivedocs
+        rows += drivedocs.fetch_takes(root, cfg, day, log)["rows"]
+    except Exception as e:  # noqa: BLE001
+        log(f"takes: Drive takes read failed ({e})")
     return sorted(rows, key=lambda r: str(r.get("received", "")))
 
 

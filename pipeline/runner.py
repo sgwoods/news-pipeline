@@ -72,6 +72,8 @@ RECIPES = {
     "setup": {"tier": "chat", "args": {}, "steps": [("prod", ["setup"])]},     # install requirements.txt
     "email-remind": {"tier": "chat", "args": {"emails": "emails?"}, "steps": [("prod", ["email", "remind", "{emails}"])]},
     "email-remove": {"tier": "chat", "args": {"email": "email"}, "steps": [("prod", ["email", "remove", "{email}"])]},
+    "takes-sync": {"tier": "auto", "args": {"day": "day"},    # Steven edited today's Doc(s): apply, re-publish
+                   "steps": [("prod", ["takes", "apply", "{day}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "takes-apply": {"tier": "chat", "args": {"day": "day"},
                     "steps": [("prod", ["takes", "apply", "{day}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "send-held": {"tier": "chat", "args": {}, "steps": [("prod", ["daily"]), ("local", ["verify"])]},
@@ -99,7 +101,7 @@ RECIPES = {
     "mailer-setup": {"tier": "chat", "args": {"script": "text"}, "steps": [("prod", ["mailer", "setup", "{script}"])]},
 }
 CHANGES_PRODUCTION = {"setup", "correct", "publish", "restore", "ship", "release", "rollback", "approve", "install-hooks",
-                      "push-code", "source-add", "send-held", "takes-apply", "deploy-mailer"}
+                      "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer"}
 IN_RELEASE_WINDOW = {"ship", "release"}
 NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup", "ntfy-setup"}   # local steps behind the click
 

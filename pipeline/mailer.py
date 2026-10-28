@@ -54,7 +54,7 @@ def ready(cfg: dict) -> str:
     return ""
 
 
-READ_ACTIONS = ("list", "ratings", "ddactions", "companylist", "takes_pull", "getapprovals")   # change nothing
+READ_ACTIONS = ("list", "ratings", "ddactions", "companylist", "takes_pull", "getapprovals", "readdoc")   # change nothing
 OWNER_ONLY = ("approvalmail",)    # the script sends these to OWNER_EMAIL only: never gated (an approval unblocks the gate)
 
 

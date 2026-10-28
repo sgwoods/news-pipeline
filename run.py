@@ -1212,6 +1212,31 @@ def _follow_through(cfg: dict, argv: list) -> int:
     return code
 
 
+def _drive_tick(cfg: dict) -> None:
+    """Every 20 minutes: if Steven edited today's Docs (his takes), queue a takes-sync job (auto tier) that applies
+    them and re-publishes. Only after today's edition is out, and never twice for the same edit."""
+    try:
+        from pipeline import drivedocs, runner
+        from pipeline.mailer import sent_days
+        if not (cfg.get("drive") or {}).get("sync_takes", True) or not drivedocs.sync_due(ROOT):
+            return
+        day = dt.date.today().isoformat()
+        if day not in sent_days(ROOT):
+            drivedocs.mark_sync(ROOT, False)
+            return
+        changed = drivedocs.pending_edits(ROOT, cfg, day, log=lambda *a: None)
+        drivedocs.mark_sync(ROOT, changed)
+        if changed and not any(f"takes-sync" in p.name for p in
+                               list(runner.qdir(ROOT, "pending").glob("*.json")) + list(runner.qdir(ROOT, "waiting").glob("*.json"))):
+            jid = f"{dt.datetime.now():%Y%m%d-%H%M}-takes-sync"
+            runner._write(runner.qdir(ROOT, "pending") / f"{jid}.json",
+                          {"id": jid, "recipe": "takes-sync", "args": {"day": day}, "queued_by": "Drive sync",
+                           "queued_at": dt.datetime.now().isoformat(timespec="seconds")})
+            print(f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} Drive: your edited takes for {day} queued ({jid})")
+    except Exception as e:  # noqa: BLE001 - the tick never fails on this
+        print(f"drive sync skipped: {e}"[:160])
+
+
 def cmd_runner(cfg: dict, argv: list) -> int:
     """./np runner status | tick | approve ID | reject ID | install | remove: the run queue (pipeline/runner.py).
     Claude queues jobs (data/queue/pending/); this Mac runs them; mac-tier jobs wait for Approve in a dialog."""
@@ -1251,6 +1276,7 @@ def cmd_runner(cfg: dict, argv: list) -> int:
     if sub == "tick":
         for line in r.tick():
             print(f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {line}")
+        _drive_tick(cfg)
         return 0
     if sub == "install":
         print(service.install("runner", ROOT, cfg))

@@ -15,7 +15,8 @@
  *            ratings (read-only export, no addresses) · setqueue / ddactions (the deep-dive queue page)
  *            takes (Steven's takes from the site or review page, owner token t) · takes_pull (the pipeline reads them)
  *            review (GET: the held edition with a box per section, owner token t) · setreview (the pipeline uploads it)
- *            savedoc (the edition and deep dive as Google Docs in the Briefings folder in Drive)
+ *            savedoc (the edition and deep dive as Google Docs in the Briefings folder in Drive) · readdoc (the
+ *            pipeline reads one back: takes Steven edited in the Doc, on his own or with Claude, count as his takes)
  *            approvalmail / getapprovals: phone approvals. The pipeline asks for an approval link (sent to
  *            OWNER_EMAIL only); the approve page (GET, the link's nonce) takes Steven's answer with a proof made on
  *            his phone from his passphrase, which never leaves the phone; only the Mac can check the proof.
@@ -632,6 +633,12 @@ function doPost_(e) {
       if (x && x.answer) outA[x.id] = { answer: x.answer, proof: x.proof, at: x.at };
     });
     return json_({ ok: true, approvals: outA });
+  }
+  if (p.action === 'readdoc') {                     // the pipeline reads a Briefings doc back (Steven's edits; key only)
+    var rn = clean_(p.name, 200), rf = rn && docIn_(briefingsFolder_(), rn);
+    if (!rf) return json_({ ok: true, found: false });
+    return json_({ ok: true, found: true, modified: rf.getLastUpdated().toISOString(),
+                   text: DocumentApp.openById(rf.getId()).getBody().getText().slice(0, 300000) });
   }
   if (p.action === 'savedoc') {                     // the edition and deep dive as Google Docs in Drive (key only)
     var dn = clean_(p.name, 200), dt = String(p.text || '');

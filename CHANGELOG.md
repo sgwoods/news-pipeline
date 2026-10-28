@@ -7,6 +7,14 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.25-beta · 2026-10-28
+- **Takes edited in the Docs count** (Steven, 10-28: a take written in the morning boxes, then augmented in the car
+  with Claude editing the shared Doc). The pipeline reads the published edition's "Steven's takes" and the deep
+  dive's "Steven's take" back from Drive; lines that changed after its own last write are new takes, checked like
+  any other. The runner looks every 20 minutes once the edition is out and queues a `takes-sync` job (auto tier)
+  that applies them and re-publishes the site and email boxes; an edited deep-dive take re-records the deep dive
+  and re-publishes its episode. No email is re-sent. `./np takes apply DAY` does the same by hand.
+
 ## v0.2.24-beta · 2026-10-28
 - **Phone notifications and one-tap approvals** (Steven, 10-28: "more control from my iPhone"): through the free,
   open-source ntfy app. Approvals arrive as a notification with Approve and Reject buttons; one tap, no passphrase,

@@ -16,6 +16,7 @@ config.yaml deepdive: {enabled, max_per_week, minutes, avoid_repeat_days, web, t
 """
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import json
 import re
@@ -797,4 +798,43 @@ def revoice(root: Path, cfg: dict, day: str, log=print) -> dict | None:
            "minutes": _render(root, cfg, day, data["title"], parts), "revoiced": True}
     append_jsonl(root / LOG, [out])
     log(f"Deep dive {day}: re-recorded with the current opener and sign-off, {out['minutes']} min")
+    return out
+
+
+def retake(root: Path, cfg: dict, day: str, text: str, log=print) -> dict | None:
+    """Replace (or add) Steven's take in DAY's published deep dive and re-record it (Steven, 2026-10-28: a take
+    augmented in the Doc after the episode aired). The written article follows the script. None if no deep dive."""
+    from . import takes
+    from .audio import script_markdown
+    p = root / DIR / f"{day}.parts.json"
+    rec = latest(root, day)
+    if not p.is_file() or not rec:
+        return None
+    text = takes.tidy(text)[:TAKE_MAX]
+    why = takes.problems(text, cfg)
+    if why:
+        log(f"Deep dive {day}: the edited take was held back ({'; '.join(why)}); it stays private")
+        return None
+    data = json.loads(p.read_text("utf-8"))
+    parts = [tuple(x) for x in data["parts"]]
+    part = ("steven_take", f"Here's {takes.LABEL}. {text}")
+    if any(n == "steven_take" for n, _ in parts):
+        parts = [part if n == "steven_take" else (n, t) for n, t in parts]
+    else:
+        i = next((k for k, (n, _) in enumerate(parts) if n == "Outro"), len(parts))
+        parts.insert(i, part)
+    if parts == [tuple(x) for x in data["parts"]]:
+        return rec                                        # nothing changed
+    data["parts"] = parts
+    p.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
+    (root / DIR / f"{day}.script.md").write_text(
+        script_markdown(f"Deep dive: {data['title']}", parts, {"retake": dt.datetime.now().isoformat(timespec="seconds")}), "utf-8")
+    qid = ((rec.get("pick") or {}).get("queue_id") or "")
+    if qid:
+        with contextlib.suppress(KeyError):
+            set_take(root, qid, text)
+    out = {**rec, "at": dt.datetime.now().isoformat(timespec="seconds"), "status": "published", "take": True,
+           "minutes": _render(root, cfg, day, data["title"], parts), "retake": True}
+    append_jsonl(root / LOG, [out])
+    log(f"Deep dive {day}: re-recorded with your edited take, {out['minutes']} min")
     return out
