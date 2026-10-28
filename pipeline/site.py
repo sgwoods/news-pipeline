@@ -782,6 +782,14 @@ def build_podcast(root: Path, cfg: dict, out: Path, episodes: list, base_url: st
         cover, cover_src = "podcast-cover.png", root / "assets" / "podcast-cover.png"
     if cover_src.exists():
         shutil.copy2(cover_src, out / cover)
+        # Podcast apps cache artwork by URL and never refetch it (Apple showed the old cover a day after the new
+        # one was published, 10-28): the feed names a copy whose filename carries the image's hash, so new art
+        # is a new URL. The plain name stays for the site.
+        import hashlib
+        digest = hashlib.sha1(cover_src.read_bytes()).hexdigest()[:8]
+        versioned = f"{cover[:-4]}-{digest}.png"
+        shutil.copy2(cover_src, out / versioned)
+        cover = versioned
     title = title or pc.get("title", "AI Briefing")
     author = pc.get("author", "Steven")
     desc = desc or pc.get("description", "Slowly, then fast. Every morning. A daily AI briefing for early-stage investors: what happened, a critical read "

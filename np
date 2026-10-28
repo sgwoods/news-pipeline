@@ -113,6 +113,7 @@ case "$cmd" in
   drive)     run $PY run.py --drive "${@:-save}" ;;              # save [DAY] [draft]: edition + deep dive as Google Docs
   audit)     run $PY run.py --audit "$@" ;;                    # [DAY]: re-check about five claims against their sources
   ntfy)      run $PY run.py --ntfy "${@:-status}" ;;           # test | status: phone notifications
+  slack-post) run $PY run.py --slack-post "$@" ;;              # preview DAY | send DAY: the morning post in the team channel
   positions) run $PY run.py --positions "${@:-list}" ;;        # list | score [DAY]: the house-view calls ledger
   mailer)    run $PY run.py --mailer "${@:-status}" ;;            # status | setup SCRIPT_ID | deploy: the mail script via clasp
   critic)    run $PY run.py --critic "${@:-preview}" ;;          # preview | email | list [DATE]: the weekly critic (to you only)

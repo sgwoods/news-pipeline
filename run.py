@@ -1253,6 +1253,7 @@ def cmd_runner(cfg: dict, argv: list) -> int:
     local["follow-through"] = lambda a: _follow_through(cfg, a)
     local["phone-setup"] = lambda a: (print("phone approvals:", runner.set_phone_secret()) or 0)
     local["ntfy-setup"] = lambda a: (print("phone notifications:", ntfy.setup()) or 0)
+    local["slack-setup"] = lambda a: (print("slack posts:", __import__("pipeline.slackpost", fromlist=["x"]).set_token()) or 0)
     from pipeline import ntfy
     from pipeline.mailer import sent_days
     phone = None
@@ -1502,6 +1503,21 @@ def cmd_positions(cfg: dict, argv: list) -> int:
         print(f"  {r['day']}  {r.get('status', ''):6} check {r.get('check', '')}  {r.get('view_name', '')[:28]:28}  "
               f"{r.get('headline', '')[:60]}")
     return 0
+
+
+def cmd_slack_post(cfg: dict, argv: list) -> int:
+    """./np slack-post preview DAY | send DAY: the morning post in the team channel (pipeline/slackpost.py)."""
+    from pipeline import slackpost
+    sub = (argv or ["preview"])[0]
+    day = next((a for a in argv[1:] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)), dt.date.today().isoformat())
+    if sub == "preview":
+        out = slackpost.build(ROOT, {**cfg, "slack": {**(cfg.get("slack") or {}), "post": {**slackpost.pcfg(cfg), "enabled": True}}}, day)
+        print(out["text"])
+        print("card:", out.get("card") or out.get("card_error") or "none")
+        return 0
+    r = slackpost.post(ROOT, cfg, day, log=print)
+    print(r if not r.get("ok") else "posted")
+    return 0 if r.get("ok") else 1
 
 
 def cmd_ntfy(cfg: dict, argv: list) -> int:
@@ -2694,6 +2710,15 @@ def cmd_daily(cfg: dict) -> int:
         if cmd_email(cfg, ["send", today]) and not gate_blocked:
             _alert(cfg, "email", detail="See logs/last-command.txt for the error.", next_try=_next_try(cfg))
     if w.get("status") == "ok" and published and not gate_blocked and (cfg.get("email") or {}).get("enabled"):
+        try:                                     # the morning post in the team channel, once the email is out (v0.2.27)
+            from pipeline import slackpost
+            from pipeline.mailer import sent_days as _sd
+            if slackpost.pcfg(cfg).get("enabled") and today in _sd(ROOT):
+                r = slackpost.post(ROOT, cfg, today, log=print)
+                if r.get("skipped"):
+                    print(f"Slack post skipped: {r['skipped']}")
+        except Exception as e:  # noqa: BLE001
+            print(f"Slack post failed: {e}"[:200])
         try:                                     # pending sign-ups 14 days after their reminder -> expired
             from pipeline import mailer as _m
             gone = _m.expire(cfg).get("expired") or []
@@ -2904,6 +2929,7 @@ def main() -> int:
     ap.add_argument("--drive", nargs="*", metavar="ARG", help="save [DAY] [draft]: the edition and deep dive as Google Docs")
     ap.add_argument("--audit", nargs="*", metavar="ARG", help="[DAY]: the accuracy audit (claims against their sources)")
     ap.add_argument("--ntfy", nargs="*", metavar="ARG", help="test | status: phone notifications")
+    ap.add_argument("--slack-post", nargs="*", metavar="ARG", help="preview DAY | send DAY: the morning post in the team channel")
     ap.add_argument("--positions", nargs="*", metavar="ARG", help="list | score [DAY]: the house-view calls ledger")
     ap.add_argument("--mailer", nargs="*", metavar="ARG", help="status | setup SCRIPT_ID | deploy: the mail script via clasp")
     ap.add_argument("--critic", nargs="*", metavar="ARG", help="preview | email | list [DATE]: the weekly critic")
@@ -2995,6 +3021,8 @@ def main() -> int:
         return cmd_audit(cfg, args.audit)
     if args.ntfy is not None:
         return cmd_ntfy(cfg, args.ntfy)
+    if args.slack_post is not None:
+        return cmd_slack_post(cfg, args.slack_post)
     if args.positions is not None:
         return cmd_positions(cfg, args.positions)
     if args.listen is not None:

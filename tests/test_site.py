@@ -68,7 +68,7 @@ class TestPodcast(unittest.TestCase):
         x = ET.parse(root / "site" / "podcast.xml").getroot()
         ns = {"itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd"}
         ch = x.find("channel")
-        self.assertEqual(ch.find("itunes:image", ns).get("href"), "https://u.github.io/b/podcast-cover.png")
+        self.assertRegex(ch.find("itunes:image", ns).get("href"), r"^https://u\.github\.io/b/podcast-cover-[0-9a-f]{8}\.png$")
         item = ch.find("item")
         enc = item.find("enclosure")
         self.assertEqual(enc.get("url"), f"https://u.github.io/b/audio/{day}.mp3")

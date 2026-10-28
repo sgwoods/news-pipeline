@@ -7,6 +7,22 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.27-beta · 2026-10-28
+- **The morning Slack post** (Steven, 10-28): when the email goes out, one post in cto-musings from the bot user
+  "AI Briefing": the day's three leads, one of Steven's published takes (his words, the one with the most bite that
+  fits), the deep dive and the links, with the day's card attached: a 1600×900 image in the newsletter's teal with
+  the masthead, photo, leads, the take and the deep-dive band (`pipeline/card.py`, Pillow + Inter, new in
+  requirements). Set up once with the `slack-setup` job (a Mac dialog takes the bot token; scopes chat:write,
+  files:write, channels:read; invite the bot to the channel). `./np slack-post preview DAY` shows the text and
+  renders the card; run-queue jobs `slack-card` (auto) and `slack-post` (chat). Security: a new outbound step,
+  gated like the others; never in staging; bot posts are ignored by the Slack reader.
+- Fix: the Drive check re-queued a takes-sync every 20 minutes after a plain re-publish (the Docs weren't rewritten,
+  so nothing recorded our own last write). A take the commentary already has is never an edit, and takes-sync now
+  rewrites the Docs.
+- **Podcast artwork refresh**: podcast apps cache artwork by URL and never refetch it (Apple still showed the old
+  cover a day after the new one went up), so the feeds now name a copy whose filename carries the image's hash.
+  Apple Podcasts picks up the new covers at its next feed check.
+
 ## v0.2.26-beta · 2026-10-28
 - Fix: the runner's minute tick exited before the Drive check when the queue was empty, so edited takes were never
   noticed on their own. It now runs the check every 20 minutes regardless.

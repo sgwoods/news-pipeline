@@ -196,7 +196,15 @@ def fetch_takes(root: Path, cfg: dict, day: str, log=print) -> dict:
             log(f"Drive takes: edition doc not read ({e})"[:200])
             r = {}
         if r.get("found") and _changed(root, day, "briefing", r.get("modified", "")):
-            got = parse_takes(r.get("text", ""), takes.slots(root, day))
+            sl = takes.slots(root, day)
+            got = parse_takes(r.get("text", ""), sl)
+            try:                                          # only takes that differ from what is already saved
+                cur = json.loads((root / "data" / "commentary" / f"{day}.json").read_text("utf-8")).get("notes", {})
+            except (OSError, ValueError):
+                cur = {}
+            key_of = {s["slot"]: s["key"] for s in sl}
+            got = {k: v for k, v in got.items()
+                   if takes.tidy(v) != takes.tidy(str((cur.get(key_of.get(k, "")) or {}).get("text") or ""))}
             if got:
                 out["rows"].append({"received": r.get("modified", ""), "takes": {k: takes.tidy(v) for k, v in got.items()},
                                     "done": False, "skip": False, "via": "drive"})
@@ -209,7 +217,11 @@ def fetch_takes(root: Path, cfg: dict, day: str, log=print) -> dict:
             r = {}
         if r.get("found") and _changed(root, day, "deepdive", r.get("modified", "")):
             t = parse_dd_take(r.get("text", ""))
-            if t:
+            from . import deepdive
+            rec = deepdive.latest(root, day) or {}
+            qid = (rec.get("pick") or {}).get("queue_id")
+            have = next((str(x.get("take") or "") for x in deepdive.load_queue(root) if x.get("id") == qid), "") if qid else ""
+            if t and takes.tidy(t) != takes.tidy(have):
                 out["deepdive"] = t
     return out
 

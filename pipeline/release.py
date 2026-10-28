@@ -45,7 +45,8 @@ SECRET_PATTERNS = [
 
 
 OUTBOUND = [("pipeline/publish.py", "push"), ("pipeline/publish.py", "backup_push"), ("pipeline/mailsource.py", "label_day"),
-            ("pipeline/hub.py", "push"), ("pipeline/export.py", "push"), ("pipeline/mailer.py", "call")]
+            ("pipeline/hub.py", "push"), ("pipeline/export.py", "push"), ("pipeline/mailer.py", "call"),
+            ("pipeline/slackpost.py", "post")]
 
 
 class ReleaseBlocked(RuntimeError):

@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.26-beta (2026-10-28)
+- **Release:** v0.2.27-beta (2026-10-28)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 70 in `pipeline/`
+- **Modules:** 72 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -78,6 +78,10 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
   via the API. Each stage picks its backend in config.
 - **Editorial lens** (`perspective.py`): a hand-written perspective file (people, topics, scepticism) steers
   filtering and the editor's view. Code reads it and never rewrites it.
+- **The morning post** (`slackpost.py`, `card.py`): when the email goes out, one branded post in the team channel
+  from the app's bot user: the day's leads, one of Steven's published takes, the deep dive, the links, and the
+  day's card (a PNG in the newsletter's colours, drawn with Pillow and the Inter files in `assets/fonts`). Gated
+  like every outbound step; once a day; the Slack reader ignores bot posts.
 - **Drive copies and takes from the Docs** (`drivedocs.py`): the edition and deep dive are written to the Briefings
   folder as Google Docs. Steven's edits to their takes sections (alone or with Claude in the Doc) are read back
   every 20 minutes and applied like any other take, through the same privacy check; an edited deep-dive take
@@ -304,6 +308,7 @@ _Generated from each module's own description at build time._
 | `audio.py` | Phase 2 |
 | `audit.py` | The daily accuracy audit (critic 2026-10-24, #10D; Steven 2026-10-27). |
 | `bluesky.py` | Bluesky lists and Steven's own posts as sources, via the public AT Protocol API (no key, no login). |
+| `card.py` | The daily card |
 | `clasp.py` | Deploy the mail script (scripts/apps-script/Code.gs) with Google's clasp CLI instead of copy and paste. |
 | `compare.py` | Staging against production for the same day |
 | `consistency.py` | Short texts readers see first must agree with the checked text and the sources (2026-10-23). |
@@ -355,6 +360,7 @@ _Generated from each module's own description at build time._
 | `settings.py` | Change single values in config.yaml without disturbing comments or layout. |
 | `shipped.py` | Shipped editions don't break (v0.1.7). |
 | `site.py` | Static, phone-friendly public site |
+| `slackpost.py` | The morning post in the team channel (Steven, 2026-10-28) |
 | `slacksource.py` | Links Steven shares in an internal Slack channel, as a source (read-only, Slack Web API, free). |
 | `sources.py` | Resolve and verify RSS/Atom feeds for every tracked person. |
 | `speech.py` | The speech layer |

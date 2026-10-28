@@ -77,6 +77,17 @@ class Fetch(unittest.TestCase):
         self.assertEqual(got["rows"][0]["takes"]["1"], "Massive demand or bust. Augmented in the car.")
         self.assertTrue(got["deepdive"].startswith("Regulatory strategies"))
 
+    def test_a_take_already_saved_is_not_an_edit(self):      # no loop: the Doc says what commentary already has
+        import json as _j
+        (self.root / "data" / "commentary").mkdir(parents=True, exist_ok=True)
+        (self.root / "data" / "commentary" / f"{DAY}.json").write_text(_j.dumps({"notes": {
+            "k1": {"title": "x", "text": "Massive demand or bust. Augmented in the car."},
+            "overall": {"title": "The day overall", "text": "Liability evolution is the big one."},
+            "top": {"title": "Top of mind", "text": "Founders who keep control should keep the liability"}}}))
+        got = self.fetch("2026-10-28T12:33:00Z")                  # no stamp at all, as after a bare re-publish
+        self.assertEqual(got["rows"], [])
+        self.assertTrue(got["deepdive"])                          # the deep-dive take is still new
+
     def test_our_own_write_is_not_an_edit(self):
         got = self.fetch("2026-10-28T11:09:30Z", saved="2026-10-28T11:09:00+00:00")
         self.assertEqual(got, {"rows": [], "deepdive": None})

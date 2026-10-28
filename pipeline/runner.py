@@ -72,8 +72,9 @@ RECIPES = {
     "setup": {"tier": "chat", "args": {}, "steps": [("prod", ["setup"])]},     # install requirements.txt
     "email-remind": {"tier": "chat", "args": {"emails": "emails?"}, "steps": [("prod", ["email", "remind", "{emails}"])]},
     "email-remove": {"tier": "chat", "args": {"email": "email"}, "steps": [("prod", ["email", "remove", "{email}"])]},
-    "takes-sync": {"tier": "auto", "args": {"day": "day"},    # Steven edited today's Doc(s): apply, re-publish
-                   "steps": [("prod", ["takes", "apply", "{day}"]), ("prod", ["publish"]), ("local", ["verify"])]},
+    "takes-sync": {"tier": "auto", "args": {"day": "day"},    # Steven edited today's Doc(s): apply, re-publish, rewrite the Docs
+                   "steps": [("prod", ["takes", "apply", "{day}"]), ("prod", ["publish"]), ("prod", ["drive", "save", "{day}"]),
+                             ("local", ["verify"])]},
     "takes-apply": {"tier": "chat", "args": {"day": "day"},
                     "steps": [("prod", ["takes", "apply", "{day}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "send-held": {"tier": "chat", "args": {}, "steps": [("prod", ["daily"]), ("local", ["verify"])]},
@@ -95,15 +96,19 @@ RECIPES = {
     "phone-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["phone-setup"])]},   # the passphrase
     "ntfy-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["ntfy-setup"])]},     # phone notifications
     "ntfy-test": {"tier": "auto", "args": {}, "steps": [("prod", ["ntfy", "test"])]},
+    "slack-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["slack-setup"])]},   # the bot token
+    "slack-card": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "preview", "{day}"])]},
+    "slack-post": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "send", "{day}"])]},
     "deploy-mailer": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["deploy-mailer"]),
                                                          ("prod", ["mailer", "status"])]},
     "mailer-status": {"tier": "auto", "args": {}, "steps": [("prod", ["mailer", "status"])]},
     "mailer-setup": {"tier": "chat", "args": {"script": "text"}, "steps": [("prod", ["mailer", "setup", "{script}"])]},
 }
 CHANGES_PRODUCTION = {"setup", "correct", "publish", "restore", "ship", "release", "rollback", "approve", "install-hooks",
-                      "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer"}
+                      "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post"}
 IN_RELEASE_WINDOW = {"ship", "release"}
-NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup", "ntfy-setup"}   # local steps behind the click
+NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup", "ntfy-setup",
+                  "slack-setup"}   # local steps behind the click
 
 
 class JobError(ValueError):

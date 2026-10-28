@@ -75,7 +75,7 @@ class Feeds(unittest.TestCase):
         self.assertTrue((root / "site" / "audio" / f"{day}.vtt").exists())
         dd = ET.parse(root / "site" / site.DD_FEED).getroot()
         self.assertEqual(dd.find("channel/title").text, site.DD_TITLE)
-        self.assertEqual(dd.find("channel/itunes:image", ns).get("href"), "https://u.github.io/b/deepdive-cover.png")
+        self.assertRegex(dd.find("channel/itunes:image", ns).get("href"), r"^https://u\.github\.io/b/deepdive-cover-[0-9a-f]{8}\.png$")
         items = dd.findall("channel/item")
         self.assertEqual(len(items), 1)
         self.assertIn("ai-briefing-dd-", items[0].find("guid").text)

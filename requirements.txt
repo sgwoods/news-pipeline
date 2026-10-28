@@ -7,3 +7,4 @@ flask>=3.0        # local dashboard
 markdown>=3.5     # briefing rendering in the dashboard
 kokoro>=0.9      # local text-to-speech (Python 3.10+; also: brew install espeak-ng ffmpeg)
 mlx-whisper>=0.4 ; sys_platform == "darwin" and platform_machine == "arm64"   # the as-published listen check (local, free)
+pillow>=10
