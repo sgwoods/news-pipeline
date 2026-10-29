@@ -59,6 +59,7 @@ section.story{scroll-margin-top:60px}section.speaking{outline:2px solid var(--ac
 <header><b>News pipeline</b>
 <nav>{% set p = request.path %}
 <a href="/" class="{{ 'on' if p == '/' }}">Status</a>
+<a href="/schedule" class="{{ 'on' if p.startswith('/schedule') }}">Schedule</a>
 <a href="/todo" class="{{ 'on' if p.startswith('/todo') }}">To do</a>
 <a href="/sources" class="{{ 'on' if p.startswith('/sources') }}">Sources</a>
 <a href="/items" class="{{ 'on' if p.startswith('/items') }}">Items</a>

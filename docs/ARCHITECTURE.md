@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.29-beta (2026-10-28)
+- **Release:** v0.2.30-beta (2026-10-29)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 72 in `pipeline/`
+- **Modules:** 73 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -78,6 +78,9 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
   via the API. Each stage picks its backend in config.
 - **Editorial lens** (`perspective.py`): a hand-written perspective file (people, topics, scepticism) steers
   filtering and the editor's view. Code reads it and never rewrites it.
+- **The schedule** (`schedule_page.py`): the day's timetable as a table, built from config: what is produced, when,
+  where it goes, and the window for Steven's feedback on each piece and how it is picked up (dashboard /schedule,
+  `./np schedule`).
 - **The morning post** (`slackpost.py`, `card.py`): when the email goes out, one branded post in the team channel
   from the app's bot user: the day's leads, one of Steven's published takes, the deep dive, the links, and the
   day's card (a PNG in the newsletter's colours, drawn with Pillow and the Inter files in `assets/fonts`). Gated
@@ -355,6 +358,7 @@ _Generated from each module's own description at build time._
 | `runlog.py` | Records every run |
 | `runner.py` | Run queue |
 | `schedule.py` | When the scheduled jobs actually run |
+| `schedule_page.py` | The day's schedule as a table (Steven, 2026-10-29) |
 | `scrub.py` | Scrubbing shared by the public code export and the public docs |
 | `service.py` | Background services on macOS (launchd user agents) + health of what the pipeline depends on. |
 | `settings.py` | Change single values in config.yaml without disturbing comments or layout. |

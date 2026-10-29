@@ -1529,6 +1529,37 @@ def cmd_slack_post(cfg: dict, argv: list) -> int:
     return 0 if r.get("ok") else 1
 
 
+def cmd_pronounce(cfg: dict, argv: list) -> int:
+    """./np pronounce lint [DAYS]: tokens the voice may have garbled in the last DAYS days (default 14), with counts,
+    for pronunciations.yaml."""
+    import collections
+    days = int(next((a for a in argv[1:] if a.isdigit()), 14))
+    since = (dt.date.today() - dt.timedelta(days=days)).strftime("%Y%m%d")
+    seen = collections.Counter()
+    for p in sorted((ROOT / "logs").glob("run-*.log")):
+        if p.stem[4:12] < since:
+            continue
+        for ln in p.read_text("utf-8", errors="replace").splitlines():
+            if "pronunciation: check these" in ln:
+                for w in ln.split("yaml:", 1)[-1].split(","):
+                    if w.strip():
+                        seen[w.strip()] += 1
+    if not seen:
+        print(f"nothing flagged in the last {days} days")
+        return 0
+    for w, n in seen.most_common():
+        print(f"  {n:3}  {w}")
+    print("Add the ones that matter to pronunciations.yaml (with a source comment); test with ./np say \"...\".")
+    return 0
+
+
+def cmd_schedule(cfg: dict, argv: list) -> int:
+    """./np schedule: the day's schedule, what goes where, and the feedback window for each piece."""
+    from pipeline import schedule_page
+    print(schedule_page.text(cfg))
+    return 0
+
+
 def cmd_ntfy(cfg: dict, argv: list) -> int:
     """./np ntfy test | status: phone notifications (pipeline/ntfy.py)."""
     from pipeline import ntfy
@@ -2938,6 +2969,8 @@ def main() -> int:
     ap.add_argument("--drive", nargs="*", metavar="ARG", help="save [DAY] [draft]: the edition and deep dive as Google Docs")
     ap.add_argument("--audit", nargs="*", metavar="ARG", help="[DAY]: the accuracy audit (claims against their sources)")
     ap.add_argument("--ntfy", nargs="*", metavar="ARG", help="test | status: phone notifications")
+    ap.add_argument("--schedule", action="store_true", help="the day's schedule and feedback windows")
+    ap.add_argument("--pronounce", nargs="*", metavar="ARG", help="lint [DAYS]: words the voice may have garbled")
     ap.add_argument("--slack-post", nargs="*", metavar="ARG", help="preview DAY | send DAY: the morning post in the team channel")
     ap.add_argument("--positions", nargs="*", metavar="ARG", help="list | score [DAY]: the house-view calls ledger")
     ap.add_argument("--mailer", nargs="*", metavar="ARG", help="status | setup SCRIPT_ID | deploy: the mail script via clasp")
@@ -3030,6 +3063,10 @@ def main() -> int:
         return cmd_audit(cfg, args.audit)
     if args.ntfy is not None:
         return cmd_ntfy(cfg, args.ntfy)
+    if args.schedule:
+        return cmd_schedule(cfg, [])
+    if args.pronounce is not None:
+        return cmd_pronounce(cfg, args.pronounce or ["lint"])
     if args.slack_post is not None:
         return cmd_slack_post(cfg, args.slack_post)
     if args.positions is not None:

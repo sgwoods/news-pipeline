@@ -185,14 +185,18 @@ PAGE_TOKEN = "__T__"                # the token of the person opening the review
 def review_page(root: Path, cfg: dict, day: str) -> str:
     """The held edition with a box after each section and one Submit, served privately by the mail script (owner
     token only) before anything is published (Steven 2026-10-26: the site page doesn't exist until the cutoff).
-    A plain form, no script: the boxes post as s_<slot> fields."""
+    The boxes post as s_<slot> fields. Steven lost a page of takes on 10-29 by tapping a source link, so: every link
+    opens in a new tab; each box is kept in the browser as he types and sent to the script a few seconds after he
+    stops (a later save for the same slot replaces the earlier one); leaving with unsaved text asks first."""
     from . import mailer
     esc = htmllib.escape
     cards = []
     for slot, label, body, _ in _sections(root, cfg, day):
-        cards.append(f'<div {CARD}><div {HEAD}>{esc(slot)} · {esc(label)}</div>{mailer.defuse(body)}'
-                     f'<label style="display:block;margin:10px 0 4px;font-size:13px;color:#6b7280">Your take ({esc(slot)})</label>'
-                     f'<textarea name="s_{esc(slot)}" rows="3" style="width:100%;box-sizing:border-box;font:inherit;'
+        body = re.sub(r"<a\s+href=", '<a target="_blank" rel="noopener" href=', mailer.defuse(body))
+        cards.append(f'<div {CARD}><div {HEAD}>{esc(slot)} · {esc(label)}</div>{body}'
+                     f'<label style="display:block;margin:10px 0 4px;font-size:13px;color:#6b7280">Your take ({esc(slot)}) '
+                     f'<span class="st" data-slot="{esc(slot)}" style="color:#059669"></span></label>'
+                     f'<textarea name="s_{esc(slot)}" data-slot="{esc(slot)}" rows="3" style="width:100%;box-sizing:border-box;font:inherit;'
                      f'font-size:15px;padding:8px;border:1px solid #cbd5e1;border-radius:8px"></textarea></div>')
     return (f'<div style="background:#f3f4f6;min-height:100%;padding:16px 10px;font-family:-apple-system,Segoe UI,'
             f'Helvetica,Arial,sans-serif"><div style="max-width:660px;margin:0 auto">'
@@ -205,7 +209,46 @@ def review_page(root: Path, cfg: dict, day: str) -> str:
             f'<div style="position:sticky;bottom:0;padding:12px;background:#111827;border-radius:12px">'
             f'<label style="color:#fff;font-size:14px;margin-right:12px"><input type="checkbox" name="done" value="1"> '
             f'Done: send the edition now</label><button type="submit" style="padding:8px 16px;border-radius:999px;'
-            f'border:0;background:#2563eb;color:#fff;font-size:15px">Submit my takes</button></div></form></div></div>')
+            f'border:0;background:#2563eb;color:#fff;font-size:15px">Submit my takes</button>'
+            f'<div style="color:#9ca3af;font-size:12px;margin-top:6px">Each box is saved as you type (a few seconds after you stop), '
+            f'so a tap on a link or a dropped connection loses nothing. Submit sends them all; Done sends the edition.</div>'
+            f'</div></form></div></div>' + AUTOSAVE_JS.replace("__DAY__", esc(day)))
+
+
+AUTOSAVE_JS = """<script>
+(function () {
+  var day = "__DAY__", form = document.querySelector("form"), boxes = document.querySelectorAll("textarea[data-slot]");
+  var key = function (s) { return "takes:" + day + ":" + s; }, timers = {}, sent = {}, dirty = false;
+  var st = function (s, msg) { var el = document.querySelector('.st[data-slot="' + s + '"]'); if (el) el.textContent = msg; };
+  boxes.forEach(function (b) {
+    try { var v = localStorage.getItem(key(b.dataset.slot)); if (v && !b.value) { b.value = v; st(b.dataset.slot, "restored"); } } catch (e) {}
+    b.addEventListener("input", function () {
+      var s = b.dataset.slot; dirty = true;
+      try { localStorage.setItem(key(s), b.value); } catch (e) {}
+      st(s, "typing…");
+      clearTimeout(timers[s]);
+      timers[s] = setTimeout(function () { save(s, b.value); }, 2500);
+    });
+  });
+  function save(s, v) {
+    if (sent[s] === v) { st(s, "saved"); return; }
+    var fd = new FormData();
+    fd.append("action", "takes"); fd.append("t", form.t.value); fd.append("d", day); fd.append("s_" + s, v);
+    fetch(form.action, { method: "POST", body: fd, mode: "no-cors", keepalive: true })
+      .then(function () { sent[s] = v; st(s, "saved " + new Date().toTimeString().slice(0, 5)); dirty = Object.keys(timers).some(function (k) { return timers[k] && sent[k] !== document.querySelector('textarea[data-slot="' + k + '"]').value; }); })
+      .catch(function () { st(s, "not saved yet (kept on this device)"); });
+  }
+  window.addEventListener("beforeunload", function (e) {
+    var unsaved = Array.prototype.some.call(boxes, function (b) { return b.value && sent[b.dataset.slot] !== b.value; });
+    if (unsaved) { e.preventDefault(); e.returnValue = ""; }
+  });
+  form.addEventListener("submit", function () {
+    boxes.forEach(function (b) { try { localStorage.removeItem(key(b.dataset.slot)); } catch (e) {} });
+    window.removeEventListener("beforeunload", function () {});
+    dirty = false;
+  });
+})();
+</script>"""
 
 
 def upload_review(root: Path, cfg: dict, day: str) -> bool:

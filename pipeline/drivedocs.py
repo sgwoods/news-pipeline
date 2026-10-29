@@ -189,9 +189,11 @@ def fetch_takes(root: Path, cfg: dict, day: str, log=print) -> dict:
         return out
     md_file = root / cfg["paths"]["briefings"] / f"{day}.md"
     if md_file.exists():
-        _, published = names(day, md_file.read_text("utf-8"))
-        try:
+        draft, published = names(day, md_file.read_text("utf-8"))
+        try:                                              # before the edition ships the Doc is the draft (held for takes)
             r = read_doc(cfg, published)
+            if not r.get("found"):
+                r = read_doc(cfg, draft)
         except Exception as e:  # noqa: BLE001
             log(f"Drive takes: edition doc not read ({e})"[:200])
             r = {}

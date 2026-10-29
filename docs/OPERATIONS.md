@@ -81,3 +81,17 @@ is optional for the same reason; the podcast feed doesn't need it.
    `./np email key new`, then paste it as the SECRET script property.
 4. iMac: `./np release-check` then approve, `./np service install`, then `./np service run daily` to test.
 Only one machine should have the services installed, or both will publish and email.
+
+## Pronunciations (Steven, 2026-10-29)
+
+`pronunciations.yaml` is the table of how the voice says names, acronyms and abbreviations (NYT is "New York
+Times", Qwen is "Kwen", METR is "meter"). It is hand-edited and release-approved, like the other files that
+steer output. Keeping it current:
+
+- Every audio render lints the spoken text for tokens the table doesn't cover (mixed letters and digits, long
+  all-caps runs, camelCase names) and logs them as "pronunciation: check these". `./np pronounce lint` lists the
+  ones seen in the last 14 days with counts.
+- New ones are researched (how the person or company says it, the org's own site, interviews) and added with a
+  comment giving the source and date; an uncertain one is marked `# uncertain` and tuned by ear with
+  `./np say "..."`.
+- Outlets and organisations are said by name where people say the name, as letters where people say the letters.

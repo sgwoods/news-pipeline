@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}Schedule{% endblock %}{% block body %}
+<h1>Schedule <span class="muted small">what is produced, when, where it goes, and your window to change it</span></h1>
+<p class="small muted">Times are local, from config.yaml (schedule, takes.cutoff). Feedback: the takes review page, a reply to the takes email, or edits to the Drive Docs (yours, or Claude's on your behalf) all count; the Docs are re-read every 20 minutes once the edition is out.</p>
+<div style="overflow-x:auto"><table>
+<tr><th>When</th><th>What is produced</th><th>Where it goes</th><th>Your window</th><th>How feedback is picked up</th></tr>
+{% for r in rows %}<tr{% if r.kind != 'daily' %} class="muted"{% endif %}><td class="mono" style="white-space:nowrap">{{ r.when }}{% if r.kind == 'weekly' %}<br><span class="pill">weekly</span>{% elif r.kind == 'once' %}<br><span class="pill">once</span>{% endif %}</td>
+<td>{{ r.what }}</td><td>{{ r.where }}</td><td>{{ r.window }}</td><td>{{ r.how }}</td></tr>
+{% endfor %}</table></div>
+{% endblock %}

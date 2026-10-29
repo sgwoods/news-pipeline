@@ -248,6 +248,12 @@ def register(app, root, cfg, P, check_post, md_html, DAY_RE):
         m = mailer.render(day, f.read_text("utf-8"), live_cfg(), (P["briefings"] / f"{day}.mp3").is_file())
         return m["html"].replace("{{UNSUBSCRIBE}}", "#")
 
+    # ---------- Schedule (what happens when, and the feedback window) ----------
+    @app.route("/schedule")
+    def schedule_page():
+        from pipeline import schedule_page as sp
+        return render_template("schedule.html", rows=sp.rows(cfg))
+
     # ---------- To do (shared list) ----------
     @app.route("/todo")
     def todo_page():

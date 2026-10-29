@@ -361,14 +361,18 @@ class SitePageAndScript(unittest.TestCase):
         self.assertGreater(gs.index("if (p.action === 'setreview')"), auth)                   # upload: key only
         self.assertIn("/^s_(\\d{1,2}|T|W)$/i", gs)                                             # the page's boxes
 
-    def test_review_page_has_a_box_per_section_and_no_script(self):
+    def test_review_page_has_a_box_per_section_autosave_and_outside_links(self):
+        # 10-29: Steven lost a page of typed takes by tapping a source link. Links open in a new tab, boxes autosave.
         root = make_root()
         (root / "briefings").mkdir()
         (root / "briefings" / f"{DAY}.md").write_text(MD, "utf-8")
         page = takes.review_page(root, CFG, DAY)
         for slot in ("0", "T", "1"):
             self.assertIn(f'name="s_{slot}"', page)
-        self.assertNotIn("<script", page.lower())
+        self.assertEqual(page.count("<a "), page.count('<a target="_blank" rel="noopener" href='))
+        self.assertIn("localStorage.setItem", page)
+        self.assertIn('fd.append("action", "takes")', page)
+        self.assertIn("beforeunload", page)
         self.assertIn('action="__SCRIPT__"', page)
         self.assertIn('name="t" value="__T__"', page)
         self.assertIn("Corvane raised $550M.", page)

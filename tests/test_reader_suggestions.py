@@ -38,7 +38,8 @@ class ReaderSuggestions(unittest.TestCase):
             deepdive.pull_reader_suggestions(self.root, {}, log=lambda *a: None)
         (self.root / "briefings").mkdir()
         (self.root / "data" / "stories").mkdir()
-        msg = editor_note.build(self.root, {"paths": {"briefings": "briefings"}, "email": {}}, "2026-10-28", [])
+        import datetime as dt
+        msg = editor_note.build(self.root, {"paths": {"briefings": "briefings"}, "email": {}}, dt.date.today().isoformat(), [])
         self.assertIn("suggested by Hugues", msg["text"])
         self.assertNotIn("r@x.com", msg["text"] + msg["html"])
 

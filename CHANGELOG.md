@@ -7,6 +7,21 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.30-beta · 2026-10-29
+- **Schedule page** (Steven, 10-29): the dashboard's new Schedule tab (and `./np schedule`) lists what is produced
+  through the day, when, where it goes, and the window for feedback on each piece and how it is picked up.
+- **The review page keeps your takes** (Steven, 10-29: a page of typed takes was lost by tapping a source link).
+  Every link on the page opens in a new tab; each box is kept in the browser as you type and sent to the mail
+  script a few seconds after you stop (a later save for the same box replaces the earlier one); leaving the page
+  with unsent text asks first. Submit and Done work as before.
+- **Pronunciations** (Steven, 10-29): the table gains outlets and acronyms said by name (NYT is "New York Times",
+  WSJ, FT, GAAP as "gap", METR as "meter", S-1 as "S one", PBC and LTBT spelled out) and more people and
+  companies (Qwen is now "Kwen", Nvidia, Pichai, Nadella, Dwarkesh, Azeem Azhar, Stratechery, Zhipu, Mistral).
+  Uncertain ones carry a comment. `./np pronounce lint [DAYS]` lists what the voice may have garbled lately, for
+  the next additions (docs/OPERATIONS.md).
+- Fix: takes edited in the Drive Doc before the edition ships were not read, because the Doc is still the draft
+  then ("held for your takes"); the draft is read when the published one isn't there yet.
+
 ## v0.2.29-beta · 2026-10-28
 - **Readers suggest deep dives** (Steven, 10-28): a "Suggest a deep dive" link in the email's deep-dive section (with
   the reader's own token) and on every deep-dive page on the site. The page asks for a topic, why now, and an

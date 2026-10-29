@@ -77,6 +77,14 @@ class Fetch(unittest.TestCase):
         self.assertEqual(got["rows"][0]["takes"]["1"], "Massive demand or bust. Augmented in the car.")
         self.assertTrue(got["deepdive"].startswith("Regulatory strategies"))
 
+    def test_the_draft_doc_counts_before_the_edition_ships(self):
+        draft = drivedocs.names(DAY, "# AI Briefing · Wednesday, October 28, 2026\n")[0]
+        docs = {draft: DOC}
+        with mock.patch.object(mailer, "call", side_effect=lambda cfg, a, **p:
+                               {"ok": True, "found": p["name"] in docs, "modified": "2026-10-28T10:00:00Z", "text": docs.get(p["name"], "")}):
+            got = drivedocs.fetch_takes(self.root, CFG, DAY, log=lambda *a: None)
+        self.assertEqual(got["rows"][0]["takes"]["1"], "Massive demand or bust. Augmented in the car.")
+
     def test_a_take_already_saved_is_not_an_edit(self):      # no loop: the Doc says what commentary already has
         import json as _j
         (self.root / "data" / "commentary").mkdir(parents=True, exist_ok=True)
