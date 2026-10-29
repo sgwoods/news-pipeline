@@ -96,6 +96,8 @@ RECIPES = {
     "phone-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["phone-setup"])]},   # the passphrase
     "ntfy-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["ntfy-setup"])]},     # phone notifications
     "ntfy-test": {"tier": "auto", "args": {}, "steps": [("prod", ["ntfy", "test"])]},
+    "advance": {"tier": "auto", "args": {}, "steps": [("prod", ["advance"])]},   # draft tomorrow's deep dive now
+    "service-install": {"tier": "chat", "args": {"kind": "text"}, "steps": [("prod", ["service", "install", "{kind}"])]},
     "slack-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["slack-setup"])]},   # the bot token
     "slack-card": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "preview", "{day}"])]},
     "slack-post": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "send", "{day}"])]},
@@ -106,7 +108,7 @@ RECIPES = {
     "mailer-setup": {"tier": "chat", "args": {"script": "text"}, "steps": [("prod", ["mailer", "setup", "{script}"])]},
 }
 CHANGES_PRODUCTION = {"setup", "correct", "publish", "restore", "ship", "release", "rollback", "approve", "install-hooks",
-                      "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive"}
+                      "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive", "service-install"}
 IN_RELEASE_WINDOW = {"ship", "release"}
 NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup", "ntfy-setup",
                   "slack-setup"}   # local steps behind the click

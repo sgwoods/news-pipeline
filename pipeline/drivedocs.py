@@ -89,7 +89,7 @@ def save_day(root: Path, cfg: dict, day: str, final: bool, log=print) -> dict:
             _stamp(root, day, "briefing", published if final else draft)
         title, dmd = deepdive_md(root, cfg, day)
         if dmd:
-            r = _save(cfg, deepdive_name(day, title), dmd)
+            r = _save(cfg, deepdive_name(day, title), dmd, replace=draft_name(day, title))
             out["deepdive"] = r.get("url", "") if r.get("ok") else ""
             if r.get("ok"):
                 _stamp(root, day, "deepdive", deepdive_name(day, title))
@@ -107,7 +107,7 @@ def save_day(root: Path, cfg: dict, day: str, final: bool, log=print) -> dict:
 # is never mistaken for an edit.
 
 STAMP = "data/state/drive-docs.json"
-TAKES_HEAD, DD_HEAD = "Steven's takes", "Steven's take"
+TAKES_HEAD, DD_HEAD, NOTES_HEAD = "Steven's takes", "Steven's take", "Notes for the editor"
 
 
 def _stamp_load(root: Path) -> dict:
@@ -137,10 +137,53 @@ def _section(text: str, head: str, stop: tuple = ("Sources",)) -> str:
         return ""
     out = []
     for ln in lines[i + 1:]:
-        if ln.strip() in stop or ln.strip() in (TAKES_HEAD, DD_HEAD):
+        if ln.strip() in stop or ln.strip() in (TAKES_HEAD, DD_HEAD, NOTES_HEAD):
             break
         out.append(ln)
     return "\n".join(out).strip()
+
+
+def parse_notes(text: str) -> str:
+    """The "Notes for the editor" section, without a closing "done"."""
+    t = " ".join(_section(text, NOTES_HEAD).split())
+    return re.sub(r"(?i)\s*\bdone\.?\s*$", "", t).strip()
+
+
+def draft_name(day: str, title: str) -> str:
+    return deepdive_name(day, title) + " (draft)"
+
+
+def save_deepdive_draft(root: Path, cfg: dict, day: str, log=print) -> str:
+    """Tomorrow's draft as a Doc with empty take and notes sections at the end. -> the Doc's url ('' if not saved)."""
+    title, dmd = deepdive_md(root, cfg, day)
+    if not dmd:
+        return ""
+    dmd = dmd.replace("## Sources", f"## {DD_HEAD}\n\n\n\n## {NOTES_HEAD}\n\n\n\n## Sources", 1) if "## Sources" in dmd \
+        else dmd + f"\n\n## {DD_HEAD}\n\n\n\n## {NOTES_HEAD}\n\n"
+    dmd = "*Draft for tomorrow. Read it; then write your take and any notes for the editor in the two sections near " \
+          "the end. The morning run revises the draft from your notes and records it with your take.*\n\n" + dmd
+    r = _save(cfg, draft_name(day, title), dmd)
+    if r.get("ok"):
+        _stamp(root, day, "deepdive", draft_name(day, title))
+        log(f"Drive: tomorrow's deep-dive draft saved to Briefings")
+        return r.get("url", "")
+    return ""
+
+
+def fetch_deepdive_draft(root: Path, cfg: dict, day: str, log=print) -> dict:
+    """{"take", "notes"} from DAY's draft Doc (what Steven wrote in the two sections), or {}."""
+    title, _ = deepdive_md(root, cfg, day)
+    if not title or not (cfg.get("drive") or {}).get("enabled", True):
+        return {}
+    try:
+        r = read_doc(cfg, draft_name(day, title))
+    except Exception as e:  # noqa: BLE001
+        log(f"Drive: draft doc not read ({e})"[:200])
+        return {}
+    if not r.get("found"):
+        return {}
+    text = r.get("text", "")
+    return {"take": parse_dd_take(text), "notes": parse_notes(text)}
 
 
 def parse_takes(text: str, slots: list) -> dict:
@@ -214,6 +257,8 @@ def fetch_takes(root: Path, cfg: dict, day: str, log=print) -> dict:
     if title:
         try:
             r = read_doc(cfg, deepdive_name(day, title))
+            if not r.get("found"):
+                r = read_doc(cfg, draft_name(day, title))
         except Exception as e:  # noqa: BLE001
             log(f"Drive takes: deep-dive doc not read ({e})"[:200])
             r = {}

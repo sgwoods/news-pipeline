@@ -43,6 +43,13 @@ def rows(cfg: dict) -> list:
     add("right after", "The editor's note: tomorrow's deep dive, the queue, new suggestions (readers' ideas say who suggested them), "
         "the watchlist.", "Your inbox; the queue page (tap the nudge).", "Until tomorrow's run starts.",
         "Tap Make next, reorder, dismiss, add a topic, or write your take on tomorrow's topic: read verbatim after the deep dive.")
+    adv = str(sched.get("advance") or "15:30")
+    add(adv, "Tomorrow's deep dive, drafted: written and checked, not yet voiced.",
+        "Drive: '<tomorrow> · Deep dive · <title> (draft)'; a nudge and an email with the link.",
+        "Until tomorrow's run starts (05:00).",
+        "Read it on the way home. At the end of the Doc: 'Steven's take' (your words, read after the episode) and "
+        "'Notes for the editor' (what to change: the morning run revises the draft from them, checks it again, and "
+        "records it with your take). Type or talk to Claude; write 'done' or just stop.")
     add("~every 20 min", "The run queue: jobs Claude queues; approvals arrive on your phone with Approve and Reject.",
         "Your phone (ntfy); the Mac dialog as a backup.", "Until 20:00 for releases; one tap.", "Tap Approve. A tap after 20:00 waits for tomorrow.")
     add(pre, "Evening preflight: would tomorrow's run be allowed to publish and email? One alert if an approval is pending.",

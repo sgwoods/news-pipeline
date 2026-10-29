@@ -18,7 +18,8 @@ import subprocess
 from pathlib import Path
 
 LABELS = {"daily": "com.sgwoods.news-pipeline", "dashboard": "com.sgwoods.news-pipeline.dashboard",
-          "preflight": "com.sgwoods.news-pipeline.preflight", "runner": "com.sgwoods.news-pipeline.runner"}
+          "preflight": "com.sgwoods.news-pipeline.preflight", "runner": "com.sgwoods.news-pipeline.runner",
+          "advance": "com.sgwoods.news-pipeline.advance"}
 
 
 def _sh(args, timeout=20):
@@ -57,6 +58,12 @@ def build_plist(kind: str, root: Path, cfg: dict) -> dict:
     elif kind == "preflight":
         from .schedule import TICK_MINUTES
         base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "scheduled", "preflight"],
+                     "StartCalendarInterval": [{"Minute": m} for m in TICK_MINUTES],
+                     "StandardOutPath": str(root / "logs" / "launchd.out.log"),
+                     "StandardErrorPath": str(root / "logs" / "launchd.err.log"), "RunAtLoad": False})
+    elif kind == "advance":                               # tomorrow's deep dive draft (schedule.advance, default 15:30)
+        from .schedule import TICK_MINUTES
+        base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "scheduled", "advance"],
                      "StartCalendarInterval": [{"Minute": m} for m in TICK_MINUTES],
                      "StandardOutPath": str(root / "logs" / "launchd.out.log"),
                      "StandardErrorPath": str(root / "logs" / "launchd.err.log"), "RunAtLoad": False})
@@ -181,6 +188,7 @@ def claude_status() -> dict:
 
 def all_status(root: Path, cfg: dict) -> dict:
     return {"daily": status("daily"), "dashboard": status("dashboard"), "preflight": status("preflight"),
+            "advance": status("advance"),
             "ollama": ollama_status(cfg),
             "claude": claude_status(), "ffmpeg": bool(shutil.which("ffmpeg")), "gh": bool(shutil.which("gh")),
             "launchctl": bool(shutil.which("launchctl"))}

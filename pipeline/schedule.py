@@ -23,6 +23,8 @@ def times(cfg: dict, kind: str) -> list:
         return base
     if kind == "preflight":
         return [str(s.get("preflight", "20:30"))]
+    if kind == "advance":                                # tomorrow's deep dive, drafted for the commute home (10-29)
+        return [str(s.get("advance", "15:30"))]
     return []
 
 
@@ -39,4 +41,4 @@ def due(cfg: dict, kind: str, now: dt.datetime | None = None) -> str:
 
 def check(cfg: dict) -> list:
     """Configured times the half-hour tick can't hit (must be on :00 or :30)."""
-    return [t for k in ("daily", "preflight") for t in times(cfg, k) if int(t.split(":")[1]) not in TICK_MINUTES]
+    return [t for k in ("daily", "preflight", "advance") for t in times(cfg, k) if int(t.split(":")[1]) not in TICK_MINUTES]

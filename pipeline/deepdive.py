@@ -542,6 +542,140 @@ def plan_today(root: Path, cfg: dict, day: str, llm=None, log=print) -> dict | N
     return it
 
 
+def plan_ahead(root: Path, cfg: dict, target: str, llm=None, log=print) -> dict | None:
+    """Choose TARGET day's deep dive now (the afternoon before): Steven's queue first, else the best of today's
+    suggestions. -> the queue item, marked scheduled for TARGET, or None."""
+    already = scheduled_for(root, target)
+    if already:
+        return already
+    today = dt.date.today().isoformat()
+    try:
+        res = suggest(root, cfg, today, llm, log)
+    except Exception as e:  # noqa: BLE001
+        log(f"Deep dive suggestions failed: {e}")
+        res = {"best": None}
+    if _week_count(root, target) >= int(dcfg(cfg)["max_per_week"]):
+        log(f"Deep dive: weekly cap ({dcfg(cfg)['max_per_week']}) reached; no draft for {target}")
+        return None
+    pick = (queued(root) or [None])[0] or res.get("best") or ensure_next(root, log)
+    if not pick:
+        return None
+    it = set_status(root, pick["id"], "scheduled", for_day=target)
+    log(f"Deep dive for {target}: {it['topic']} ({'from Up next' if pick.get('order') else 'best suggestion'})")
+    ensure_next(root, log)
+    return it
+
+
+def draft_tomorrow(root: Path, cfg: dict, log=print) -> dict:
+    """The afternoon draft (Steven, 2026-10-29): write and check tomorrow's deep dive now, save it to Drive with
+    empty "Steven's take" and "Notes for the editor" sections, and nudge the phone. Voiced in the morning."""
+    target = (dt.date.today() + dt.timedelta(days=1)).isoformat()
+    if latest(root, target):
+        return {"skipped": f"{target} already has a deep dive record"}
+    if not plan_ahead(root, cfg, target, log=log):
+        return {"skipped": "nothing to draft"}
+    rec = run(root, cfg, target, log=log, tts=False, draft=True)
+    if rec.get("status") != "written":
+        return {"skipped": rec.get("reason") or rec.get("status")}
+    out = {"day": target, "title": rec.get("title"), "status": "drafted"}
+    try:
+        from . import drivedocs
+        out["doc"] = drivedocs.save_deepdive_draft(root, cfg, target, log=log)
+    except Exception as e:  # noqa: BLE001
+        log(f"draft doc not saved: {e}"[:200])
+    try:
+        from . import ntfy
+        ntfy.notify(cfg, "AI Briefing · tomorrow's deep dive", f"{rec.get('title')}: the draft is in Drive. Read it on "
+                    "the way home; add your take and any notes for the editor at the end.", click=out.get("doc", ""),
+                    tags=("notebook",), root=root)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from . import mailer
+        to = mailer.ecfg(cfg).get("test_to")
+        if to and out.get("doc"):
+            esc = __import__("html").escape
+            mailer.call(cfg, "send", to=to, subject=f"AI Briefing · Tomorrow's deep dive draft: {rec.get('title', '')[:80]}",
+                        text=f"Tomorrow's deep dive is drafted: {rec.get('title')}\n\nRead it in Drive: {out['doc']}\n\n"
+                             "At the end of the Doc: 'Steven's take' (your words, read after the episode) and 'Notes for "
+                             "the editor' (what to change; the morning run revises the draft). Write 'done' when finished, "
+                             "or just stop: the 05:00 run takes what is there.",
+                        html=f"<p style='font:16px sans-serif'>Tomorrow's deep dive is drafted: <b>{esc(rec.get('title', ''))}</b></p>"
+                             f"<p><a href='{esc(out['doc'])}' style='display:inline-block;padding:10px 18px;border-radius:999px;"
+                             f"background:#3e7e8a;color:#fff;text-decoration:none;font:600 15px sans-serif'>Read it in Drive</a></p>"
+                             "<p style='font:14px sans-serif;color:#555'>At the end of the Doc: <b>Steven's take</b> (your words, read after the "
+                             "episode) and <b>Notes for the editor</b> (what to change; the morning run revises the draft). Write "
+                             "\"done\" when finished, or just stop: the 05:00 run takes what is there.</p>")
+    except Exception as e:  # noqa: BLE001
+        log(f"draft email not sent: {e}"[:200])
+    return out
+
+
+def _put_take_part(root: Path, day: str, text: str, cfg: dict, log=print) -> bool:
+    """Steven's take into DAY's written parts (not yet voiced). -> changed?"""
+    from . import takes
+    from .audio import script_markdown
+    p = root / DIR / f"{day}.parts.json"
+    if not p.is_file():
+        return False
+    data = json.loads(p.read_text("utf-8"))
+    parts = [tuple(x) for x in data["parts"]]
+    text = takes.tidy(text)[:TAKE_MAX]
+    if takes.problems(text, cfg):
+        log("Deep dive: the take from the draft Doc was held back (privacy check)")
+        return False
+    part = ("steven_take", f"Here's {takes.LABEL}. {text}")
+    if any(n == "steven_take" for n, _ in parts):
+        new = [part if n == "steven_take" else (n, t) for n, t in parts]
+    else:
+        i = next((k for k, (n, _) in enumerate(parts) if n == "Outro"), len(parts))
+        new = parts[:i] + [part] + parts[i:]
+    if new == parts:
+        return False
+    data["parts"] = new
+    p.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
+    (root / DIR / f"{day}.script.md").write_text(script_markdown(f"Deep dive: {data['title']}", new, {"take": "from the draft Doc"}), "utf-8")
+    return True
+
+
+def apply_draft_feedback(root: Path, cfg: dict, day: str, log=print) -> dict:
+    """The morning after a draft: read the Doc back (take, notes). A take goes in; notes mean the writer revises the
+    draft (checked again) with the take kept. -> {"take": bool, "revised": bool}."""
+    from . import drivedocs
+    rec = latest(root, day) or {}
+    if rec.get("status") != "written" or not rec.get("draft"):
+        return {}
+    fb = drivedocs.fetch_deepdive_draft(root, cfg, day, log)
+    out = {"take": False, "revised": False}
+    qid = (rec.get("pick") or {}).get("queue_id")
+    if fb.get("take") and qid:
+        with contextlib.suppress(KeyError):
+            set_take(root, qid, fb["take"])
+        out["take"] = True
+    notes = fb.get("notes", "")
+    if notes and qid:
+        previous = written_md(root, day, cfg)
+        items = load_queue(root)
+        for x in items:
+            if x["id"] == qid:
+                x.update(status="scheduled", for_day=day)
+        save_queue(root, items)
+        log(f"Deep dive {day}: revising the draft from your notes ({len(notes.split())} words)")
+        r = run(root, cfg, day, log=log, tts=False, notes=notes, previous=previous)
+        out["revised"] = r.get("status") == "written"
+        if not out["revised"]:                       # the revision failed its checks: keep the draft, say so
+            log(f"Deep dive {day}: revision not used ({r.get('reason')}); the draft stands")
+            rec2 = {**rec, "at": dt.datetime.now().isoformat(timespec="seconds"), "status": "written", "revision_failed": r.get("reason", "")}
+            append_jsonl(root / LOG, [rec2])
+            with contextlib.suppress(KeyError):
+                set_status(root, qid, "done", done_day=day, title=rec.get("title", ""))
+            if fb.get("take"):
+                _put_take_part(root, day, fb["take"], cfg, log)
+    elif fb.get("take"):
+        _put_take_part(root, day, fb["take"], cfg, log)
+    return out
+
+
 # ---------- run ----------
 
 def _week_count(root: Path, day: str) -> int:
@@ -550,8 +684,10 @@ def _week_count(root: Path, day: str) -> int:
 
 
 def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool = False,
-        llm_pick=None, llm_write=None, tts=True) -> dict:
-    """Write (and voice) DAY's deep dive: the scheduled queue item, or plan one now."""
+        llm_pick=None, llm_write=None, tts=True, draft: bool = False, notes: str = "", previous: str = "") -> dict:
+    """Write (and voice) DAY's deep dive: the scheduled queue item, or plan one now. draft: written the day before
+    for Steven's review (recorded as such). notes/previous: Steven's "Notes for the editor" and the draft they are
+    about: the writer revises the draft following the notes (v0.2.31)."""
     from . import stages
     from .dive import check_links
     from .record import page_text
@@ -593,6 +729,12 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
             chosen.append(s)
     if not chosen:
         chosen = [s for s in _stories(root, day) if s.get("section") == "must"][:2]
+    if not chosen:                                   # a draft for tomorrow: today's stories are the latest there are
+        for back in range(1, 4):
+            chosen = [s for s in _stories(root, (dt.date.fromisoformat(day) - dt.timedelta(days=back)).isoformat())
+                      if s.get("section") == "must"][:2]
+            if chosen:
+                break
 
     # 2 write
     mat, corpus = material(root, chosen)
@@ -610,6 +752,9 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
         mat, corpus = material(root, chosen + chosen_week, chars=12000)
     wt, wv = stages.prompt("deepdive_flagship" if flag else "deepdive_write")
     hints = "; ".join(pick.get("search_hints") or [])
+    if notes:                                        # Steven's notes on the draft: the one instruction the writer must follow
+        mat = (f"EDITOR'S NOTES FROM STEVEN (follow these; they override the angle where they differ): {notes}\n\n"
+               f"THE DRAFT THEY REFER TO (revise it: keep what the notes don't touch):\n{previous[:12000]}\n\n" + (mat or ""))
     share = lambda f: str(int(words * f))
     user = (wt.replace("{{words}}", str(words)).replace("{{max_words}}", str(max_words))
               .replace("{{w_why}}", share(0.11)).replace("{{w_plain}}", share(0.25)).replace("{{w_evidence}}", share(0.25))
@@ -697,6 +842,10 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
                                                                                          "prompt": wv}), "utf-8")
     rec.update(status="written", title=title, kind=pick.get("kind"), sources=[s["url"] for s in srcs_live],
                words=sum(len(t.split()) for _, t in parts), file=f"{DIR}/{day}.md", prompt_write=wv)
+    if draft:
+        rec["draft"] = True
+    if notes:
+        rec["revised_from_notes"] = True
     (d / f"{day}.parts.json").write_text(json.dumps({"title": title, "parts": parts}, ensure_ascii=False), "utf-8")
     if tts:
         rec["minutes"] = _render(root, cfg, day, title, parts)

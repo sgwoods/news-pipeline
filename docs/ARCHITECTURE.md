@@ -13,7 +13,7 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.30-beta (2026-10-29)
+- **Release:** v0.2.31-beta (2026-10-29)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 73 in `pipeline/`
@@ -78,6 +78,10 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
   via the API. Each stage picks its backend in config.
 - **Editorial lens** (`perspective.py`): a hand-written perspective file (people, topics, scepticism) steers
   filtering and the editor's view. Code reads it and never rewrites it.
+- **The advance deep dive** (`deepdive.draft_tomorrow`, `apply_draft_feedback`; launchd agent `advance`, 15:30):
+  tomorrow's deep dive is written and checked in the afternoon and saved to Drive as a draft with "Steven's take"
+  and "Notes for the editor" sections. The morning run reads the Doc back: the take goes in; notes make the writer
+  revise the draft (checked again, the take kept); then it is voiced and shipped with the edition.
 - **The schedule** (`schedule_page.py`): the day's timetable as a table, built from config: what is produced, when,
   where it goes, and the window for Steven's feedback on each piece and how it is picked up (dashboard /schedule,
   `./np schedule`).

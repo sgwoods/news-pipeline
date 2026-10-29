@@ -2382,7 +2382,11 @@ def cmd_run(cfg: dict, lookback_hours=None, commit=True, no_llm=False, stages_on
                 if not (experiment or rebrief_day or reprocess_day) and (cfg.get("deepdive") or {}).get("enabled"):
                     try:                         # write and check today's deep dive now: the briefing hands off
                         from pipeline import deepdive   # to it only if its script passed the checks
-                        if deepdive.plan_today(ROOT, cfg, run.day, log=run.log.info):
+                        if (deepdive.latest(ROOT, run.day) or {}).get("draft"):   # drafted yesterday afternoon
+                            fb = deepdive.apply_draft_feedback(ROOT, cfg, run.day, log=run.log.info)
+                            run.log.info("deep dive: yesterday's draft%s%s", " + your take" if fb.get("take") else "",
+                                         " · revised from your notes" if fb.get("revised") else "")
+                        elif deepdive.plan_today(ROOT, cfg, run.day, log=run.log.info):
                             deepdive.run(ROOT, cfg, run.day, log=run.log.info, tts=False)
                     except Exception as e:  # noqa: BLE001
                         run.log.warning("deep dive skipped: %s", e)
@@ -2639,6 +2643,20 @@ def cmd_review(cfg: dict, argv: list) -> int:
     if cfg.get("archive", {}).get("git_commit", True):
         print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"weekly quality review {day}",
                                                             paths=(str(out.relative_to(ROOT)),)))
+    return 0
+
+
+def cmd_advance(cfg: dict) -> int:
+    """./np advance: draft tomorrow's deep dive now (written and checked, not voiced), into Drive for Steven's
+    review on the way home (schedule.advance, default 15:30)."""
+    from pipeline import deepdive
+    if not (cfg.get("deepdive") or {}).get("enabled"):
+        print("deep dives are off")
+        return 0
+    r = deepdive.draft_tomorrow(ROOT, cfg, log=print)
+    print("Advance deep dive:", r.get("status") or r.get("skipped"), "·", r.get("title", ""), "·", r.get("doc", ""))
+    if cfg.get("archive", {}).get("git_commit", True) and r.get("status") == "drafted":
+        print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"deep dive draft {r['day']}", paths=(deepdive.DIR, deepdive.LOG, "data/deepdive_queue.json")))
     return 0
 
 
@@ -2962,8 +2980,9 @@ def main() -> int:
     ap.add_argument("--watchlist", nargs="*", metavar="ARG", help="list | fetch | weekly | backfill [DAYS] | add NAME | remove NAME | test")
     ap.add_argument("--deepdive", nargs="*", metavar="ARG", help='[DAY] [--topic "..."] [--force] [--no-audio]: topical deep-dive episode')
     ap.add_argument("--review", nargs="*", metavar="ARG", help="weekly [DAY]: the weekly quality review")
-    ap.add_argument("--due", metavar="KIND", help="daily|preflight: exit 0 if a scheduled time just passed (local clock)")
+    ap.add_argument("--due", metavar="KIND", help="daily|preflight|advance: exit 0 if a scheduled time just passed (local clock)")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
+    ap.add_argument("--advance", action="store_true", help="draft tomorrow's deep dive into Drive (schedule.advance)")
     ap.add_argument("--runner", nargs="*", metavar="ARG", help="status | tick | approve ID | reject ID | install | remove")
     ap.add_argument("--listen", nargs="*", metavar="ARG", help="[DAY]: transcribe the published episode and check it")
     ap.add_argument("--drive", nargs="*", metavar="ARG", help="save [DAY] [draft]: the edition and deep dive as Google Docs")
@@ -3075,6 +3094,8 @@ def main() -> int:
         return cmd_listen(cfg, args.listen)
     if args.runner is not None:
         return cmd_runner(cfg, args.runner)
+    if args.advance:
+        return cmd_advance(cfg)
     if args.preflight:
         return cmd_preflight(cfg)
     if args.review is not None:

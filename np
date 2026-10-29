@@ -55,12 +55,15 @@ case "$cmd" in
   dive)      run $PY run.py --dive "${1:?usage: ./np dive DAY STORY}" "${2:?usage: ./np dive DAY STORY (number or key)}" ;;
   tests)     NP_ENV=production NP_TESTING=1 run $PY -m unittest discover -s tests ;;   # production behaviour, never the live machine
   scheduled) # launchd ticks every half hour; run only when this Mac's local clock says a scheduled time just passed
-             kind="${1:?usage: ./np scheduled daily|preflight}"
+             kind="${1:?usage: ./np scheduled daily|preflight|advance}"
              $PY run.py --due "$kind" >/dev/null 2>&1 || exit 0
              cmd="$kind"; out="logs/cmd-${kind}-${ts}.txt"
              if [ "$kind" = daily ]; then
                CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"
                run $CAF $PY run.py --daily
+             elif [ "$kind" = advance ]; then
+               CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"
+               run $CAF $PY run.py --advance
              else
                run $PY run.py --preflight
              fi ;;
@@ -114,6 +117,7 @@ case "$cmd" in
   audit)     run $PY run.py --audit "$@" ;;                    # [DAY]: re-check about five claims against their sources
   ntfy)      run $PY run.py --ntfy "${@:-status}" ;;           # test | status: phone notifications
   schedule)  run $PY run.py --schedule ;;                      # the day's schedule and feedback windows
+  advance)   run $PY run.py --advance ;;                       # draft tomorrow's deep dive into Drive now
   pronounce) run $PY run.py --pronounce "${@:-lint}" ;;        # lint [DAYS]: words the voice may have garbled
   slack-post) run $PY run.py --slack-post "$@" ;;              # preview DAY | send DAY: the morning post in the team channel
   positions) run $PY run.py --positions "${@:-list}" ;;        # list | score [DAY]: the house-view calls ledger

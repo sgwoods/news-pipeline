@@ -7,6 +7,14 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.31-beta · 2026-10-29
+- **The advance deep dive** (Steven, 10-29): at 15:30 (schedule.advance) tomorrow's deep dive is written and
+  checked and saved to Drive as "<day> · Deep dive · <title> (draft)", with a nudge and an email. The Doc ends with
+  two sections: "Steven's take" (read verbatim after the episode) and "Notes for the editor" (what to change). The
+  05:00 run reads them back: the take goes in; notes make the writer revise the draft, which is checked again;
+  then it is voiced and shipped. Install the agent once with the `service-install` job (kind: advance).
+  `./np advance` drafts now; run-queue job `advance`. The Schedule page has the row.
+
 ## v0.2.30-beta · 2026-10-29
 - **Schedule page** (Steven, 10-29): the dashboard's new Schedule tab (and `./np schedule`) lists what is produced
   through the day, when, where it goes, and the window for feedback on each piece and how it is picked up.
