@@ -99,6 +99,8 @@ RECIPES = {
     "advance": {"tier": "auto", "args": {}, "steps": [("prod", ["advance"])]},   # draft tomorrow's deep dive now
     "service-install": {"tier": "chat", "args": {"kind": "text"}, "steps": [("prod", ["service", "install", "{kind}"])]},
     "slack-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["slack-setup"])]},   # the bot token
+    "jev-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["jev-setup"])]},       # the TypeSafe key
+    "jev-report": {"tier": "auto", "args": {}, "steps": [("prod", ["jev", "report"])]},
     "slack-card": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "preview", "{day}"])]},
     "slack-post": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "send", "{day}"])]},
     "slack-deepdive": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "deepdive", "{day}"])]},
@@ -111,7 +113,7 @@ CHANGES_PRODUCTION = {"setup", "correct", "publish", "restore", "ship", "release
                       "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive", "service-install"}
 IN_RELEASE_WINDOW = {"ship", "release"}
 NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup", "ntfy-setup",
-                  "slack-setup"}   # local steps behind the click
+                  "slack-setup", "jev-setup"}   # local steps behind the click
 
 
 class JobError(ValueError):

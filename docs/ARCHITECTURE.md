@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.31-beta (2026-10-29)
+- **Release:** v0.2.32-beta (2026-10-30)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 73 in `pipeline/`
+- **Modules:** 74 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -78,6 +78,10 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
   via the API. Each stage picks its backend in config.
 - **Editorial lens** (`perspective.py`): a hand-written perspective file (people, topics, scepticism) steers
   filtering and the editor's view. Code reads it and never rewrites it.
+- **Jev in the shadow** (`jev.py`): TypeSafe's structured-decision model is asked keep/drop for every item the
+  local filter judged, and the two answers are logged side by side (`data/state/jev-shadow.jsonl`) with a daily
+  token budget; nothing it says changes the edition until a week's agreement says it should (`./np jev report`).
+  Public fetched items only; the key is in the Keychain; off in staging.
 - **The advance deep dive** (`deepdive.draft_tomorrow`, `apply_draft_feedback`; launchd agent `advance`, 15:30):
   tomorrow's deep dive is written and checked in the afternoon and saved to Drive as a draft with "Steven's take"
   and "Notes for the editor" sections. The morning run reads the Doc back: the take goes in; notes make the writer
@@ -335,6 +339,7 @@ _Generated from each module's own description at build time._
 | `fetch.py` | Fetch new items from every verified source. |
 | `houseviews.py` | Read-only parser for house_views.md, and the positions ledger (Steven, 2026-10-27). |
 | `hub.py` | AI Briefing on Steven's public project hub (sgwoods.github.io/public) |
+| `jev.py` | Jev (TypeSafe's System One model) as a shadow filter (Steven, 2026-10-29/30). |
 | `linkedin.py` | Steven's own LinkedIn posts, from LinkedIn's data export (and from Slack, when he shares one there). |
 | `links.py` | Make every citation point at the real article (runs in the write stage; never fails the briefing). |
 | `listen.py` | Listen to what was published (Steven, 2026-10-27) |

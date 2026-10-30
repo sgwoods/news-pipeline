@@ -117,6 +117,7 @@ case "$cmd" in
   audit)     run $PY run.py --audit "$@" ;;                    # [DAY]: re-check about five claims against their sources
   ntfy)      run $PY run.py --ntfy "${@:-status}" ;;           # test | status: phone notifications
   schedule)  run $PY run.py --schedule ;;                      # the day's schedule and feedback windows
+  jev)       run $PY run.py --jev "${@:-report}" ;;            # report [DAYS]: the Jev shadow filter
   advance)   run $PY run.py --advance ;;                       # draft tomorrow's deep dive into Drive now
   pronounce) run $PY run.py --pronounce "${@:-lint}" ;;        # lint [DAYS]: words the voice may have garbled
   slack-post) run $PY run.py --slack-post "$@" ;;              # preview DAY | send DAY: the morning post in the team channel

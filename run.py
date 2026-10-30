@@ -1254,6 +1254,7 @@ def cmd_runner(cfg: dict, argv: list) -> int:
     local["phone-setup"] = lambda a: (print("phone approvals:", runner.set_phone_secret()) or 0)
     local["ntfy-setup"] = lambda a: (print("phone notifications:", ntfy.setup()) or 0)
     local["slack-setup"] = lambda a: (print("slack posts:", __import__("pipeline.slackpost", fromlist=["x"]).set_token()) or 0)
+    local["jev-setup"] = lambda a: (print("jev:", __import__("pipeline.jev", fromlist=["x"]).set_key()) or 0)
     from pipeline import ntfy
     from pipeline.mailer import sent_days
     phone = None
@@ -1550,6 +1551,20 @@ def cmd_pronounce(cfg: dict, argv: list) -> int:
     for w, n in seen.most_common():
         print(f"  {n:3}  {w}")
     print("Add the ones that matter to pronunciations.yaml (with a source comment); test with ./np say \"...\".")
+    return 0
+
+
+def cmd_jev(cfg: dict, argv: list) -> int:
+    """./np jev report [DAYS]: the shadow filter's agreement with the local model and the disagreements to look at."""
+    from pipeline import jev
+    days = int(next((a for a in argv[1:] if a.isdigit()), 7))
+    r = jev.report(ROOT, days)
+    print(f"Jev shadow, last {days} days: {r['asked']} items asked, agreement {r['agreement']} on {r['settled']} settled")
+    for label, k in (("Jev would DROP, local kept", "would_drop_kept"), ("Jev would KEEP, local dropped", "would_keep_dropped")):
+        if r[k]:
+            print(f"  {label}:")
+            for x in r[k]:
+                print(f"    {x['day']} p={x['p_keep']:.2f}  {x['title']}")
     return 0
 
 
@@ -2210,6 +2225,13 @@ def run_llm_stages(run: Run, cfg: dict, archive: Archive, reprocess_day=None, li
             if errs:
                 st["status"] = "partial"
             run.log.info("filter: %d in, %d kept", len(items), len(kept))
+            try:                                 # Jev in the shadow: logged next to the local filter, changes nothing (v0.2.32)
+                from pipeline import jev
+                js = jev.shadow(ROOT, cfg, run.day, items, decisions, log=run.log.info)
+                if js:
+                    st["jev"] = js
+            except Exception as e:  # noqa: BLE001
+                run.log.warning("jev shadow skipped: %s", e)
 
         with run.stage("rank") as st:
             summaries, v, errs = stages.run_summarize(backends["rank"], kept, system, acfg, run.log)
@@ -2989,6 +3011,7 @@ def main() -> int:
     ap.add_argument("--audit", nargs="*", metavar="ARG", help="[DAY]: the accuracy audit (claims against their sources)")
     ap.add_argument("--ntfy", nargs="*", metavar="ARG", help="test | status: phone notifications")
     ap.add_argument("--schedule", action="store_true", help="the day's schedule and feedback windows")
+    ap.add_argument("--jev", nargs="*", metavar="ARG", help="report [DAYS]: the Jev shadow filter")
     ap.add_argument("--pronounce", nargs="*", metavar="ARG", help="lint [DAYS]: words the voice may have garbled")
     ap.add_argument("--slack-post", nargs="*", metavar="ARG", help="preview DAY | send DAY: the morning post in the team channel")
     ap.add_argument("--positions", nargs="*", metavar="ARG", help="list | score [DAY]: the house-view calls ledger")
@@ -3084,6 +3107,8 @@ def main() -> int:
         return cmd_ntfy(cfg, args.ntfy)
     if args.schedule:
         return cmd_schedule(cfg, [])
+    if args.jev is not None:
+        return cmd_jev(cfg, args.jev or ["report"])
     if args.pronounce is not None:
         return cmd_pronounce(cfg, args.pronounce or ["lint"])
     if args.slack_post is not None:

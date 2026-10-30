@@ -21,6 +21,7 @@ class Advance(unittest.TestCase):
     def _draft(self):
         tomorrow = (dt.date.today() + dt.timedelta(days=1)).isoformat()
         self.cfg["email"] = {"test_to": "o@x.com", "script_url": "https://script.google.com/x"}
+        self.cfg["deepdive"]["flagship"] = {"enabled": False}          # tomorrow may be a Saturday: a plain episode here
         deepdive.add_manual(self.root, "How AI proofs get checked")       # queued by Steven
         saved = {}
         with mock.patch.object(deepdive, "_backend", return_value=Fake(WRITE)), \

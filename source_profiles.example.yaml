@@ -584,6 +584,10 @@ sources:
     standards: cites
     stance: safety
     interests: Anthropic CEO
+  TechCrunch:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
   Gary Marcus:
     kind: opinion
     standards: cites
@@ -628,6 +632,10 @@ sources:
     standards: mixed
     stance: AGI-forward
     interests: sponsored
+  BetaKit:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
   OpenAI (news):
     kind: primary
     standards: cites

@@ -7,6 +7,13 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.32-beta · 2026-10-30
+- **Jev shadow filter** (Steven, 10-29/30): TypeSafe's Jev (a structured-decision model, sub-second, ~$0.04 per
+  million input tokens) is asked keep/drop for every item the local filter judged; both answers are logged, the
+  morning report shows the agreement, and nothing changes in the edition. Daily token budget (400k, about two
+  cents). Public fetched items only; never in staging. One-time: the `jev-setup` job (a Mac dialog stores the key
+  in the Keychain and makes one test call). `./np jev report [DAYS]`; run-queue job `jev-report`.
+
 ## v0.2.31-beta · 2026-10-29
 - **The advance deep dive** (Steven, 10-29): at 15:30 (schedule.advance) tomorrow's deep dive is written and
   checked and saved to Drive as "<day> · Deep dive · <title> (draft)", with a nudge and an email. The Doc ends with
