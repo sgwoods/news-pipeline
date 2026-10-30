@@ -160,6 +160,16 @@ def save_deepdive_draft(root: Path, cfg: dict, day: str, log=print) -> str:
         return ""
     dmd = dmd.replace("## Sources", f"## {DD_HEAD}\n\n\n\n## {NOTES_HEAD}\n\n\n\n## Sources", 1) if "## Sources" in dmd \
         else dmd + f"\n\n## {DD_HEAD}\n\n\n\n## {NOTES_HEAD}\n\n"
+    try:                                         # what the fact check couldn't settle: Steven decides in his notes
+        from .audit import load_deepdive_check
+        held = load_deepdive_check(root, day).get("held") or []
+    except Exception:  # noqa: BLE001
+        held = []
+    if held:
+        fc = "## Fact check: please look\n\n" + "\n".join(
+            f"- {h['claim'][:240]} ({h.get('verdict', '')}: {h.get('why', '')[:160]})" for h in held[:10]) + \
+            "\n\nSay in Notes for the editor what to keep, change or cut; otherwise the morning run checks it again.\n\n"
+        dmd = dmd.replace(f"## {DD_HEAD}", fc + f"## {DD_HEAD}", 1)
     dmd = "*Draft for tomorrow. Read it; then write your take and any notes for the editor in the two sections near " \
           "the end. The morning run revises the draft from your notes and records it with your take.*\n\n" + dmd
     r = _save(cfg, draft_name(day, title), dmd)

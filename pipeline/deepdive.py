@@ -684,7 +684,8 @@ def _week_count(root: Path, day: str) -> int:
 
 
 def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool = False,
-        llm_pick=None, llm_write=None, tts=True, draft: bool = False, notes: str = "", previous: str = "") -> dict:
+        llm_pick=None, llm_write=None, tts=True, draft: bool = False, notes: str = "", previous: str = "",
+        llm_check=None, judge=None, finder=None) -> dict:
     """Write (and voice) DAY's deep dive: the scheduled queue item, or plan one now. draft: written the day before
     for Steven's review (recorded as such). notes/previous: Steven's "Notes for the editor" and the draft they are
     about: the writer revises the draft following the notes (v0.2.31)."""
@@ -791,6 +792,11 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
         return rec
     sections, notes, fatal = check_script(sections, corpus, cfg)
     rec["checks"] = notes
+    if not fatal and (llm_check is not None or c.get("fact_check")):     # sentence check before recording (v0.2.33)
+        sections, srcs_live, fnotes = _fact_check(root, cfg, day, sections, corpus, srcs_live, system,
+                                                  llm_check, judge, finder, log)
+        notes += fnotes
+        rec["checks"] = notes
     if fatal or len({base_section(s) for s, _ in sections}) < 4:
         rec.update(status="failed", reason="script failed checks: " + "; ".join(notes[-2:]), title=out.get("title", ""))
         set_status(root, item["id"], "failed", note=rec["reason"])
@@ -878,6 +884,40 @@ def _render(root: Path, cfg: dict, day: str, title: str, parts: list) -> float:
 
 def latest(root: Path, day: str) -> dict | None:
     return next((r for r in reversed(records(root)) if r.get("day") == day), None)
+
+
+def _fact_check(root: Path, cfg: dict, day: str, sections: list, corpus: list, srcs: list, system: str,
+                llm_check=None, judge=None, finder=None, log=print) -> tuple:
+    """audit.check_sections on the checked script: wrong sentences rewritten to the sources, a page found by search
+    added to Sources (live, fetched now), then the script checks run again over the result. Never fails the dive.
+    -> (sections, sources, notes)."""
+    from . import audit
+    from .audio import banned, spelled_figures
+    try:
+        if llm_check is None:
+            from . import llm as _llm
+            llm_check = _llm.for_stage(cfg, "critique")
+            judge = judge or _llm.for_stage(cfg, "judge2")
+            if finder is None and (cfg.get("factcheck") or {}).get("search", True):
+                from . import factsearch, netguard
+                ua = (cfg.get("fetch") or {}).get("user_agent", "news-pipeline/0.1")
+                finder = factsearch.Finder(netguard.client(follow_redirects=True, timeout=12,
+                                                           headers={"User-Agent": ua}), [], None)
+        new, res, pages = audit.check_sections(root, day, sections, corpus, llm_check, system, log=log, judge=judge,
+                                               finder=finder, ok_sentence=lambda t: not (banned(t) or spelled_figures(t)))
+    except Exception as e:  # noqa: BLE001
+        log(f"deep-dive fact check skipped: {type(e).__name__}: {e}"[:200])
+        return sections, srcs, []
+    have = {x["url"] for x in srcs}
+    for pg in pages:
+        if pg["url"] not in have:
+            srcs = srcs + [{"url": pg["url"], "title": pg.get("title") or pg["outlet"],
+                            "what": "found by the fact check" + (" (primary source)" if pg.get("primary") else "")}]
+            corpus.append(pg["text"][:20000])
+    new, again, _fatal = check_script(new, corpus, cfg)      # quotes, figures, privacy, audio rules once more
+    notes = [f"fact check: {res['checked']} sentences, {len(res['fixes'])} rewritten, {len(pages)} source(s) added, "
+             f"{len(res['held'])} for Steven"] + again
+    return new, srcs, notes
 
 
 def voice(root: Path, cfg: dict, day: str, log=print) -> dict | None:

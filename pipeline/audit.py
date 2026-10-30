@@ -29,51 +29,76 @@ def _plain(s: str) -> str:
     return s.replace("**", "").replace("*", "").strip()
 
 
-def claims(md: str, stories: list, n: int = N_CLAIMS) -> list:
-    """[{n, text, story, ids}]: sentences with a figure from Must read What happened lines, then Worth knowing."""
+_ACRO = re.compile(r"\b[A-Z][A-Z0-9&]{2,6}s?\b")
+
+
+def untraced_names(sent: str, corpus: str) -> list:
+    """Acronyms in SENT that none of its sources contain (2026-10-30: "CDIC" for the Government of Canada)."""
+    return [a for a in dict.fromkeys(_ACRO.findall(sent)) if a.rstrip("s") not in corpus and a not in corpus]
+
+
+def claims(md: str, stories: list, n: int = N_CLAIMS, every: bool = False, corpus=None) -> list:
+    """[{n, text, story, ids, line}]: sentences with a figure from Must read What happened lines, then Worth knowing.
+    every=True (the pre-send check): every sentence of those lines and the top section, up to n, two per story lifted
+    to six, with any sentence naming something its sources don't (corpus(ids) -> text) first."""
     by_head = {s.get("headline", ""): s for s in stories}
     out, seen = [], set()
     must = md.split("## Must read", 1)[1].split("\n## ", 1)[0] if "## Must read" in md else ""
     blocks = re.split(r"(?m)^### \d+\. ", must)[1:]
-    pool = []
+    pool, order = [], []
     for b in blocks:
         head = b.splitlines()[0].strip()
         s = by_head.get(head) or next((x for k, x in by_head.items() if k[:40] == head[:40]), {})
+        order.append((head, s))
         m = re.search(r"- \*\*What happened:\*\* (.+)", b)
         if m:
             for sent in _SENT.split(_plain(m.group(1))):
-                pool.append((0 if _FIG.search(sent) else 1, head, s, sent))
+                pool.append((0 if _FIG.search(sent) else 1, head, s, sent, m.group(0)))
     worth = md.split("## Worth knowing", 1)[1].split("\n## ", 1)[0] if "## Worth knowing" in md else ""
     for ln in worth.splitlines():
         m = re.match(r"- \*\*\d+\. (.+?)\*\* (.+)", ln)
         if m:
             head = m.group(1).rstrip(".")
             s = by_head.get(head) or next((x for k, x in by_head.items() if k[:40] == head[:40]), {})
-            for sent in _SENT.split(_plain(m.group(2)))[:1]:
-                pool.append((2 if _FIG.search(sent) else 3, head, s, sent))
+            for sent in _SENT.split(_plain(m.group(2)))[:None if every else 1]:
+                pool.append((2 if _FIG.search(sent) else 3, head, s, sent, ln))
+    if every:                                    # the top section: each line cites its Must read story as [k](url)
+        for name in ("Today in 30 seconds", "Top of mind"):
+            if f"## {name}" in md:
+                for ln in md.split(f"## {name}", 1)[1].split("\n## ", 1)[0].splitlines():
+                    r = re.search(r"\[(\d+)\]\(https?://", ln)
+                    if ln.startswith("- ") and r and 0 < int(r.group(1)) <= len(order):
+                        head, s = order[int(r.group(1)) - 1]
+                        for sent in _SENT.split(_plain(re.sub(r"^- \*\*.+?\*\*\s*", "", ln))):
+                            pool.append((1, head, s, sent, ln))
+                break
+    if every and corpus:
+        pool = [(-1 if untraced_names(x[3], " ".join(corpus(x[2].get("ids") or []))) else x[0], *x[1:]) for x in pool]
     used_story = {}
-    for pri, head, s, sent in sorted(pool, key=lambda x: x[0]):
+    for pri, head, s, sent, line in sorted(pool, key=lambda x: x[0]):
         sent = sent.strip()
-        if len(sent.split()) < 6 or sent in seen or not s.get("ids") or used_story.get(head, 0) >= 2:
+        if len(sent.split()) < 6 or sent in seen or not s.get("ids") or used_story.get(head, 0) >= (6 if every else 2):
             continue
         seen.add(sent)
         used_story[head] = used_story.get(head, 0) + 1
-        out.append({"n": len(out) + 1, "text": sent, "story": head, "ids": s["ids"]})
+        out.append({"n": len(out) + 1, "text": sent, "story": head, "ids": s["ids"], "line": line})
         if len(out) >= n:
             break
     return out
 
 
-def _excerpt(texts: list, claim: str, limit: int = 2400) -> str:
-    """The parts of the source texts that share the claim's figures and names."""
+def _excerpt(texts: list, claim: str, limit: int = 4800) -> str:
+    """The parts of the source texts that share the claim's figures and names, best matches first (v0.2.33: ranked,
+    and twice the room, so a detail deep in a long source still reaches the check)."""
     keys = {w.lower() for w in re.findall(r"[A-Z][\w.-]+|\d[\d,.]*", claim) if len(w) > 1}
-    parts = []
+    scored = []
     for t in texts:
-        for para in re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", t)):
+        for i, para in enumerate(re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", t))):
             low = para.lower()
             hits = sum(1 for k in keys if k in low)
             if hits >= 2 or (hits == 1 and len(keys) <= 2):
-                parts.append(para[:400])
+                scored.append((-hits, len(scored), para[:400]))
+    parts = [p for _h, _i, p in sorted(scored)]
     txt = " … ".join(dict.fromkeys(parts))
     return txt[:limit] if txt else " ".join(texts)[:limit]
 
@@ -103,23 +128,7 @@ def run(root: Path, day: str, llm, system: str, log=print) -> dict:
     root = Path(root)
     md = (root / "briefings" / f"{day}.md").read_text("utf-8")
     cl = claims(md, _stories(root, day))
-    tmpl, version = prompt("audit")
-    blocks = []
-    for c in cl:
-        texts = factcheck.corpus(root, c["ids"])
-        c["sources"] = len(texts)
-        blocks.append(f"CLAIM {c['n']} (story: {c['story']}): {c['text']}\nSOURCE EXCERPTS: {_excerpt(texts, c['text'])}")
-    checks = {}
-    if cl:
-        try:
-            out = _ask(llm, system, tmpl.replace("{{claims}}", "\n\n".join(blocks)), 300 + 120 * len(cl))
-            for x in out.get("checks") or []:
-                v = str(x.get("verdict", "")).lower().strip()
-                if v in VERDICTS and str(x.get("n", "")).isdigit():
-                    checks[int(x["n"])] = {"verdict": v, "why": _one_line(str(x.get("why") or ""))[:240],
-                                           "source": _one_line(str(x.get("source") or ""))[:80]}
-        except Exception as e:  # noqa: BLE001
-            log(f"audit: model check failed: {type(e).__name__}: {e}"[:200])
+    checks, version = _check(root, cl, llm, system, log)
     rows = []
     for c in cl:
         r = {"n": c["n"], "claim": c["text"], "story": c["story"], "sources": c.get("sources", 0),
@@ -135,6 +144,300 @@ def run(root: Path, day: str, llm, system: str, log=print) -> dict:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(res, ensure_ascii=False, indent=1), "utf-8")
     return res
+
+
+def _check(root: Path, cl: list, llm, system: str, log=print, limit: int = 4800) -> tuple:
+    """({n: {verdict, why, source}}, prompt version): the model's verdict on each claim against its own sources
+    (plus any pages a claim carries in "found": [{outlet, url, text}])."""
+    tmpl, version = prompt("audit")
+    blocks = []
+    for c in cl:
+        texts = (list(c["texts"]) if "texts" in c else factcheck.corpus(root, c["ids"])) + \
+            [f"({f['outlet']}) {f['text']}" for f in c.get("found") or []]
+        c["sources"] = len(texts)
+        c["excerpt"] = _excerpt(texts, c["text"], limit)
+        names = untraced_names(c["text"], " ".join(texts))
+        blocks.append(f"CLAIM {c['n']} (story: {c['story']}): {c['text']}\nSOURCE EXCERPTS: {c['excerpt']}"
+                      + (f"\nNOT IN ANY SOURCE: {', '.join(names)}" if names else ""))
+    checks = {}
+    if cl:
+        try:
+            out = _ask(llm, system, tmpl.replace("{{claims}}", "\n\n".join(blocks)), 300 + 120 * len(cl))
+            for x in out.get("checks") or []:
+                v = str(x.get("verdict", "")).lower().strip()
+                if v in VERDICTS and str(x.get("n", "")).isdigit():
+                    checks[int(x["n"])] = {"verdict": v, "why": _one_line(str(x.get("why") or ""))[:240],
+                                           "source": _one_line(str(x.get("source") or ""))[:80]}
+        except Exception as e:  # noqa: BLE001
+            log(f"audit: model check failed: {type(e).__name__}: {e}"[:200])
+    return checks, version
+
+
+# ---- the pre-send check (Steven, 2026-10-30: "do the fact check BEFORE the email is sent") ----
+PRESEND_N = 24
+FIX = ("partly", "contradicted")
+WIDE = 12000             # a "not found" claim is looked at again with this much of its sources
+_URL = re.compile(r"\]\((https?://[^)\s]+)\)")
+
+
+def _label(line: str) -> str:
+    return line[:line.find("**", 3) + 2] if line.startswith("- **") and line.find("**", 3) > 0 else "- "
+
+
+def _fixed_line(old: str, new: str, may_add=()) -> bool:
+    """A rewrite is taken only when it stays one bullet line with the same label, keeps its links, adds at most one
+    link and only from MAY_ADD (live pages found for this claim), and isn't much longer."""
+    if not new or "\n" in new.strip() or not new.startswith(_label(old)):
+        return False
+    before, after = set(_URL.findall(old)), set(_URL.findall(new))
+    added = after - before
+    if not before <= after or len(added) > 1 or not added <= set(may_add):
+        return False
+    return len(new) <= len(old) * 1.4 + 120
+
+
+def _add_source(md: str, line: str, page: dict) -> str:
+    """The page a rewrite now cites joins the Sources line of the Must read block holding LINE."""
+    i = md.find(line)
+    if i < 0:
+        return md
+    j = md.find("- **Sources:**", i)
+    nxt = md.find("\n### ", i)
+    if j < 0 or (0 <= nxt < j) or page["url"] in md[j: md.find("\n", j)]:
+        return md
+    k = md.find("\n", j)
+    k = len(md) if k < 0 else k
+    return md[:k] + f" · [{page['outlet']}: {page.get('title') or 'source'}]({page['url']})" + md[k:]
+
+
+def presend(root: Path, day: str, llm, system: str, log=print, stamp=None, finder=None, judge=None) -> dict:
+    """Before the audio, the takes email and the send: check every factual claim of DAY's draft against its sources.
+    - "not found" -> looked at again with far more of its sources (WIDE);
+    - still not right -> a search for a live page that has it (government and regulators first; factsearch);
+    - partly right or contradicted -> the line rewritten to what the sources (and any found page, which it may cite
+      with one new link, added to the story's Sources too) say; then checked again by JUDGE, a second model
+      (llm.stages.judge2, the local model by default), so the model that rewrote a line doesn't grade it.
+    What still doesn't hold is listed for Steven in the takes email. Saves data/audit/DAY-presend.json and rewrites
+    briefings/DAY.md in place (it hasn't shipped)."""
+    import datetime as dt
+    root = Path(root)
+    judge = judge or llm
+    p = root / "briefings" / f"{day}.md"
+    md = p.read_text("utf-8")
+    cache = {}
+
+    def corp(ids):
+        k = tuple(ids)
+        if k not in cache:
+            cache[k] = factcheck.corpus(root, list(ids))
+        return cache[k]
+    cl = claims(md, _stories(root, day), n=PRESEND_N, every=True, corpus=corp)
+    checks, version = _check(root, cl, llm, system, log)
+    widened = [c for c in cl if checks.get(c["n"], {}).get("verdict") == "not found"]
+    if widened:                                  # 1. more of the cited sources
+        wc, _ = _check(root, widened, llm, system, log, limit=WIDE)
+        for c in widened:
+            if c["n"] in wc:
+                checks[c["n"]] = {**wc[c["n"]], "widened": True}
+    searched = 0
+    if finder is not None:                       # 2. a live page that has what the cited sources don't
+        from . import factsearch
+        for c in [c for c in cl if checks.get(c["n"], {}).get("verdict") in FIX + ("not found",)]:
+            own = set(_URL.findall(c["line"]))
+            c["found"] = factsearch.pages_for(finder, c["text"], skip=own)
+            searched += 1
+            if c["found"]:
+                fc, _ = _check(root, [c], llm, system, log)
+                if c["n"] in fc:
+                    checks[c["n"]] = {**fc[c["n"]], "searched": True}
+    bad = [c for c in cl if checks.get(c["n"], {}).get("verdict") in FIX
+           or (checks.get(c["n"], {}).get("verdict") == "not found" and c.get("found"))]
+    fixes, held = [], []
+    tmpl, _ = prompt("audit_fix")
+    by_line = {}
+    for c in bad:
+        by_line.setdefault(c["line"], []).append(c)
+    for line, cs in by_line.items():
+        if line not in md:
+            continue
+        found = [f for c in cs for f in c.get("found") or []]
+        found = list({f["url"]: f for f in found}.values())
+        cited = "\n\n".join(dict.fromkeys(_excerpt(corp(c["ids"]), c["text"], WIDE // 2) for c in cs))[:7000]
+        extra = "\n\n".join(f"[{f['outlet']}]({f['url']})" + (" (primary source)" if f.get("primary") else "")
+                             + f": {_excerpt([f['text']], cs[0]['text'], 2000)}" for f in found) or "(none)"
+        ask = (tmpl.replace("{{line}}", line).replace("{{problems}}", "\n".join(
+            f"- \"{c['text']}\": {checks[c['n']]['verdict']}: {checks[c['n']]['why']}" for c in cs))
+            .replace("{{excerpts}}", cited).replace("{{found}}", extra))
+        try:
+            new = str((_ask(llm, system, ask, 900) or {}).get("line") or "").strip()
+        except Exception as e:  # noqa: BLE001
+            log(f"pre-send fix failed: {type(e).__name__}: {e}"[:200])
+            new = ""
+        if not _fixed_line(line, new, [f["url"] for f in found]):
+            held += [{"claim": c["text"], **checks[c["n"]]} for c in cs]
+            continue
+        md = md.replace(line, new, 1)
+        added = [f for f in found if f["url"] in set(_URL.findall(new)) - set(_URL.findall(line))]
+        for f in added:
+            md = _add_source(md, new, f)
+        fixes.append({"before": line, "after": new, "why": "; ".join(checks[c["n"]]["why"] for c in cs)[:400],
+                      "added_source": [{"url": f["url"], "outlet": f["outlet"]} for f in added]})
+    if fixes:                                    # 3. the rewritten lines, checked again by the second judge
+        again = []
+        for i, f in enumerate(fixes):
+            c0 = next(c for c in bad if c["line"] == f["before"])
+            for sent in _SENT.split(_plain(re.sub(r"^- \*\*.+?\*\*\s*", "", f["after"]))):
+                if len(sent.split()) >= 6:
+                    again.append({**c0, "n": len(again) + 1, "text": sent.strip(), "fix": i})
+        rc, _ = _check(root, again, judge, system, log)
+        for a in again:
+            v = rc.get(a["n"], {}).get("verdict", "unchecked")
+            fixes[a["fix"]].setdefault("recheck", []).append(v)
+            if v in FIX:
+                held.append({"claim": a["text"], **rc[a["n"]], "judge": getattr(judge, "label", "")})
+    for c in cl:                                 # not found anywhere: for Steven, not cut (names, not figures)
+        if checks.get(c["n"], {}).get("verdict") == "not found" and not c.get("found"):
+            held.append({"claim": c["text"], **checks[c["n"]]})
+    if md != p.read_text("utf-8"):
+        p.write_text(md, "utf-8")
+    at = (stamp or dt.datetime.now)().isoformat(timespec="seconds")
+    res = {"day": day, "at": at, "prompt": version, "model": getattr(llm, "label", ""),
+           "judge": getattr(judge, "label", ""), "checked": len(checks),
+           "supported": sum(1 for v in checks.values() if v["verdict"] == "supported"),
+           "widened": len(widened), "searched": searched, "flagged": len(bad), "fixes": fixes, "held": held}
+    out = root / DIR / f"{day}-presend.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(res, ensure_ascii=False, indent=1), "utf-8")
+    log(f"Pre-send fact check: {res['checked']} claims, {len(fixes)} line(s) rewritten "
+        f"({sum(len(f['added_source']) for f in fixes)} with a new source), {len(held)} for Steven")
+    return res
+
+
+# ---- the same check on the deep dive's spoken sections (Steven, 2026-10-30: "lets do the deep dive now") ----
+DD_FACTUAL = ("why_today", "plainly", "evidence", "readings")     # so_what / watch are analysis, not rewritten
+DD_N = 24
+
+
+def dd_claims(sections: list, corpus: list, n: int = DD_N) -> list:
+    """[{n, text, story (section id), texts}]: sentences of the factual sections, those naming something no source
+    has first, then those with a figure, then the rest; each section at most 8."""
+    hay = " ".join(corpus)
+    pool = []
+    for sid, text in sections:
+        base = sid.split("~", 1)[0]
+        if base not in DD_FACTUAL:
+            continue
+        for sent in _SENT.split(text):
+            sent = sent.strip()
+            if len(sent.split()) < 6:
+                continue
+            pri = 0 if untraced_names(sent, hay) else 1 if _FIG.search(sent) else 2 if re.search(r"\b[A-Z][a-z]+\b.*\b[A-Z]", sent) else 3
+            pool.append((pri, sid, sent))
+    out, per = [], {}
+    for pri, sid, sent in sorted(pool, key=lambda x: x[0]):
+        if per.get(sid, 0) >= 8 or pri == 3:
+            continue
+        per[sid] = per.get(sid, 0) + 1
+        out.append({"n": len(out) + 1, "text": sent, "story": sid, "ids": [], "texts": corpus, "line": sent})
+        if len(out) >= n:
+            break
+    return out
+
+
+def check_sections(root: Path, day: str, sections: list, corpus: list, llm, system: str, log=print, judge=None,
+                   finder=None, stamp=None, ok_sentence=None, name: str = "deepdive") -> tuple:
+    """The deep dive's version of presend, before it is recorded: -> (sections, report, found pages to add as
+    sources). Sentences are spoken text, so a rewrite stays one plain sentence (no links, no markup; ok_sentence
+    decides, e.g. the audio rules), and a page found by search joins the deep dive's Sources list instead of
+    getting an inline link. Saves data/audit/DAY-deepdive.json."""
+    import datetime as dt
+    judge = judge or llm
+    cl = dd_claims(sections, corpus)
+    checks, version = _check(root, cl, llm, system, log)
+    widened = [c for c in cl if checks.get(c["n"], {}).get("verdict") == "not found"]
+    if widened:
+        wc, _ = _check(root, widened, llm, system, log, limit=WIDE)
+        for c in widened:
+            if c["n"] in wc:
+                checks[c["n"]] = {**wc[c["n"]], "widened": True}
+    searched = 0
+    if finder is not None:
+        from . import factsearch
+        for c in [c for c in cl if checks.get(c["n"], {}).get("verdict") in FIX + ("not found",)]:
+            c["found"] = factsearch.pages_for(finder, c["text"])
+            searched += 1
+            if c["found"]:
+                fc, _ = _check(root, [c], llm, system, log)
+                if c["n"] in fc:
+                    checks[c["n"]] = {**fc[c["n"]], "searched": True}
+    bad = [c for c in cl if checks.get(c["n"], {}).get("verdict") in FIX
+           or (checks.get(c["n"], {}).get("verdict") == "not found" and c.get("found"))]
+    tmpl, _ = prompt("audit_fix_spoken")
+    fixes, held, used = [], [], {}
+    text_of = {sid: t for sid, t in sections}
+    for c in bad:
+        found = c.get("found") or []
+        ask = (tmpl.replace("{{sentence}}", c["text"])
+               .replace("{{problem}}", f"{checks[c['n']]['verdict']}: {checks[c['n']]['why']}")
+               .replace("{{excerpts}}", _excerpt(corpus, c["text"], WIDE // 2))
+               .replace("{{found}}", "\n\n".join(f"{f['outlet']}" + (" (primary source)" if f.get("primary") else "")
+                                                  + f": {_excerpt([f['text']], c['text'], 2000)}" for f in found) or "(none)"))
+        try:
+            new = str((_ask(llm, system, ask, 500) or {}).get("sentence") or "").strip()
+        except Exception as e:  # noqa: BLE001
+            log(f"deep-dive fix failed: {type(e).__name__}: {e}"[:200])
+            new = ""
+        good = bool(new) and "\n" not in new and not re.search(r"https?://|\[|\]|\*|#", new) \
+            and len(new) <= len(c["text"]) * 1.5 + 60 and (ok_sentence is None or ok_sentence(new))
+        sid = c["story"]
+        if not good or c["text"] not in text_of.get(sid, ""):
+            held.append({"claim": c["text"], "section": sid, **checks[c["n"]]})
+            continue
+        text_of[sid] = text_of[sid].replace(c["text"], new, 1)
+        fixes.append({"section": sid, "before": c["text"], "after": new, "why": checks[c["n"]]["why"][:300],
+                      "found": [f["url"] for f in found]})
+    if fixes:                                    # checked again by the second judge, with any found pages
+        extra = [f"({f['outlet']}) {f['text']}" for c in bad for f in c.get("found") or []]
+        again = [{"n": i + 1, "text": f["after"], "story": f["section"], "ids": [], "texts": corpus + extra}
+                 for i, f in enumerate(fixes)]
+        rc, _ = _check(root, again, judge, system, log)
+        for a, f in zip(again, fixes):
+            f["recheck"] = rc.get(a["n"], {}).get("verdict", "unchecked")
+            if f["recheck"] in FIX:
+                held.append({"claim": f["after"], "section": f["section"], **rc[a["n"]], "judge": getattr(judge, "label", "")})
+        pages = {x["url"]: x for c in bad for x in c.get("found") or []}
+        for f in fixes:                          # a found page joins the Sources when its fix checked out
+            if f["recheck"] == "supported":
+                for u in f["found"]:
+                    used.setdefault(u, pages[u])
+    for c in cl:
+        if checks.get(c["n"], {}).get("verdict") == "not found" and not c.get("found"):
+            held.append({"claim": c["text"], "section": c["story"], **checks[c["n"]]})
+    res = {"day": day, "at": (stamp or dt.datetime.now)().isoformat(timespec="seconds"), "prompt": version,
+           "model": getattr(llm, "label", ""), "judge": getattr(judge, "label", ""), "checked": len(checks),
+           "supported": sum(1 for v in checks.values() if v["verdict"] == "supported"), "widened": len(widened),
+           "searched": searched, "flagged": len(bad), "fixes": fixes, "held": held,
+           "added_sources": [{"url": u, "outlet": f["outlet"]} for u, f in used.items()]}
+    out = Path(root) / DIR / f"{day}-{name}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(res, ensure_ascii=False, indent=1), "utf-8")
+    log(f"Deep-dive fact check: {res['checked']} sentences, {len(fixes)} rewritten, "
+        f"{len(used)} new source(s), {len(held)} for Steven")
+    return [(sid, text_of[sid]) for sid, _ in sections], res, list(used.values())
+
+
+def load_deepdive_check(root: Path, day: str) -> dict:
+    try:
+        return json.loads((Path(root) / DIR / f"{day}-deepdive.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def load_presend(root: Path, day: str) -> dict:
+    try:
+        return json.loads((Path(root) / DIR / f"{day}-presend.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 def load_all(root: Path) -> list:

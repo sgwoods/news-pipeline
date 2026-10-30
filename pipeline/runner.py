@@ -61,6 +61,8 @@ RECIPES = {
     "correct": {"tier": "chat", "args": {"day": "day", "note": "text"},
                 "steps": [("prod", ["correct", "{day}", "{note}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "publish": {"tier": "chat", "args": {}, "steps": [("prod", ["publish"]), ("local", ["verify"])]},
+    "remaster": {"tier": "chat", "args": {"day": "day", "note": "text"},   # re-record DAY's podcast from its corrected
+                 "steps": [("prod", ["remaster", "{day}", "--correct", "{note}"]), ("local", ["verify"])]},  # text
     "restore": {"tier": "chat", "args": {}, "steps": [("prod", ["publish", "restore"]), ("local", ["verify"])]},
     "takes-done": {"tier": "chat", "args": {}, "steps": [("prod", ["takes", "done"])]},
     "takes-test": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["takes", "test", "{day}"])]},
@@ -68,6 +70,7 @@ RECIPES = {
     "drive-save": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["drive", "save", "{day}"])]},
     "audio-check": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["audio-check", "{day}"])]},
     "audit":   {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["audit", "{day}"])]},
+    "audit-deepdive": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["audit", "deepdive", "{day}"])]},
     "positions-score": {"tier": "auto", "args": {"day": "day?"}, "steps": [("prod", ["positions", "score", "{day}"])]},
     "setup": {"tier": "chat", "args": {}, "steps": [("prod", ["setup"])]},     # install requirements.txt
     "email-remind": {"tier": "chat", "args": {"emails": "emails?"}, "steps": [("prod", ["email", "remind", "{emails}"])]},
@@ -81,8 +84,12 @@ RECIPES = {
     "critic-email": {"tier": "auto", "args": {"date": "day?"}, "steps": [("prod", ["critic", "email", "{date}"])]},
     "source-add": {"tier": "chat", "args": {"name": "text", "url": "url", "url2": "url?", "note": "text?"},
                    "steps": [("prod", ["sources", "add", "{name}", "{url}", "{url2}", "{note}"])]},
-    "ship":    {"tier": "mac", "args": {"version": "version", "note": "reviewed"},
-                "steps": [("dev", ["staging", "sync"]), ("dev", ["tests"]), APPROVE,
+    # ship (v0.2.33): lane "" / "slot" = the weekday 13:00 slot, once a day; lane "fix" = something is broken, any
+    # time in the release window. Before Approve, a soak: today's edition rebuilt with the dev code and compared with
+    # production; a compare that needs review (exit 3) stops the ship unless "accept" quotes Steven's OK.
+    "ship":    {"tier": "mac", "args": {"version": "version", "note": "reviewed", "lane": "lane?", "accept": "accepted?"},
+                "steps": [("dev", ["staging", "sync"]), ("dev", ["tests"]), ("dev", ["staging", "run"]),
+                          ("dev", ["staging", "compare"]), APPROVE,
                           ("local", ["release", "{version}", "{note}"]), ("local", ["verify"]),
                           ("local?", ["follow-through", "{note}"])]},   # public export + mail script, same Approve
     "release": {"tier": "mac", "args": {"version": "version", "note": "reviewed"},
@@ -109,7 +116,7 @@ RECIPES = {
     "mailer-status": {"tier": "auto", "args": {}, "steps": [("prod", ["mailer", "status"])]},
     "mailer-setup": {"tier": "chat", "args": {"script": "text"}, "steps": [("prod", ["mailer", "setup", "{script}"])]},
 }
-CHANGES_PRODUCTION = {"setup", "correct", "publish", "restore", "ship", "release", "rollback", "approve", "install-hooks",
+CHANGES_PRODUCTION = {"setup", "correct", "publish", "remaster", "restore", "ship", "release", "rollback", "approve", "install-hooks",
                       "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive", "service-install"}
 IN_RELEASE_WINDOW = {"ship", "release"}
 NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup", "ntfy-setup",
@@ -197,6 +204,13 @@ def validate(job: dict, name: str = "") -> dict:
                     not all(re.fullmatch(r"[^\s@<>\"',]+@[^\s@<>\"',]+\.[A-Za-z]{2,}", x) for x in parts):
                 raise JobError(f"{k}: an email address" + ("" if kind == "email" else " or a comma-separated list"))
             v = ",".join(parts)
+        elif kind == "lane":
+            if v not in ("slot", "fix"):
+                raise JobError(f'{k}: "slot" (the daily 13:00 release) or "fix" (something is broken)')
+        elif kind == "accepted":
+            v = _text(v, 300)
+            if not v.lower().startswith("accepted"):
+                raise JobError(f'{k} must start with "accepted:" and quote Steven\'s OK in chat')
         elif kind == "reviewed":
             v = _text(v, 300)
             if not v.lower().startswith("reviewed"):
@@ -414,7 +428,7 @@ class Runner:
     """One pass over the queue. `local` maps local step names to functions run.py provides (argv -> exit code)."""
 
     def __init__(self, root: Path, dev: Path, local: dict, now=None, ask=ask_mac, notify=notify_mac,
-                 busy=None, summary=None, sent_today=None, key=None, phone=None):
+                 busy=None, summary=None, sent_today=None, key=None, phone=None, slot=None):
         self.root, self.dev, self.local = root, dev, local
         self.now = now or dt.datetime.now
         self.ask, self.notify = ask, notify
@@ -423,6 +437,7 @@ class Runner:
         self.sent_today = sent_today or (lambda: False)   # today's edition is out (published and emailed)
         self.key = key                                    # () -> bytes: the early-approval key (Keychain); None = off
         self.phone = phone if (phone and key) else None    # Phone: approve from the phone (needs the key too)
+        self.slot = slot                                  # dt.time: the daily release slot; None = no lane rules
 
     def _edition_out(self) -> bool:
         """The morning is done: today's edition went out and no run is busy (v0.2.13: no waiting for 08:30)."""
@@ -432,8 +447,35 @@ class Runner:
         t = self.now().time()
         return RELEASE_WINDOW[0] <= t <= RELEASE_WINDOW[1] or (t <= RELEASE_WINDOW[1] and self._edition_out())
 
+    def _slot_used(self, job: dict) -> bool:
+        """A slot ship already went out today (one batched release a day)."""
+        today = self.now().date().isoformat()
+        for p in qdir(self.root, "done").glob("*.json"):
+            if p.name.endswith(".queued.json") or p.stem == job["id"]:
+                continue
+            try:
+                j = json.loads(p.read_text("utf-8"))
+            except (ValueError, OSError):
+                continue
+            if j.get("recipe") == "ship" and j.get("status") == "ok" and (j.get("args") or {}).get("lane") != "fix" \
+                    and str(j.get("started") or j.get("ended") or "").startswith(today):
+                return True
+        return False
+
+    def lane_closed(self, job: dict) -> str:
+        """Why a slot ship can't go today at all (weekend, or today's slot used); "" when it can."""
+        if self.slot is None or job["recipe"] != "ship" or job["args"].get("lane") == "fix":
+            return ""
+        if self.now().weekday() >= 5:
+            return "slot releases are weekdays only; queue it Monday, or lane fix if something is broken"
+        if self._slot_used(job):
+            return "today's release slot is used; queue it for the next weekday, or lane fix if something is broken"
+        return ""
+
     def _defer(self, job: dict) -> str:
         t = self.now().time()
+        if self.slot and job["recipe"] == "ship" and job["args"].get("lane") != "fix" and t < self.slot:
+            return f"the daily release slot opens at {self.slot.strftime('%H:%M')}"
         if job["recipe"] in CHANGES_PRODUCTION and (self.busy() or (MORNING[0] <= t < MORNING[1] and not self._edition_out())):
             return "the morning run's window or a run in progress"
         if job["recipe"] in IN_RELEASE_WINDOW and not self._release_open():
@@ -568,7 +610,12 @@ class Runner:
                     f.write(f"no local step {argv[0]}\n")
                 return 1
             return run_local(fn, argv[0], argv[1:], log)
-        return run_np(self.dev if where == "dev" else self.root, argv, log)
+        code = run_np(self.dev if where == "dev" else self.root, argv, log)
+        if code == 3 and argv[:2] == ["staging", "compare"] and job["args"].get("accept"):
+            with log.open("a", encoding="utf-8") as f:
+                f.write(f"compare needs review; going on: {job['args']['accept']}\n")
+            return 0
+        return code
 
     def _run_steps(self, job: dict, steps: list, start: int, log: Path) -> int:
         for i, step in enumerate(steps[start:], start):
@@ -596,6 +643,10 @@ class Runner:
         for k in ("steps", "phase", "prompted_at", "started", "phone_sent", "phone_check"):
             if k in raw:
                 job[k] = raw[k]
+        closed = self.lane_closed(job)
+        if closed:
+            _finish(self.root, src, job, "expired", closed, self.notify)
+            return "expired"
         why = self._defer(job)
         if why:
             job["deferred"] = why

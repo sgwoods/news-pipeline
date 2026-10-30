@@ -52,3 +52,14 @@ at inference time), a change in the trajectory of the field, or a story that has
 - **Queue:** dashboard /deep-dives: Claude adds up to 4 suggestions each morning; queue, reorder, dismiss or add your own. Up next goes first; otherwise the day's best (strength 4+). One a day; Up next is never left empty (the best suggestion is moved up if you queued nothing).
 - **Voices:** briefing am_michael ("Michael", ~131 words a minute), deep dive af_bella ("Bella", ~157), changeable on
   the Tuning page. Script length is set from each voice's measured speed (`audio.voice_wpm`).
+
+## Since v0.2.29: drafts, takes, suggestions and the thread (2026-10-28 to 10-30)
+- **The advance draft** (v0.2.31): at 15:30 tomorrow's deep dive is written and checked, and saved to Drive as
+  "<day> · Deep dive · <title> (draft)" with a nudge and an email. Two boxes at the end: **Steven's take** (read
+  verbatim after the episode) and **Notes for the editor** (what to change). At 05:00 the take goes in and notes make
+  the writer revise the draft, which is checked again; then it is voiced and shipped. Only the two boxes are read.
+- **Takes edited in the Doc** (v0.2.25): after publication, a changed take in the deep-dive Doc re-records the deep
+  dive and re-publishes its episode within 20 minutes; no email is re-sent.
+- **Readers suggest topics** (v0.2.29): a link in the email and on every deep-dive page; suggestions enter the queue
+  as "suggested by <name>" (or "a reader") and the episode credits them when it runs.
+- **In Slack** (v0.2.28): the deep dive is a reply, with its own card, in the thread of the morning post.

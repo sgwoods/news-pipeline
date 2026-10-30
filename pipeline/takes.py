@@ -290,6 +290,30 @@ def build_email(root: Path, cfg: dict, day: str, review: bool = True, drive: str
     if drive:                                    # the same held edition as a Google Doc (Briefings folder)
         H.append(f'<p {P}><a href="{esc(drive, quote=True)}">Read it in Google Docs</a> (the Briefings folder in Drive).</p>')
         L += [f"Read it in Google Docs: {drive}", ""]
+    try:                                         # what the pre-send fact check changed or couldn't settle (v0.2.33)
+        from .audit import load_deepdive_check, load_presend
+        pc = load_presend(root, day)
+        ddc = load_deepdive_check(root, day)
+    except Exception:  # noqa: BLE001
+        pc, ddc = {}, {}
+    if ddc.get("held"):                          # the deep dive's open items show here too
+        pc = {**pc, "held": (pc.get("held") or []) + [{**h, "claim": "Deep dive: " + h["claim"]} for h in ddc["held"]]}
+        pc.setdefault("checked", 0)
+    if pc:
+        head = (f"Fact check before sending: {pc.get('checked', 0)} claims checked against their sources, "
+                f"{len(pc.get('fixes') or [])} line(s) rewritten" + (f", {len(pc['held'])} for you to look at" if pc.get("held") else "") + ".")
+        H.append(f'<p {P}><b>{esc(head)}</b></p>')
+        L += [head]
+        for f in (pc.get("fixes") or [])[:8]:
+            src = "".join(f" New source: {a['outlet']}." for a in f.get("added_source") or [])
+            H.append(f'<p style="margin:0 0 6px;font-size:13px;color:#374151">Changed: {esc(f["why"][:200])}{esc(src)}<br>'
+                     f'<span style="color:#6b7280">Now: {esc(f["after"][:300])}</span></p>')
+            L += [f"Changed: {f['why'][:200]}{src}", f"  Now: {f['after'][:300]}"]
+        for h in (pc.get("held") or [])[:8]:
+            H.append(f'<p style="margin:0 0 6px;font-size:13px;color:#92400e">Check: {esc(h["claim"][:200])} '
+                     f'({esc(h.get("why", "")[:160])})</p>')
+            L += [f"Check: {h['claim'][:200]} ({h.get('why', '')[:160]})"]
+        L.append("")
     for slot, label, body, text in _sections(root, cfg, day):
         H.append(f'<div {CARD}><div {HEAD}>{esc(slot)} · {esc(label)}</div>{body}{btn(slot)}</div>')
         L += text + [""]

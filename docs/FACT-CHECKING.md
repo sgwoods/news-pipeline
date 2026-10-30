@@ -81,6 +81,46 @@ An evidence check that itself says the claim is self-reported, unverified or unt
 "Holds"; it reads "Unverified". A story whose source link is a bare homepage, or a sponsored or webinar page,
 can't be a Must read (`editorial.weak_lead`).
 
+## 4d. The pre-send fact check (since v0.2.33)
+Steven, 2026-10-30, after a wrong agency name ("CDIC" for the Government of Canada) went out and was corrected
+later: check before sending, not after. Once the draft is written, and before the audio, the takes email and the
+send, `pipeline/audit.presend` checks every factual sentence of the top section, the What happened lines and Worth
+knowing (up to 24) against that story's own source texts, with the same verdicts as the after-ship audit.
+Sentences naming an acronym no source contains go first, and the model is told which names are missing.
+
+1. **A wider look.** Excerpts are ranked, best match first (4,800 characters per claim). A claim the sources
+   "don't address" is looked at again with up to 12,000 characters of them before anything else happens.
+2. **A source we didn't cite.** A claim still partly right, contradicted or not found gets a search
+   (`factsearch.pages_for`: Bing News then web RSS, free, no account; at most 6 per edition). Only live pages
+   fetched now and naming the claim's main name count; government and regulator pages come first. The claim is
+   checked again with them.
+3. **The rewrite.** A partly-right or contradicted line is rewritten (prompt `audit_fix.md`) to what the cited
+   sources and found pages say, preferring a primary source when they differ. It keeps its label and every link;
+   it may add **one** link, and only to a page found in step 2; that page also joins the story's Sources line.
+   Anything else is refused.
+4. **A second judge.** The rewritten line is checked by a different model (`llm.stages.judge2`, the local model by
+   default), so the model that rewrote it doesn't grade it. The after-send audit uses that model too.
+5. **Steven.** What still doesn't hold (a refused rewrite, a re-check that fails, a name no source has) is listed
+   at the top of the takes email ("Check: …"), while the edition is held. Names aren't cut automatically; figures
+   still are (section 3).
+
+Saved in `data/audit/DAY-presend.json`. The day page ends with a **Notes** footnote: when the check ran, how many
+lines it rewrote and how many with a newly cited source, and every later correction with its date and time (ET).
+A corrected page also has a one-line pointer at the top. `analysis.presend_check: false` turns it off.
+
+## 4e. The deep dive, before it is recorded (since v0.2.33)
+The same check runs on the deep dive's script (`audit.check_sections`, from `deepdive.run` after the script checks
+of section 3): up to 24 sentences of Why today, Plainly, the evidence and How people read it (So what and What to
+watch are analysis), names no source has first, against the dive's sources (archived stories plus the live pages
+it cites). Not found → a wider look → a search; partly right or contradicted → the sentence rewritten as one plain
+spoken sentence (prompt `audit_fix_spoken.md`: no links or markup, passes the audio rules, may say "according to
+…" for a found page); the second model re-checks it; a found page whose fix checks out joins the dive's Sources.
+The script checks run again over the result. Saved in `data/audit/DAY-deepdive.json`.
+
+What's left for Steven appears in tomorrow's **draft Doc** ("Fact check: please look", above Steven's take; he
+answers in Notes for the editor, and the morning revision is checked again) and in the takes email. The deep-dive
+page ends with the same Notes footnote. `deepdive.fact_check: false` turns it off.
+
 ## 5. Privacy gate: the one check that blocks
 `links.py`, `mailer.privacy_gate`, `publish.scan_site`, `stages.scrub_private`: private names, the owner's
 addresses, board-seat notes and tracker links never leave. A hit removes the text. If anything is still left at
@@ -112,5 +152,8 @@ cut, and the summary and "Why today" lines checked as in section 4.
 ## Known gaps (next)
 - Only "not disclosed" claims are compared across days. Other contradictions between days (different figures for
   the same thing) are left to the weekly review.
-- The check matches names, not meaning: a sentence that names the right company but gets its role in the story
-  wrong can still pass.
+- The figure and consistency checks match names, not meaning; the pre-send check (4d) reads meaning, but only up
+  to 24 sentences, and Evidence check / Our read / Open questions are analysis and aren't rewritten.
+- A claim is only as good as its source: a report that misreads a release passes against that report. The search
+  in 4d prefers the primary source, which catches this when the release is findable; otherwise it is caught only
+  by the after-send check or a reader.

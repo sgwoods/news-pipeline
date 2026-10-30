@@ -42,8 +42,29 @@ issue per day with what happened and the exact commands to run. This is the one 
 refuses any other recipient or action; Code.gs limits recipients too), and its text comes from fixed templates plus
 the pipeline's own error messages, defused and privacy-checked.
 
-Approvals need a person at a terminal, so Claude, the scheduled tasks and the dashboard cannot approve.
-Claude says when an approval is needed and what to look at.
+Approvals need Steven, never Claude, a scheduled task or the dashboard. Claude says when an approval is needed and
+what to look at, then queues a mac-tier job. Steven answers it one of three ways, each tied to that job and that day
+by a key only the Mac's Keychain holds (pipeline/runner.py):
+- **a tap on the phone** (ntfy, v0.2.24, the usual way): Approve or Reject on the notification sends a one-time
+  token over a private topic; the runner checks it on its next tick;
+- **the Mac dialog** (shown for 90 seconds when phone approvals are on);
+- **the approval page with a passphrase** (v0.2.22, fallback): the page sends a proof made on the phone from the
+  passphrase, checked against the Keychain.
+None of the email, the mail script's records or the job files can stand in for these, so Claude, which can read all
+of them, cannot approve. Releases run 08:30–20:00, or earlier once the morning edition is out.
+
+## Release rules for day-to-day stability (2026-10-30)
+The newsletter matters more than the next feature. From v0.2.33:
+- **One slot a day.** Feature work batches into one `ship` per weekday, from 13:00 (`release.slot`): after the
+  edition and the takes, before the 15:30 advance draft. A second slot ship the same day, or a slot ship at a
+  weekend, is refused with the reason ("expired"), not held.
+- **The fix lane.** `ship` with `lane: fix` is for something that is broken (a failed run, a wrong page, a lost
+  input). It goes any time in the release window and doesn't use the slot. Claude says in chat why it is a fix.
+- **The soak.** Every ship rebuilds today's edition in dev with the new code (`./np staging run`, outbound off) and
+  compares it with what went out (`./np staging compare`: sections, counts, length, links, audio, privacy). A compare
+  that needs review stops the ship before Steven is asked; it goes only with `accept: "accepted: <Steven's words>"`.
+  The Approve shows the lane and the soak verdict.
+- `release` (no tests, no soak) is only for finishing a ship whose release step failed.
 
 Baseline: the first approval is Steven's, after reading `REVIEW-2026-10-15.md`. Until then every outbound
 step is blocked (the morning briefing is still produced locally).

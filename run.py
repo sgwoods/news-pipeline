@@ -1167,6 +1167,15 @@ def _runner_verify(cfg: dict) -> int:
     return 0 if hook_ok and ok and not dirty else 1
 
 
+def _release_slot(cfg: dict):
+    """config release.slot ("13:00", the daily batched ship; Steven 2026-10-30). "off" turns the lane rules off."""
+    v = str(((cfg.get("release") or {}).get("slot")) or "13:00")
+    if v.lower() == "off":
+        return None
+    import datetime as _dt
+    return _dt.time.fromisoformat(v)
+
+
 def _runner_summary(cfg: dict, job: dict) -> str:
     """What the approval dialog shows: the commits and files a release brings, or the note."""
     import subprocess as _sp
@@ -1187,6 +1196,17 @@ def _runner_summary(cfg: dict, job: dict) -> str:
         if f"## v{v}" in ch:
             sec = ch.split(f"## v{v}", 1)[1].split("\n## ", 1)[0].strip().splitlines()[1:6]
             lines += [x[:160] for x in sec]
+    if job["recipe"] == "ship":
+        lines.insert(0, "FIX lane: something is broken" if job["args"].get("lane") == "fix" else "Daily release slot")
+        try:                                         # the soak: today's edition with the dev code vs production
+            dev = ROOT.parent / "news-pipeline-dev"
+            rep = sorted((dev / "logs").glob("compare-*.md"))[-1].read_text("utf-8")
+            verdict = next((x.strip("* ") for x in rep.splitlines() if x.startswith("**")), "")
+            lines.insert(1, f"Soak on today's edition: {verdict}")
+        except Exception:  # noqa: BLE001
+            pass
+        if job["args"].get("accept"):
+            lines.append("Compare flags accepted: " + job["args"]["accept"])
     if job["args"].get("note"):
         lines.append("Note: " + job["args"]["note"])
     if job.get("chat_approval"):
@@ -1271,7 +1291,7 @@ def cmd_runner(cfg: dict, argv: list) -> int:
         runner.notify_mac(title, text, sound)
         if not title.startswith("approval waiting"):              # the approval itself is the ntfy message
             ntfy.notify(cfg, f"AI Briefing · {title}", text)
-    r = runner.Runner(ROOT, devenv.dev_path(ROOT, cfg), local, busy=lambda: run_in_progress(ROOT),
+    r = runner.Runner(ROOT, devenv.dev_path(ROOT, cfg), local, busy=lambda: run_in_progress(ROOT), slot=_release_slot(cfg),
                       summary=lambda job: _runner_summary(cfg, job), notify=notify,
                       sent_today=lambda: dt.date.today().isoformat() in sent_days(ROOT),
                       key=runner.approval_key if sys.platform == "darwin" else None, phone=phone)
@@ -1448,11 +1468,40 @@ def _llm_for(cfg: dict, stage: str):
     return llm.for_stage(cfg, stage), system
 
 
-def _accuracy_audit(cfg: dict, day: str, alert: bool = True) -> dict:
-    """The daily accuracy audit (pipeline/audit.py). Never fails the run; one alert when a claim needs a look."""
+def _presend_check(run, cfg: dict, day: str) -> dict:
+    """The pre-send fact check (pipeline/audit.presend; Steven 2026-10-30): every factual claim of the draft against
+    its sources, wrong lines rewritten before the audio, the takes email and the send. Never fails the run."""
     try:
         from pipeline import audit
         backend, system = _llm_for(cfg, "critique")
+        from pipeline import llm as _llm
+        judge = _llm.for_stage(cfg, "judge2")            # a second model re-checks what the first rewrote
+        try:
+            from pipeline import factcheck
+            ids = [i for s_ in audit._stories(ROOT, day) for i in s_.get("ids", [])]
+            finder = factcheck_finder(cfg, ids, run.log)
+        except Exception:  # noqa: BLE001
+            finder = None
+        res = audit.presend(ROOT, day, backend, system, log=run.log.info, finder=finder, judge=judge)
+    except Exception as e:  # noqa: BLE001
+        run.log.warning("pre-send fact check skipped: %s", e)
+        return {}
+    run.record["stages"].setdefault("write", {})["presend_check"] = {
+        k: res.get(k) for k in ("at", "checked", "supported", "flagged")} | {"fixed": len(res["fixes"]),
+                                                                          "held": len(res["held"])}
+    for f in res["fixes"]:
+        run.log.info("pre-send fact check: rewrote %s -> %s", f["before"][:120], f["after"][:120])
+    for h in res["held"]:
+        run.log.warning("pre-send fact check: for Steven: %s (%s)", h["claim"][:140], h.get("why", ""))
+    return res
+
+
+def _accuracy_audit(cfg: dict, day: str, alert: bool = True) -> dict:
+    """The daily accuracy audit (pipeline/audit.py). Never fails the run; one alert when a claim needs a look."""
+    try:
+        from pipeline import audit, llm as _llm
+        _b, system = _llm_for(cfg, "critique")
+        backend = _llm.for_stage(cfg, "judge2")         # after the send, the second model (not the one that wrote it)
         res = audit.run(ROOT, day, backend, system, log=print)
     except Exception as e:  # noqa: BLE001
         print(f"accuracy audit skipped: {type(e).__name__}: {e}"[:200])
@@ -1481,9 +1530,48 @@ def _score_positions(cfg: dict, day: str) -> list:
     return done
 
 
+def _audit_deepdive_dry(cfg: dict, day: str) -> int:
+    """./np audit deepdive DAY: the deep-dive sentence check on a recorded dive, as a dry run (nothing is changed;
+    the result is data/audit/DAY-deepdive-dry.json). A fix it proposes goes in only as a correction."""
+    import json
+    from pipeline import audit, deepdive, llm as _llm
+    from pipeline.audio import banned, spelled_figures
+    from pipeline.record import page_text
+    rec = deepdive.latest(ROOT, day) or {}
+    p = ROOT / deepdive.DIR / f"{day}.parts.json"
+    if not p.exists():
+        print(f"no deep dive for {day}")
+        return 1
+    parts = [tuple(x) for x in json.loads(p.read_text("utf-8"))["parts"]]
+    sections = [(s, t) for s, t in parts if s not in ("Opener", "Outro", "steven_take")]
+    corpus = [t for t in (page_text(u, cfg, 20000) for u in rec.get("sources") or []) if t]
+    from pipeline import perspective
+    system, _ = stages.web_system_prompt(perspective.load(ROOT / cfg["paths"]["perspective"]).raw)
+    finder = None
+    try:
+        from pipeline import factsearch, netguard
+        finder = factsearch.Finder(netguard.client(follow_redirects=True, timeout=12), [], None)
+    except Exception:  # noqa: BLE001
+        pass
+    _new, res, pages = audit.check_sections(ROOT, day, sections, corpus, _llm.for_stage(cfg, "critique"), system,
+                                            judge=_llm.for_stage(cfg, "judge2"), finder=finder, name="deepdive-dry",
+                                            ok_sentence=lambda t: not (banned(t) or spelled_figures(t)))
+    print(f"{len(corpus)} live sources read")
+    for f in res["fixes"]:
+        print(f"  FIX [{f['section']}] {f['before']}\n      -> {f['after']}\n      ({f['why']}; recheck {f.get('recheck')})")
+    for h in res["held"]:
+        print(f"  CHECK [{h.get('section')}] {h['claim']} ({h.get('verdict')}: {h.get('why')})")
+    for pg in pages:
+        print(f"  NEW SOURCE {pg['outlet']}: {pg['url']}")
+    return 0
+
+
 def cmd_audit(cfg: dict, argv: list) -> int:
-    """./np audit [DAY]: check about five of DAY's claims against their sources (no alert)."""
+    """./np audit [DAY] | deepdive DAY: check about five of DAY's claims against their sources (no alert); or the
+    deep-dive sentence check on a recorded dive, as a dry run."""
     day = next((a for a in argv if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)), dt.date.today().isoformat())
+    if argv and argv[0] == "deepdive":
+        return _audit_deepdive_dry(cfg, day)
     res = _accuracy_audit(cfg, day, alert=False)
     for r in res.get("claims", []):
         print(f"  {r['verdict']:12} {r['claim'][:110]}" + (f"\n               {r['why']}" if r.get("why") else ""))
@@ -2413,6 +2501,8 @@ def cmd_run(cfg: dict, lookback_hours=None, commit=True, no_llm=False, stages_on
                     except Exception as e:  # noqa: BLE001
                         run.log.warning("deep dive skipped: %s", e)
                     _align_with_deepdive(run, cfg, run.day)
+                if not experiment and (cfg.get("analysis") or {}).get("presend_check", True):
+                    _presend_check(run, cfg, rebrief_day or reprocess_day or run.day)   # before the audio and the takes
                 make_audio(run, cfg, rebrief_day or reprocess_day or run.day, experiment)
     except Exception as e:  # noqa: BLE001
         import traceback

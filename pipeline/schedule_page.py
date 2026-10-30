@@ -52,6 +52,12 @@ def rows(cfg: dict) -> list:
         "records it with your take). Type or talk to Claude; write 'done' or just stop.")
     add("~every 20 min", "The run queue: jobs Claude queues; approvals arrive on your phone with Approve and Reject.",
         "Your phone (ntfy); the Mac dialog as a backup.", "Until 20:00 for releases; one tap.", "Tap Approve. A tap after 20:00 waits for tomorrow.")
+    slot = str((cfg.get("release") or {}).get("slot") or "13:00")
+    if slot.lower() != "off":
+        add(f"{slot} weekdays", "The release slot: at most one batched code release a day. It first rebuilds today's "
+            "edition with the new code and compares it with what went out; a big difference stops it before you're asked. "
+            "Fixes for broken things can go any time (the fix lane); no feature releases at weekends.",
+            "Your phone (ntfy): one Approve with the soak result.", "Until 20:00.", "Tap Approve, or Reject to hold it.")
     add(pre, "Evening preflight: would tomorrow's run be allowed to publish and email? One alert if an approval is pending.",
         "Your phone and inbox, only if something is wrong.", "Until 20:00 the same evening for releases.", "Approve on the phone.")
     if flag_day:

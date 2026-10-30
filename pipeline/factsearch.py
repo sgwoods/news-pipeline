@@ -157,6 +157,56 @@ class Finder:
         return None
 
 
+PRIMARY = (".gc.ca", ".gov", ".gov.uk", ".europa.eu", ".gouv.fr", ".bund.de", ".go.jp", ".gov.au", "sec.gov",
+           "canada.ca", "pm.gc.ca")
+MAX_CLAIM_SEARCHES = 6   # sentence searches per edition (the pre-send fact check, v0.2.33)
+
+
+def is_primary(url: str) -> bool:
+    host = urlparse(url).netloc.lower().removeprefix("www.")
+    return any(host == d.lstrip(".") or host.endswith(d if d.startswith(".") else "." + d) for d in PRIMARY)
+
+
+def claim_query(sentence: str) -> str:
+    """The claim's two main names, quoted, plus its figures: "Northwind" "Government of Canada" 1.6 billion."""
+    ents = entities(sentence)
+    figs = [m.group(0) for m in re.finditer(r"[$€£]?\d[\d.,]*\s?(?:billion|million|trillion|percent|%|[BMK]\b)?", sentence)][:2]
+    return " ".join([f'"{e}"' for e in ents[:2]] + figs).strip()
+
+
+def pages_for(finder: "Finder", sentence: str, skip=(), k: int = 2) -> list:
+    """[{url, outlet, text, primary}]: up to K live pages (fetched now, HTTP 200, readable) that name the claim's main
+    name, primary sources (government, regulators) first. For the pre-send fact check: a fact the cited sources
+    don't hold may be in a page we can cite instead. Pages are data; they go to the checking model as excerpts."""
+    if finder is None or finder.c is None or getattr(finder, "claim_left", MAX_CLAIM_SEARCHES) <= 0:
+        return []
+    finder.claim_left = getattr(finder, "claim_left", MAX_CLAIM_SEARCHES) - 1
+    ents = entities(sentence)
+    if not ents:
+        return []
+    key = ents[0].lower()
+    q = claim_query(sentence)
+    hits = []
+    for tmpl in (BING_NEWS, BING_WEB):
+        r = finder._get(tmpl.format(q=quote(q)))
+        if r is not None and r.status_code == 200:
+            hits += parse_rss(r.text)[:MAX_PAGES + 1]
+    from .textutil import clean_url
+    seen, out = set(skip), []
+    for h in sorted(hits, key=lambda h: not is_primary(h["url"])):
+        u = clean_url(h["url"])
+        if u in seen:
+            continue
+        seen.add(u)
+        text = finder._page(u)
+        if text and key in text.lower():
+            out.append({"url": u, "outlet": _outlet(u), "title": h.get("title", "")[:90], "text": text,
+                        "primary": is_primary(u)})
+        if len(out) >= k:
+            break
+    return out
+
+
 def _outlet(u: str) -> str:
     try:
         from .stages import outlet_name

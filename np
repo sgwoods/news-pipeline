@@ -70,7 +70,9 @@ case "$cmd" in
   daily)     CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"   # keep the Mac awake for the run
              run $CAF $PY run.py --daily ;;                 # what the schedule calls
   service)   run $PY run.py --service "${@:-status}" ;;          # install|status|restart|run|pause|resume|remove [daily|dashboard|ollama]
-  schedule)  case "${1:-status}" in                                 # kept for muscle memory: maps to `service ... daily`
+  schedule)  case "${1:-show}" in                                   # show: the day's timetable; the rest map to `service ... daily`
+               show)    run $PY run.py --schedule ;;
+               status)  run $PY run.py --service status ;;
                install) run $PY run.py --service install daily ;;
                test)    run $PY run.py --service run daily ;;
                remove)  run $PY run.py --service remove daily ;;
@@ -116,7 +118,7 @@ case "$cmd" in
   drive)     run $PY run.py --drive "${@:-save}" ;;              # save [DAY] [draft]: edition + deep dive as Google Docs
   audit)     run $PY run.py --audit "$@" ;;                    # [DAY]: re-check about five claims against their sources
   ntfy)      run $PY run.py --ntfy "${@:-status}" ;;           # test | status: phone notifications
-  schedule)  run $PY run.py --schedule ;;                      # the day's schedule and feedback windows
+  timetable) run $PY run.py --schedule ;;                      # the day's schedule and feedback windows (= ./np schedule)
   jev)       run $PY run.py --jev "${@:-report}" ;;            # report [DAYS]: the Jev shadow filter
   advance)   run $PY run.py --advance ;;                       # draft tomorrow's deep dive into Drive now
   pronounce) run $PY run.py --pronounce "${@:-lint}" ;;        # lint [DAYS]: words the voice may have garbled

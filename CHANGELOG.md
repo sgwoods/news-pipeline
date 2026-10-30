@@ -5,7 +5,32 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
-## Unreleased
+## v0.2.33-beta · 2026-10-30
+- The fact check runs **before** the edition is sent (Steven, 2026-10-30, after "CDIC" was corrected the same
+  morning): every factual sentence of the top section, What happened and Worth knowing checked against its sources;
+  partly-right or contradicted lines rewritten (links kept) and re-checked; anything unsettled listed in the takes
+  email. Acronyms no source contains are checked first. The day page ends with a Notes footnote: the fact check's
+  time and every correction with date and time (ET). New queue recipe `remaster` (chat): re-record a day's podcast
+  from its corrected text, recorded as a correction.
+- Fact-check gaps closed (Steven, 2026-10-30): ranked excerpts with twice the room and a 12,000-character second
+  look before "not found"; a search for a live page (government and regulators first) when the cited sources lack
+  a fact, which the rewrite may cite with one new link that also joins the Sources line; a second, different model
+  (`llm.stages.judge2`, local by default) re-checks rewrites and runs the after-send audit.
+- The deep dive gets the same sentence check before it is recorded (factual sections only; spoken-sentence
+  rewrites; a found page joins its Sources; second-model re-check). Open items go to the draft Doc ("Fact check:
+  please look") and the takes email; the deep-dive page has the Notes footnote.
+- `./np audit deepdive DAY` (queue recipe `audit-deepdive`, auto): the deep-dive check on a recorded dive as a dry
+  run; proposed fixes go in only as corrections.
+- Release rules for day-to-day stability (Steven, 2026-10-30): `ship` has lanes. The default slot lane releases once
+  per weekday from 13:00 (`release.slot` in config.yaml), after the edition and before the 15:30 draft; `lane: fix`
+  is for broken things, any time in the release window; no slot releases at weekends. Every ship soaks first:
+  `staging run` rebuilds today's edition with the dev code and `staging compare` checks it against production; a
+  compare that needs review stops the ship before Approve unless `accept` quotes Steven's OK. The Approve shows the
+  lane and the soak verdict. Schedule tab gains the release-slot row.
+- Docs brought up to date with v0.2.10–v0.2.32: README (Steven's day, the run, new commands), OPERATIONS (the advance,
+  runner, ntfy, Slack and Jev services), RELEASE (the three approval paths), DEEP-DIVES (drafts, takes, suggestions,
+  Slack). Fix: `./np schedule` printed the service status (an old alias); it now shows the timetable (`show`), and
+  `./np timetable` is the same.
 
 ## v0.2.32-beta · 2026-10-30
 - **Jev shadow filter** (Steven, 10-29/30): TypeSafe's Jev (a structured-decision model, sub-second, ~$0.04 per

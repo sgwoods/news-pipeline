@@ -422,6 +422,46 @@ def calls_page(root: Path, cfg: dict) -> str:
     return _page("AI Briefing · Calls we made", "".join(body), "../", cfg)
 
 
+def _when(at: str) -> str:
+    """'2026-10-30T11:16:56' -> 'Oct 30, 2026, 11:16 ET' (the Mac's clock is Toronto time)."""
+    try:
+        t = dt.datetime.fromisoformat(at)
+    except (TypeError, ValueError):
+        return at[:16]
+    return t.strftime("%b %-d, %Y, %H:%M ET")
+
+
+def _footnotes(root: Path, day: str, fixes: list, check: bool = True, kind: str = "briefing") -> tuple:
+    """(top, bottom) HTML (Steven, 2026-10-30): a one-line pointer at the top when the page was corrected, and the
+    notes at the bottom — each correction with its date and time, and when the pre-send fact check ran."""
+    esc = htmllib.escape
+    pc = {}
+    if check:
+        try:
+            from .audit import load_deepdive_check, load_presend
+            pc = load_deepdive_check(root, day) if kind == "deepdive" else load_presend(root, day)
+        except Exception:  # noqa: BLE001
+            pc = {}
+    if not fixes and not pc:
+        return "", ""
+    top = (f'<p class="small muted"><a href="#notes">Corrected {esc(_when(fixes[-1]["at"]))}: see the note at the '
+           f'end</a>.</p>' if fixes else "")
+    rows = [f'<li><b>Correction, {esc(_when(c["at"]))}:</b> {esc(c["note"])}</li>' for c in fixes]
+    if pc:
+        n = len(pc.get("fixes") or [])
+        what = "this episode was recorded" if kind == "deepdive" else "this edition was sent"
+        unit = "sentence" if kind == "deepdive" else "line"
+        added = len(pc.get("added_sources") or []) if kind == "deepdive" else \
+            sum(len(f.get("added_source") or []) for f in pc.get("fixes") or [])
+        rows.append(f'<li><b>Fact check, {esc(_when(pc.get("at", "")))}:</b> before {what}, '
+                    f'{int(pc.get("checked") or 0)} of its factual claims were checked against their sources'
+                    + (f"; {n} {unit}{'s' if n != 1 else ''} rewritten to match them" if n else "; no changes needed")
+                    + (f" ({added} newly cited source{'s' if added != 1 else ''})" if added else "")
+                    + '. <a href="../accuracy/">How we check</a></li>')
+    return top, (f'<section id="notes" class="small muted" style="margin-top:28px;border-top:1px solid var(--line,#ddd);'
+                 f'padding-top:10px"><b>Notes</b><ol style="margin:6px 0 0 18px;padding:0">{"".join(rows)}</ol></section>')
+
+
 def accuracy_page(root: Path, cfg: dict) -> str:
     """<site>/accuracy/: the daily accuracy audit's counts (pipeline/audit.py) and every correction (pipeline/shipped.py)."""
     from . import audit
@@ -431,8 +471,13 @@ def accuracy_page(root: Path, cfg: dict) -> str:
     fixes = sorted(corrections(root), key=lambda r: r.get("at", ""), reverse=True)
     checked = sum(d.get("checked", 0) for d in days[:30])
     ok = sum(d.get("supported", 0) for d in days[:30])
-    body = ['<h1>Accuracy</h1><p class="muted">Each morning, after the edition goes out, about five of its factual '
-            'claims are checked again against the sources they came from: supported, partly right, not found in '
+    body = ['<h1>Accuracy</h1><p class="muted">Before each edition is sent, every factual claim in its top section, '
+            'What happened lines and Worth knowing is checked against the sources it came from; a line that is only '
+            'partly right or contradicted is rewritten to match them (citing a new source, government and regulators '
+            'first, when the cited ones lack the fact), then checked again by a second, different model. The time of '
+            'that check is '
+            'noted at the end of each edition. After the edition goes out, the second model checks about five of its factual '
+            'claims again against the sources they came from: supported, partly right, not found in '
             'those sources, or contradicted by them. The checks also count places where the edition disagrees with '
             'itself or with the last two weeks. Anything partly right or contradicted goes to Steven, who decides '
             'whether to correct it. The checks are machine-run, and the corrections below are made by hand.</p>']
@@ -447,7 +492,7 @@ def accuracy_page(root: Path, cfg: dict) -> str:
     body.append("<h2>Corrections</h2>")
     if fixes:
         body.append(_wrap_table([[f'<a href="../{esc(r["day"])}/index.html">{esc(r["day"])}</a>',
-                                  esc(r.get("at", "")[:10]), esc(r.get("note", ""))] for r in fixes],
+                                  esc(_when(r.get("at", ""))), esc(r.get("note", ""))] for r in fixes],
                                 ["Edition", "Corrected", "What changed"]))
     else:
         body.append('<p class="muted">No corrections yet.</p>')
@@ -541,9 +586,8 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
             fixes = corrections(root, day)
         except Exception:  # noqa: BLE001
             fixes = []
-        if fixes:
-            body_html = "".join(f'<p class="small muted"><b>Corrected {htmllib.escape(c["at"][:10])}:</b> '
-                                f'{htmllib.escape(c["note"])}</p>' for c in fixes) + body_html
+        top, foot = _footnotes(root, day, fixes)
+        body_html = top + body_html + foot
         day_url = f"{base_url.rstrip('/')}/{day}/" if base_url else ""
         what = "this episode" if has_audio else "this briefing"
         bar = bar.replace('</span></div>', '</span>' + _bar_actions(day_url, title, "../", cfg) + '</div>', 1)
@@ -592,11 +636,10 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
                 fixes = corrections(root, e["day"])
             except Exception:  # noqa: BLE001
                 fixes = []
-            fix_html = "".join(f'<p class="small muted"><b>Corrected {htmllib.escape(c["at"][:10])}:</b> '
-                               f'{htmllib.escape(c["note"])}</p>' for c in fixes)
+            fix_html, fix_foot = _footnotes(root, e["day"], fixes, kind="deepdive")
             body = (fix_html + _md_to_html(head) + f'<div id="listen">{player}</div>{nav}'
                     + (f'<section id="read" class="ddread">{_md_to_html(written)}</section>' if written else "")
-                    + _md_to_html(_dd_sources(e["md"]))
+                    + _md_to_html(_dd_sources(e["md"])) + fix_foot
                     + _share_box(dd_url, e["title"], "../../", cfg, "this deep dive"))
             (out / e["day"] / "deep-dive" / "index.html").write_text(
                 _page(e["title"], body +
