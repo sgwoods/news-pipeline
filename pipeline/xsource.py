@@ -1,6 +1,9 @@
 """X / Twitter accounts via Nitter-style mirrors (public RSS), never via X's paid API.
 
-x.yaml lists the accounts and the mirror instances. Each run: pick the first instance whose RSS answers
+x.yaml lists the accounts and the mirror instances. An instance is a Nitter-style base URL ({instance}/{handle}/rss)
+or a template with {handle}, e.g. the local xsukax-X-RSS-Generator on Steven's Mac (2026-10-30):
+"http://127.0.0.1:8787/?x={handle}&l=20". `lists:` in x.yaml adds the members of Steven's X lists (as read into
+data/state/x-lists.json) as accounts of tier "list"; `delay_seconds` spaces the requests. Each run: pick the first instance whose RSS answers
 for the first account, then read every account through it; record which instance worked in
 data/state/x-health.json (shown on the Sources page). When no instance works the run notes it and
 moves on; the weekly Claude X digest (record.py style) is the fallback for the SCRUTINY voices.
@@ -27,7 +30,25 @@ def load_x(root: Path) -> dict:
             accts.append({"handle": str(a["handle"]).lstrip("@"), "name": str(a.get("name") or a["handle"]),
                           "tier": str(a.get("tier") or "follow"), "flags": [str(x) for x in (a.get("flags") or [])],
                           "why": " ".join(str(a.get("why") or "").split())})
-    return {"instances": [str(x).rstrip("/") for x in (d.get("instances") or [])], "accounts": accts}
+    have = {a["handle"].lower() for a in accts}
+    want = [str(n) for n in (d.get("lists") or [])]
+    for lst in lists(root):                      # members of the lists Steven named, after his own accounts
+        if lst.get("name") not in want:
+            continue
+        for m in lst.get("members") or []:
+            h = str(m.get("handle") or "").lstrip("@")
+            if not re.fullmatch(r"[A-Za-z0-9_]{1,15}", h) or h.lower() in have:
+                continue
+            have.add(h.lower())
+            accts.append({"handle": h, "name": str(m.get("name") or h), "tier": "list", "flags": [],
+                          "why": f"Member of Steven's X list \"{lst['name']}\"." + (f" {m['bio']}" if m.get("bio") else "")})
+    cap = int(d.get("max_accounts") or 120)
+    return {"instances": [str(x).rstrip("/") for x in (d.get("instances") or [])], "accounts": accts[:cap],
+            "delay": float(d.get("delay_seconds") or 0)}
+
+
+def feed_url(instance: str, handle: str) -> str:
+    return instance.replace("{handle}", handle) if "{handle}" in instance else f"{instance}/{handle}/rss"
 
 
 def _health(root: Path) -> dict:
@@ -53,7 +74,7 @@ def probe(client, instance: str, handle: str) -> tuple:
     """(ok, entries or reason) for one instance."""
     import feedparser
     try:
-        r = client.get(f"{instance}/{handle}/rss")
+        r = client.get(feed_url(instance, handle))
     except Exception as e:  # noqa: BLE001
         return False, f"{type(e).__name__}"
     if r.status_code != 200:
@@ -95,10 +116,13 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_hours: int | None = 
             health["last_fail"] = iso(now)
             _save_health(root, health)
             log.warning("  FAIL X: no mirror answered (%s)", ", ".join(x["instances"]))
-            return {"items": [], "sources": [{"person": "X (Nitter mirrors)", "kind": "x", "url": x["instances"][0],
+            return {"items": [], "sources": [{"person": "X", "kind": "x", "url": x["instances"][0],
                                               "status": "error", "error": "no mirror answered"}], "instance": ""}
         health["last_good"] = used
-        for a in x["accounts"]:
+        import time
+        for k, a in enumerate(x["accounts"]):
+            if k and x.get("delay"):
+                time.sleep(x["delay"])           # one account at a time, spaced: a few requests a minute at most
             ok, res = probe(client, used, a["handle"])
             src_url = f"https://x.com/{a['handle']}"
             if not ok:

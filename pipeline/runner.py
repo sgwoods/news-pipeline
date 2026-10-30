@@ -108,6 +108,7 @@ RECIPES = {
     "slack-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["slack-setup"])]},   # the bot token
     "jev-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["jev-setup"])]},       # the TypeSafe key
     "jev-report": {"tier": "auto", "args": {}, "steps": [("prod", ["jev", "report"])]},
+    "x-probe": {"tier": "auto", "args": {}, "steps": [("prod", ["x", "probe", "3"])]},
     "slack-card": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "preview", "{day}"])]},
     "slack-post": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "send", "{day}"])]},
     "slack-deepdive": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "deepdive", "{day}"])]},

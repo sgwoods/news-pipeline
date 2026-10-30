@@ -219,6 +219,23 @@ def cmd_x(cfg: dict, argv: list) -> int:
         if added and cfg.get("archive", {}).get("git_commit", True):
             print("git:", archive.git_commit(f"archive: {added} X post(s) from a browser pull of {res['list']}"))
         return 0
+    if sub == "probe":                       # ./np x probe [N]: the first N accounts through the configured instances, nothing archived
+        import httpx
+        x = xsource.load_x(ROOT)
+        n = int(argv[1]) if len(argv) > 1 and argv[1].isdigit() else 3
+        print(f"X: {len(x['accounts'])} accounts ({sum(1 for a in x['accounts'] if a['tier'] == 'list')} from lists), "
+              f"instances: {', '.join(x['instances'])}")
+        ok_any = False
+        with httpx.Client(follow_redirects=True, timeout=20, headers={"User-Agent": (cfg.get("fetch") or {}).get("user_agent", "news-pipeline/0.1")}) as c:
+            for inst in x["instances"]:
+                for a in x["accounts"][:n]:
+                    ok, res = xsource.probe(c, inst, a["handle"])
+                    ok_any |= ok
+                    print(f"  {'OK  ' if ok else 'FAIL'} {inst[:45]:45} @{a['handle']:16} "
+                          + (f"{len(res)} posts, latest: {(res[0].get('title') or '')[:70]!r}" if ok else str(res)))
+                if ok_any:
+                    break
+        return 0 if ok_any else 1
     if sub == "status":
         st = xsource.status(ROOT)
         print(f"X mirrors: last good {st['last_good'] or 'none yet'}" + (f" · last total failure {st['last_fail'][:16]}" if st["last_fail"] else ""))
@@ -3241,6 +3258,8 @@ def main() -> int:
                 rebrief_day=args.rebrief)
             if code == 0:
                 print("correction recorded:", shipped.correct(ROOT, changed_day, args.correct, before)["note"])
+                if args.remaster:                # remaster published before the note existed: show it now
+                    code = cmd_publish(cfg)
             return code
     if args.remaster:
         return cmd_remaster(cfg, args.remaster)

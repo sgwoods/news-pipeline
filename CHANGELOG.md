@@ -5,6 +5,16 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.35-beta · 2026-10-30 (Steven asked to bring X forward for the weekend runs, an exception to the slot rule)
+- `./np x probe [N]` (queue recipe `x-probe`, auto): the first N accounts through the configured X instances, with
+  post counts; nothing is archived.
+- X through the local xsukax-X-RSS-Generator on Steven's Mac (Steven, 2026-10-30; his test returned 5 posts): an
+  x.yaml instance may be a template with `{handle}` (`http://127.0.0.1:8787/?x={handle}&l=20`); `lists:` adds the
+  members of the named X lists (data/state/x-lists.json) as tier "list" accounts, after his own; `delay_seconds`
+  spaces the requests; `max_accounts` caps a run (120). Nitter mirrors stay as fallbacks.
+- Fix: a remaster recorded as a correction published before the correction note existed, so the page lacked it
+  until the next publish; it now publishes again after recording the note.
+
 ## v0.2.34-beta · 2026-10-30 (fix lane)
 - Fact-check fixes from the first dry run on the 10-30 deep dive: a search result that is a homepage or section
   front (anthropic.com, claude.com) is never a found source, and a found page must also carry a second name or a
