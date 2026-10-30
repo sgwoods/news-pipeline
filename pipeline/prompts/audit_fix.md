@@ -12,7 +12,7 @@ EXCERPTS FROM THE SOURCES THE LINE ALREADY CITES:
 OTHER LIVE PAGES FOUND FOR THIS CLAIM (each with its link; "(none)" if none):
 {{found}}
 
-Rewrite the line so every figure, name, date and qualifier in it is in the excerpts or the other pages. Use the names the sources use (if they say "the Government of Canada", don't give an agency or acronym they don't). Prefer a primary source (a government, regulator or company's own release) when it and a report differ. If a detail is only in one of the other pages, you may keep it and cite that page once, as [Outlet](url) copied exactly from above, at the end of the sentence it supports. Otherwise drop a detail the sources don't give rather than guessing it, and don't add facts that weren't in the line.
+Rewrite the line so every figure, name, date and qualifier in it is in the excerpts or the other pages. Use the names the sources use (if they say "the Government of Canada", don't give an agency or acronym they don't). Prefer a primary source (a government, regulator or company's own release) when it and a report differ. If a detail is only in one of the other pages, you may keep it and cite that page once, as [Outlet](url) copied exactly from above, at the end of the sentence it supports. Otherwise drop a detail the sources don't give rather than guessing it, and don't add facts that weren't in the line. Say what the line was saying, narrowed to what holds; never swap in a different point. If nothing in it holds, return an empty line ("") and it goes to Steven instead.
 
 Keep the line's start (the "- **...**" label), its tone, its length or close to it, and every markdown link already in it exactly as it is. Add at most one link, and only one listed above.
 

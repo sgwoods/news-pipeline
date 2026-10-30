@@ -82,6 +82,39 @@ class DeepDiveCheck(unittest.TestCase):
         self.assertTrue(notes[0].startswith("fact check:"))
         self.assertIn("1 source(s) added", notes[0])
 
+    def test_a_rewrite_the_second_check_doesnt_confirm_is_undone_and_held(self):
+        good = "Northwind took a staged investment of up to $1.6 billion from the Government of Canada this week."
+
+        class No(Fake):
+            def complete_json(self, system, user, max_tokens=0):
+                self.asked.append(user)
+                return {"checks": [{"n": 1, "verdict": "not found", "why": "no"}]}
+        new, res, pages = audit.check_sections(self.root, DAY, SECTIONS, [SRC], Fake(good), "sys", judge=No(),
+                                               log=lambda *a: None)
+        self.assertIn("CDIC", dict(new)["why_today"])
+        self.assertEqual(res["fixes"], [])
+        self.assertEqual(res["held"][0]["verdict"], "rewrite not confirmed")
+
+    def test_homepages_are_never_found_sources(self):
+        from pipeline import factsearch
+
+        class Resp:
+            status_code = 200
+            text = ("<rss><channel><item><title>a</title><link>https://www.anthropic.com/</link></item>"
+                    "<item><title>b</title><link>https://www.pm.gc.ca/en/news/news-releases/2026/10/29/x</link></item>"
+                    "</channel></rss>")
+
+        class F:
+            c = object()
+
+            def _get(self, u):
+                return Resp()
+
+            def _page(self, u):
+                return "Northwind and the Government of Canada, $1.6 billion."
+        got = factsearch.pages_for(F(), "Northwind took $1.6 billion from the Government of Canada.")
+        self.assertEqual([g["url"] for g in got], ["https://www.pm.gc.ca/en/news/news-releases/2026/10/29/x"])
+
     def test_the_check_never_breaks_the_dive(self):
         class Boom:
             label = "boom"

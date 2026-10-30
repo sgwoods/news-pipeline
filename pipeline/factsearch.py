@@ -193,13 +193,17 @@ def pages_for(finder: "Finder", sentence: str, skip=(), k: int = 2) -> list:
             hits += parse_rss(r.text)[:MAX_PAGES + 1]
     from .textutil import clean_url
     seen, out = set(skip), []
+    others = [e.lower() for e in ents[1:3]]
+    figs = [f for f in re.findall(r"\d[\d.,]*", sentence) if len(f) > 1]
     for h in sorted(hits, key=lambda h: not is_primary(h["url"])):
         u = clean_url(h["url"])
-        if u in seen:
-            continue
+        path = urlparse(u).path.strip("/")
+        if u in seen or len(path) < 8 or path.count("/") == 0 and "." not in path and "-" not in path:
+            continue                             # a homepage or section front is never a source for a claim
         seen.add(u)
         text = finder._page(u)
-        if text and key in text.lower():
+        low = (text or "").lower()
+        if text and key in low and (not others or any(o in low for o in others) or any(f in text for f in figs)):
             out.append({"url": u, "outlet": _outlet(u), "title": h.get("title", "")[:90], "text": text,
                         "primary": is_primary(u)})
         if len(out) >= k:

@@ -146,6 +146,23 @@ def run(root: Path, day: str, llm, system: str, log=print) -> dict:
     return res
 
 
+def _check_each(root: Path, cl: list, judge, llm, system: str, log=print) -> dict:
+    """The second judge, one claim per call (a local model answers a long batch with only its first verdict); a claim
+    it leaves unanswered goes to the first model, so a fix is never applied unchecked."""
+    out = {}
+    for c in cl:
+        r, _ = _check(root, [{**c, "n": 1}], judge, system, log)
+        if 1 in r:
+            out[c["n"]] = {**r[1], "by": getattr(judge, "label", "")}
+    missing = [c for c in cl if c["n"] not in out]
+    if missing and judge is not llm:
+        r, _ = _check(root, missing, llm, system, log)
+        for c in missing:
+            if c["n"] in r:
+                out[c["n"]] = {**r[c["n"]], "by": getattr(llm, "label", "")}
+    return out
+
+
 def _check(root: Path, cl: list, llm, system: str, log=print, limit: int = 4800) -> tuple:
     """({n: {verdict, why, source}}, prompt version): the model's verdict on each claim against its own sources
     (plus any pages a claim carries in "found": [{outlet, url, text}])."""
@@ -289,12 +306,21 @@ def presend(root: Path, day: str, llm, system: str, log=print, stamp=None, finde
             for sent in _SENT.split(_plain(re.sub(r"^- \*\*.+?\*\*\s*", "", f["after"]))):
                 if len(sent.split()) >= 6:
                     again.append({**c0, "n": len(again) + 1, "text": sent.strip(), "fix": i})
-        rc, _ = _check(root, again, judge, system, log)
+        rc = _check_each(root, again, judge, llm, system, log)
         for a in again:
             v = rc.get(a["n"], {}).get("verdict", "unchecked")
             fixes[a["fix"]].setdefault("recheck", []).append(v)
-            if v in FIX:
-                held.append({"claim": a["text"], **rc[a["n"]], "judge": getattr(judge, "label", "")})
+        kept = []
+        for f in fixes:                          # a rewrite stays only if every sentence of it re-checks as supported
+            if all(v == "supported" for v in f.get("recheck") or ["unchecked"]):
+                kept.append(f)
+                continue
+            md = md.replace(f["after"], f["before"], 1)
+            for u in [a["url"] for a in f.get("added_source") or []]:
+                md = re.sub(r" · \[[^\]]*\]\(" + re.escape(u) + r"\)", "", md, count=1)
+            held.append({"claim": _plain(f["before"])[:300], "verdict": "rewrite not confirmed",
+                         "why": f"second check: {', '.join(f.get('recheck') or [])}; proposed: {_plain(f['after'])[:200]}"})
+        fixes = kept
     for c in cl:                                 # not found anywhere: for Steven, not cut (names, not figures)
         if checks.get(c["n"], {}).get("verdict") == "not found" and not c.get("found"):
             held.append({"claim": c["text"], **checks[c["n"]]})
@@ -400,11 +426,18 @@ def check_sections(root: Path, day: str, sections: list, corpus: list, llm, syst
         extra = [f"({f['outlet']}) {f['text']}" for c in bad for f in c.get("found") or []]
         again = [{"n": i + 1, "text": f["after"], "story": f["section"], "ids": [], "texts": corpus + extra}
                  for i, f in enumerate(fixes)]
-        rc, _ = _check(root, again, judge, system, log)
+        rc = _check_each(root, again, judge, llm, system, log)
         for a, f in zip(again, fixes):
             f["recheck"] = rc.get(a["n"], {}).get("verdict", "unchecked")
-            if f["recheck"] in FIX:
-                held.append({"claim": f["after"], "section": f["section"], **rc[a["n"]], "judge": getattr(judge, "label", "")})
+        kept = []
+        for f in fixes:                          # a rewrite stays only if the second check confirms it
+            if f["recheck"] == "supported":
+                kept.append(f)
+                continue
+            text_of[f["section"]] = text_of[f["section"]].replace(f["after"], f["before"], 1)
+            held.append({"claim": f["before"], "section": f["section"], "verdict": "rewrite not confirmed",
+                         "why": f"second check: {f['recheck']}; proposed: {f['after'][:200]}"})
+        fixes = kept
         pages = {x["url"]: x for c in bad for x in c.get("found") or []}
         for f in fixes:                          # a found page joins the Sources when its fix checked out
             if f["recheck"] == "supported":

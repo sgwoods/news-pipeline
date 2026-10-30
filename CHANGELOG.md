@@ -5,6 +5,14 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.34-beta · 2026-10-30 (fix lane)
+- Fact-check fixes from the first dry run on the 10-30 deep dive: a search result that is a homepage or section
+  front (anthropic.com, claude.com) is never a found source, and a found page must also carry a second name or a
+  figure from the claim; the second judge checks one claim per call (the local model answered a batch with only its
+  first verdict) and falls back to the first model; a rewrite is kept only when the second check confirms it,
+  otherwise it is undone and goes to Steven ("rewrite not confirmed"); rewrites narrow the original claim, never
+  swap in a different one, and may return nothing (then Steven decides).
+
 ## v0.2.33-beta · 2026-10-30
 - The fact check runs **before** the edition is sent (Steven, 2026-10-30, after "CDIC" was corrected the same
   morning): every factual sentence of the top section, What happened and Worth knowing checked against its sources;
