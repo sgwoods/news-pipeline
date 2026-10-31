@@ -240,6 +240,51 @@ def post(root: Path, cfg: dict, day: str, log=print, client=None, dry: bool = Fa
     return {"ok": True, "channel": ch, "ts": ts, "card": bool(msg.get("card")), "deepdive": dd}
 
 
+def build_archive(root: Path, cfg: dict, days: list) -> str:
+    """One "Earlier editions" message for days posted before the move to the newsletter channel (Steven, 2026-10-31):
+    each day's first lead and its briefing and deep-dive links. Slack dates a repost now, so the days are not reposted
+    one by one."""
+    from . import card
+    base = ((cfg.get("publish") or {}).get("site_url") or "").rstrip("/")
+    L = ["*Earlier editions* · the daily AI Briefing posts before this channel existed"]
+    for day in days:
+        f = root / cfg["paths"]["briefings"] / f"{day}.md"
+        if not f.exists():
+            continue
+        lead = (card.leads(f.read_text("utf-8"), 1) or [""])[0]
+        title, _line, _take, dd_url = _dd(root, cfg, day)
+        date = dt.date.fromisoformat(day).strftime("%a %b %-d")
+        row = f"• *{date}* — {lead}." if lead else f"• *{date}*"
+        row += f"  <{base}/{day}/|Read>"
+        if title:
+            row += f"  ·  <{dd_url}|Deep dive: {title}>"
+        L.append(row)
+    L.append(f"<{base}/#email|Subscribe by email>")
+    return "\n".join(L)
+
+
+def post_archive(root: Path, cfg: dict, days: list, log=print, client=None) -> dict:
+    """Post the Earlier editions message to the newsletter channel, once (stamped kind "archive")."""
+    from .release import require
+    p = pcfg(cfg)
+    tok = token()
+    if not (p.get("enabled") and tok):
+        return {"ok": False, "skipped": "slack post off or no SLACK_BOT_TOKEN"}
+    key = f"{days[0]}..{days[-1]}"
+    if any(r.get("kind") == "archive" and r.get("day") == key for r in _stamps(root)):
+        return {"ok": False, "skipped": f"already posted {key}"}
+    text = build_archive(root, cfg, days)
+    require(root, cfg, "slack post", log)
+    import httpx
+    client = client or httpx.Client()
+    ch = channel_id(client, tok, p["channel"])
+    ts = _send(client, tok, ch, text, None, "")
+    _stamp(root, {"day": key, "kind": "archive", "at": dt.datetime.now().isoformat(timespec="seconds"),
+                  "channel": p["channel"], "channel_id": ch, "ts": ts})
+    log(f"Slack: posted Earlier editions ({key}) to #{p['channel'].lstrip('#')}")
+    return {"ok": True, "ts": ts}
+
+
 def set_token(ask=None) -> str:
     """The slack-setup job: a Mac dialog (hidden answer) stores the bot token in the Keychain, then auth.test."""
     import subprocess

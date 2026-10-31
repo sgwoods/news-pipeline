@@ -1626,6 +1626,19 @@ def cmd_slack_post(cfg: dict, argv: list) -> int:
             print("\n--- deep dive (thread reply) ---\n" + dd["text"])
             print("card:", dd.get("card") or dd.get("card_error") or "none")
         return 0
+    if sub == "archive":                     # archive FROM TO: one "Earlier editions" message in the post channel
+        ds = [a for a in argv[1:] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)]
+        if len(ds) != 2:
+            print("usage: ./np slack-post archive FROM TO")
+            return 2
+        a, b = (dt.date.fromisoformat(x) for x in ds)
+        days = [(a + dt.timedelta(days=k)).isoformat() for k in range((b - a).days + 1)]
+        if "--preview" in argv:
+            print(slackpost.build_archive(ROOT, cfg, days))
+            return 0
+        r = slackpost.post_archive(ROOT, cfg, days, log=print)
+        print(r if not r.get("ok") else "posted")
+        return 0 if r.get("ok") else 1
     if sub == "deepdive":
         r = slackpost.post_dd(ROOT, cfg, day, log=print)
         print(r if not r.get("ok") else "posted")

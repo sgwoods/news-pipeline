@@ -5,6 +5,11 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.40-beta · 2026-10-31
+- `./np slack-post archive FROM TO [--preview]` (queue recipe `slack-archive`, chat): one "Earlier editions" message
+  in the post channel, a line per day with its first lead and briefing and deep-dive links, posted once. For the days
+  posted to #cto-musings before the move; Steven deletes the old bot posts there himself.
+
 ## v0.2.39-beta · 2026-10-31 (weekend exception, Steven's yes in chat)
 - The morning Slack post (card + deep-dive thread) goes to #cto-ai-newsletter instead of #cto-musings (Steven,
   2026-10-31). Links are still read from #cto-musings.
