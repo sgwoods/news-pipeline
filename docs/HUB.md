@@ -9,6 +9,8 @@ Steven's hub lists his projects from per-project status manifests (hub repo `sgw
   `schema_version, project_id, active, display_name, description, project_page_path, repo_url, dashboard_url,
   experience_url, repo_pushed_at, status_generated_at, status_label, status_value, focus_label, focus_value`
   (two-space indent, UTF-8, trailing newline, ISO 8601 UTC times, `null` for missing URLs).
+- `ai-briefing.html` carries a small inline style for this page only (author photo, tagline, teal accents from
+  `brand/brand.yaml`, v0.2.44); the hub's shared CSS is never changed.
 - `ai-briefing.html`: the top-level project page (hub style: `assets/public-site.css`, `shell shell--narrow`,
   `hero`/`heroTop`/`eyebrow`/`heroHomeLink` → the hub index, `panel` sections).
 

@@ -5,6 +5,16 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.44-beta · 2026-11-02 (weekday slot)
+- Hub page in the brand (Steven, 2026-10-31): the project page on the public hub shows the author photo, the
+  tagline and the teal accents (this page only; the hub's shared style is untouched).
+- Deep-dive fact check checks facts only (2026-10-31: 12 items held on 10-31, most of them framing): sentences that
+  frame a reading ("the AI-realist reading says..."), imagine an example ("Picture a startup...") or give our view are
+  no longer checked; in "How people read it", only a sentence that attributes a view to someone is.
+- The release soak covers the deep dive: `./np staging run --force --deepdive` rewrites the day's deep dive on the
+  same topic with the dev code, and `staging compare` reports it (status, words, sources, checked / held).
+- A rebuilt Saturday deep dive keeps the two-voice flagship format (10-31's rebuild came out in one voice).
+
 ## v0.2.43-beta · 2026-11-02 (weekday slot)
 - Public pages never show a local address (2026-10-31): release notes and the hub page turn a URL on the Mac
   (the X tool's) into plain words, so the hub export is no longer refused.

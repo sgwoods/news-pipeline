@@ -75,6 +75,8 @@ The newsletter matters more than the next feature. From v0.2.33:
 - **The soak.** Every ship rebuilds today's edition in dev with the new code (`./np staging run`, outbound off) and
   compares it with what went out (`./np staging compare`: sections, counts, length, links, audio, privacy). A compare
   that needs review stops the ship before Steven is asked; it goes only with `accept: "accepted: <Steven's words>"`.
+  Since v0.2.44 the soak also rewrites the day's deep dive on production's topic (`--deepdive`), and the compare
+  reports it (status, words, sources, checked / held); a dive that does not complete in dev needs review.
   The Approve shows the lane and the soak verdict.
 - `release` (no tests, no soak) is only for finishing a ship whose release step failed.
 

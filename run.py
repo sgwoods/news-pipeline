@@ -985,6 +985,19 @@ def cmd_staging(cfg: dict, argv: list) -> int:
             day = next((a for a in rest if not a.startswith("--")), "") or devenv.latest_day(ROOT)
             print(f"Staging run: rebuilding {day} with the dev code (outbound off)")
             code = cmd_run(cfg, rebrief_day=day, commit=False)
+            if "--deepdive" in rest:                 # the soak covers the deep dive too (2026-10-31): same topic as production
+                from pipeline import deepdive
+                prod_dd = next((r for r in reversed(deepdive.records(devenv.production_root(ROOT)))
+                                if r.get("day") == day and r.get("status") in ("published", "written")), None)
+                if prod_dd and (prod_dd.get("pick") or {}).get("topic"):
+                    print(f"Staging deep dive: {prod_dd['pick']['topic']}")
+                    try:
+                        dd = deepdive.run(ROOT, cfg, day, print, topic=prod_dd["pick"]["topic"], force=True, tts=False)
+                        print(f"Staging deep dive: {dd.get('status')} {dd.get('reason', '')}".strip())
+                    except Exception as e:  # noqa: BLE001
+                        print(f"Staging deep dive failed: {type(e).__name__}: {e}"[:300])
+                else:
+                    print("Staging deep dive: production has none for this day")
             from pipeline import site
             res = site.build(ROOT, site.staging_cfg(cfg), base_url=site.staging_site_url(cfg), audio_days=1)
             print(f"Built the development preview in site/: {res['days']} briefings. Publish it: ./np staging publish")

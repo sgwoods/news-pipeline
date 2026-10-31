@@ -89,7 +89,7 @@ RECIPES = {
     # production; a compare that needs review (exit 3) stops the ship unless "accept" quotes Steven's OK. The soak passes
     # --force: a ship only runs once the morning edition is out and no run is busy (10-31: it refused before 08:30).
     "ship":    {"tier": "mac", "args": {"version": "version", "note": "reviewed", "lane": "lane?", "accept": "accepted?"},
-                "steps": [("dev", ["staging", "sync"]), ("dev", ["tests"]), ("dev", ["staging", "run", "--force"]),
+                "steps": [("dev", ["staging", "sync"]), ("dev", ["tests"]), ("dev", ["staging", "run", "--force", "--deepdive"]),
                           ("dev", ["staging", "compare"]), APPROVE,
                           ("local", ["release", "{version}", "{note}"]), ("local", ["verify"]),
                           ("local?", ["follow-through", "{note}"])]},   # public export + mail script, same Approve

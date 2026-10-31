@@ -345,6 +345,22 @@ def presend(root: Path, day: str, llm, system: str, log=print, stamp=None, finde
 
 # ---- the same check on the deep dive's spoken sections (Steven, 2026-10-30: "lets do the deep dive now") ----
 DD_FACTUAL = ("why_today", "plainly", "evidence", "readings")     # so_what / watch are analysis, not rewritten
+# Sentences that frame, imagine or give our view are not factual claims (2026-10-31: 12 held items, most of them
+# "the AGI-forward reading says...", "Picture a startup..." or our own analysis): never checked. In "readings",
+# only a sentence that attributes a view to someone ("X argues", "she called it") is a claim about the record.
+DD_FRAMING = re.compile(r"^(?:Picture|Imagine|Suppose|Say|Think of|Consider|Now a|Start with)\b|"
+                        r"\b(?:AGI-forward|AI-realist|market|policy|speech|defen[cs]e) reading\b|\b(?:on|under) this view\b|"
+                        r"\b[Oo]ur (?:read|view|lean)\b|\b[Ww]e (?:think|read|lean|would|'d|suspect)\b|\bquestion worth\b|"
+                        r"\bIf that's right\b|\bthe same facts support\b", re.I)
+DD_ATTRIB = re.compile(r"\b(?:argues?|argued|says|said|wrote|writes|called|calls|reports?|reported|told|found|"
+                       r"according to|in (?:his|her|their|its) words)\b", re.I)
+
+
+def dd_framing(sent: str, section: str) -> bool:
+    """True when SENT frames, imagines or gives our view rather than stating a fact (not fact-checked)."""
+    if DD_FRAMING.search(sent):
+        return True
+    return section == "readings" and not DD_ATTRIB.search(sent)
 DD_N = 24
 
 
@@ -359,7 +375,7 @@ def dd_claims(sections: list, corpus: list, n: int = DD_N) -> list:
             continue
         for sent in _SENT.split(text):
             sent = sent.strip()
-            if len(sent.split()) < 6:
+            if len(sent.split()) < 6 or dd_framing(sent, base):
                 continue
             pri = 0 if untraced_names(sent, hay) else 1 if _FIG.search(sent) else 2 if re.search(r"\b[A-Z][a-z]+\b.*\b[A-Z]", sent) else 3
             pool.append((pri, sid, sent, k))

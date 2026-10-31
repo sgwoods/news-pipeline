@@ -52,9 +52,27 @@ def edition(root: Path, day: str) -> dict:
         "fact check": f"{fc.get('checked', '?')} checked, {len(fc.get('cut') or [])} cut, {len(fc.get('flagged') or [])} flagged"
                       if fc else "?",
         "audio minutes": au.get("minutes"),
+        "deep dive": _deepdive(root, day),
         "run": run.get("run_id", ""),
         "md": md,
     }
+
+
+def _deepdive(root: Path, day: str) -> str:
+    """'<status>, <words> words, <n> sources, fact check <checked> checked / <held> held' or 'none'."""
+    from . import deepdive
+    r = next((x for x in reversed(deepdive.records(root)) if x.get("day") == day and x.get("status") != "skipped"), None)
+    if not r:
+        return "none"
+    md = root / deepdive.DIR / f"{day}.md"
+    words = len(re.findall(r"\w+", md.read_text("utf-8"))) if md.exists() else 0
+    a = {}
+    try:
+        a = json.loads((root / "data" / "audit" / f"{day}-deepdive.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        pass
+    return (f"{r.get('status')}, {words} words, {len(r.get('sources') or [])} sources, fact check "
+            f"{a.get('checked', '?')} checked / {len(a.get('held') or [])} held")
 
 
 def flags(prod: dict, dev: dict) -> list:
@@ -79,6 +97,9 @@ def flags(prod: dict, dev: dict) -> list:
         out.append(f"audio length changed by more than 25%: {pa} -> {da} min")
     if pa and not da:
         out.append("dev has no audio for this day")
+    pd, dd = prod.get("deep dive", "none"), dev.get("deep dive", "none")
+    if dd != "none" and not dd.startswith(("published", "written")):
+        out.append(f"deep dive did not complete in dev: {dd}")
     return out
 
 
@@ -92,7 +113,7 @@ def write(dev_root: Path, prod_root: Path, day: str) -> dict:
         review += [f"privacy scan: {x}" for x in scan[:10]]
     from .version import full
     keys = ["sections", "must read", "worth knowing", "top of mind", "open questions", "words", "source links",
-            "must grounded", "evidence", "fact check", "audio minutes", "run"]
+            "must grounded", "evidence", "fact check", "audio minutes", "deep dive", "run"]
     rows = "\n".join(f"| {k} | {', '.join(prod[k]) if isinstance(prod[k], list) else prod[k]} | "
                      f"{', '.join(dev[k]) if isinstance(dev[k], list) else dev[k]} |" for k in keys)
     diff = "\n".join(list(difflib.unified_diff(prod["md"].splitlines(), dev["md"].splitlines(), "production", "dev",

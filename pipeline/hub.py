@@ -165,6 +165,21 @@ def dumps(m: dict) -> str:
     return json.dumps(m, indent=2, ensure_ascii=False) + "\n"
 
 
+from . import brand as _brand
+
+
+def brand_style(root: Path) -> str:
+    """This page only (the hub's shared CSS is not ours): the AI Briefing teal and author photo in the hero,
+    with dark-mode values from brand/brand.yaml (Steven, 2026-10-31: bring the hub to teal)."""
+    c = lambda n, d=False: _brand.color(n, root, dark=d)  # noqa: E731
+    return (f"  <style>\n    .hero{{border-top:4px solid {c('teal')}}}\n"
+            f"    .ab-brand{{display:flex;gap:14px;align-items:center}}\n"
+            f"    .ab-brand img{{width:64px;height:64px;border-radius:50%;border:3px solid {c('teal')};object-fit:cover}}\n"
+            f"    .ab-brand h1{{margin:0}} .ab-tag{{margin:2px 0 0;color:{c('teal')};font-weight:600}}\n"
+            f"    .hero .button{{background:{c('teal')};border-color:{c('teal')};color:#fff}}\n"
+            f"    @media (prefers-color-scheme: dark){{.ab-tag{{color:{c('on_deep')}}}}}\n  </style>")
+
+
 def page(m: dict, cfg: dict, root: Path) -> str:
     e = lambda s: html.escape(str(s), quote=True)  # noqa: E731
     site = m["experience_url"] or ""
@@ -187,6 +202,7 @@ def page(m: dict, cfg: dict, root: Path) -> str:
   <title>{e(m['display_name'])} | Steven Woods Projects</title>
   <link rel="stylesheet" href="assets/public-site.css">
   <script src="assets/project-freshness.js" defer></script>
+{brand_style(root)}
 </head>
 <body>
 <main class="shell shell--narrow">
@@ -195,7 +211,10 @@ def page(m: dict, cfg: dict, root: Path) -> str:
       <span class="eyebrow">Public project</span>
       <a class="heroHomeLink" href="index.html">Steven Woods</a>
     </div>
-    <h1>{e(m['display_name'])}</h1>
+    <div class="ab-brand">
+      {f'<img src="{e(site)}steven-woods.jpg" alt="Steven Woods" width="64" height="64">' if site else ""}
+      <div><h1>{e(m['display_name'])}</h1><p class="ab-tag">{e(_brand.tagline("main", root))}</p></div>
+    </div>
     <p>{e(m['description'])}</p>
     <div class="links">
 {btns}

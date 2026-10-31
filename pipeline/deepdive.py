@@ -763,7 +763,10 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     wpm = voice_wpm(((cfg.get("audio") or {}).get("deepdive_voice")) or "af_bella", root)
     words = int(float(c["minutes"]) * wpm * 0.95)
     max_words = int(float(c.get("max_minutes", 13)) * wpm)       # a touch longer when the topic needs the detail
-    flag = is_flagship(cfg, day) and not topic
+    # a manual topic on a flagship day is a one-off unless it rebuilds that day's flagship (2026-10-31: the Saturday
+    # rebuild came out in one voice)
+    flag = is_flagship(cfg, day) and (not topic or any(r.get("day") == day and r.get("format") == "flagship"
+                                                       for r in records(root)))
     fc = fcfg(cfg)
     if flag:                                     # Saturday: the weekly two-voice flagship (Steven, 2026-10-27)
         words, max_words = int(float(fc["minutes"]) * wpm * 0.95), int(float(fc["max_minutes"]) * wpm)

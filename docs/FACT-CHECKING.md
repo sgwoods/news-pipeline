@@ -113,6 +113,9 @@ lines it rewrote and how many with a newly cited source, and every later correct
 A corrected page also has a one-line pointer at the top. `analysis.presend_check: false` turns it off.
 
 ## 4e. The deep dive, before it is recorded (since v0.2.33)
+Facts only (v0.2.44): a sentence that frames a reading ("the AI-realist reading says…"), imagines an example
+("Picture a startup…") or gives our view is not checked (`audit.dd_framing`); in How people read it, only a sentence
+that attributes a view to someone is. On 10-31, most of the 12 held items were of that kind.
 The same check runs on the deep dive's script (`audit.check_sections`, from `deepdive.run` after the script checks
 of section 3), turn by turn, so a two-voice script whose turns share a section keeps every turn (v0.2.36): up to 24 sentences of Why today, Plainly, the evidence and How people read it (So what and What to
 watch are analysis), names no source has first, against the dive's sources (archived stories plus the live pages
