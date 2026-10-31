@@ -5,6 +5,13 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.42-beta · 2026-10-31
+- Monthly promo (Steven, 2026-10-31, option A): on the first Monday of each month, once the edition is out, one short
+  post in #cto-musings pointing to #cto-ai-newsletter (a channel link: one click opens it with Join), the website
+  and email sign-up, with the channel banner. `./np slack-post promo [--preview|--now]`, queue recipe `slack-promo`.
+- `brand/`: the author image master (`author-master.png`, the glasses photo cut from the podcast cover) and the
+  Slack channel banner (`slack-channel-banner.png`), the first files of the brand template (see the brand plan).
+
 ## v0.2.41-beta · 2026-10-31
 - Fix: the bot couldn't find #cto-ai-newsletter by name (public, bot invited); `slack.post.channel_id` is now used
   directly when set (C0CDBLD1JT1), so the morning post and Earlier editions don't depend on the lookup.

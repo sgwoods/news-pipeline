@@ -289,6 +289,56 @@ def post_archive(root: Path, cfg: dict, days: list, log=print, client=None) -> d
     return {"ok": True, "ts": ts}
 
 
+PROMO_IMAGE = "brand/slack-channel-banner.png"
+
+
+def qcfg(cfg: dict) -> dict:
+    """slack.promo: the monthly post in the team channel pointing to the newsletter channel (Steven, 2026-10-31)."""
+    return {"enabled": False, "channel": "cto-musings", "channel_id": "", **((cfg.get("slack") or {}).get("promo") or {})}
+
+
+def promo_due(day: str) -> bool:
+    """The first Monday of the month."""
+    d = dt.date.fromisoformat(day)
+    return d.weekday() == 0 and d.day <= 7
+
+
+def build_promo(cfg: dict) -> str:
+    """Option A (Steven, 2026-10-31): a short line, one click to the channel (a channel link opens it with Join), the
+    website and email sign-up."""
+    p = pcfg(cfg)
+    base = ((cfg.get("publish") or {}).get("site_url") or "").rstrip("/")
+    ch = f"<#{p['channel_id']}>" if p.get("channel_id") else f"#{p.get('channel', '')}"
+    return (f"Every morning the AI Briefing posts a two-minute read and a ten-minute deep dive in {ch}. "
+            f"Join the channel to get it, or read it on the web.\n"
+            f"\u2192 {ch}  \u00b7  <{base}/|Website>  \u00b7  <{base}/#email|Subscribe by email>")
+
+
+def post_promo(root: Path, cfg: dict, day: str, log=print, client=None, force: bool = False) -> dict:
+    """Post the promo once per month (stamped kind "promo", day YYYY-MM), with the channel banner."""
+    from .release import require
+    q = qcfg(cfg)
+    tok = token()
+    if not (q.get("enabled") and tok):
+        return {"ok": False, "skipped": "slack.promo off or no SLACK_BOT_TOKEN"}
+    month = day[:7]
+    if not force and not promo_due(day):
+        return {"ok": False, "skipped": f"{day} is not the first Monday"}
+    if any(r.get("kind") == "promo" and r.get("day") == month for r in _stamps(root)):
+        return {"ok": False, "skipped": f"promo already posted for {month}"}
+    text = build_promo(cfg)
+    require(root, cfg, "slack post", log)
+    import httpx
+    client = client or httpx.Client()
+    ch = channel_id(client, tok, q["channel"], q.get("channel_id", ""))
+    img = root / PROMO_IMAGE
+    ts = _send(client, tok, ch, text, img if img.is_file() else None, "AI Briefing")
+    _stamp(root, {"day": month, "kind": "promo", "at": dt.datetime.now().isoformat(timespec="seconds"),
+                  "channel": q["channel"], "channel_id": ch, "ts": ts})
+    log(f"Slack: posted the monthly promo to #{q['channel'].lstrip('#')}")
+    return {"ok": True, "ts": ts}
+
+
 def set_token(ask=None) -> str:
     """The slack-setup job: a Mac dialog (hidden answer) stores the bot token in the Keychain, then auth.test."""
     import subprocess

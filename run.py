@@ -1626,6 +1626,13 @@ def cmd_slack_post(cfg: dict, argv: list) -> int:
             print("\n--- deep dive (thread reply) ---\n" + dd["text"])
             print("card:", dd.get("card") or dd.get("card_error") or "none")
         return 0
+    if sub == "promo":                       # promo [--preview] [--now]: the monthly post in the team channel
+        if "--preview" in argv:
+            print(slackpost.build_promo(cfg))
+            return 0
+        r = slackpost.post_promo(ROOT, cfg, day, log=print, force="--now" in argv)
+        print(r if not r.get("ok") else "posted")
+        return 0 if r.get("ok") else 1
     if sub == "archive":                     # archive FROM TO: one "Earlier editions" message in the post channel
         ds = [a for a in argv[1:] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a)]
         if len(ds) != 2:
@@ -2920,6 +2927,10 @@ def cmd_daily(cfg: dict) -> int:
                 r = slackpost.post(ROOT, cfg, today, log=print)
                 if r.get("skipped"):
                     print(f"Slack post skipped: {r['skipped']}")
+            if slackpost.qcfg(cfg).get("enabled") and slackpost.promo_due(today) and today in _sd(ROOT):
+                r = slackpost.post_promo(ROOT, cfg, today, log=print)     # first Monday: the channel promo
+                if r.get("skipped"):
+                    print(f"Slack promo skipped: {r['skipped']}")
         except Exception as e:  # noqa: BLE001
             print(f"Slack post failed: {e}"[:200])
         try:                                     # pending sign-ups 14 days after their reminder -> expired

@@ -115,6 +115,7 @@ RECIPES = {
     "x-probe": {"tier": "auto", "args": {}, "steps": [("prod", ["x", "probe", "3"])]},
     "slack-card": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "preview", "{day}"])]},
     "slack-post": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "send", "{day}"])]},
+    "slack-promo": {"tier": "chat", "args": {}, "steps": [("prod", ["slack-post", "promo", "--now"])]},
     "slack-archive": {"tier": "chat", "args": {"from": "day", "to": "day"},
                       "steps": [("prod", ["slack-post", "archive", "{from}", "{to}"])]},
     "slack-deepdive": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "deepdive", "{day}"])]},
@@ -124,7 +125,7 @@ RECIPES = {
     "mailer-setup": {"tier": "chat", "args": {"script": "text"}, "steps": [("prod", ["mailer", "setup", "{script}"])]},
 }
 CHANGES_PRODUCTION = {"setup", "correct", "publish", "remaster", "deepdive-rebuild", "restore", "ship", "release", "rollback", "approve", "install-hooks",
-                      "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive", "slack-archive", "service-install"}
+                      "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive", "slack-archive", "slack-promo", "service-install"}
 IN_RELEASE_WINDOW = {"ship", "release"}
 # Steven, 2026-10-31: "pull approvals forward to the beginning of a task". A ship or release carrying his yes from
 # chat (asked when the task starts, answerable in the Claude iOS app) needs no tap: it runs on its own once tests and

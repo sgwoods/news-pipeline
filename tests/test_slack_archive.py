@@ -43,3 +43,28 @@ if __name__ == "__main__":
 class KnownChannel(unittest.TestCase):
     def test_a_configured_id_skips_the_lookup(self):
         self.assertEqual(slackpost.channel_id(object(), "t", "cto-ai-newsletter", "C0CDBLD1JT1"), "C0CDBLD1JT1")
+
+
+class Promo(unittest.TestCase):
+    CFG = {**CFG, "slack": {"post": {"enabled": True, "channel": "cto-ai-newsletter", "channel_id": "C0CDBLD1JT1"},
+                            "promo": {"enabled": True, "channel": "cto-musings", "channel_id": "C02LG8YPU5V"}}}
+
+    def test_first_monday_only(self):
+        self.assertTrue(slackpost.promo_due("2026-11-02"))
+        self.assertFalse(slackpost.promo_due("2026-11-09"))
+        self.assertFalse(slackpost.promo_due("2026-11-01"))
+
+    def test_text_links_the_channel_in_one_click(self):
+        t = slackpost.build_promo(self.CFG)
+        self.assertIn("<#C0CDBLD1JT1>", t)
+        self.assertIn("|Website>", t)
+
+    def test_once_a_month(self):
+        root = Path(tempfile.mkdtemp())
+        sent = []
+        with mock.patch.object(slackpost, "token", return_value="t"), \
+                mock.patch.object(slackpost, "_send", side_effect=lambda *a, **k: sent.append(a) or "1.0"), \
+                mock.patch("pipeline.release.require"):
+            self.assertTrue(slackpost.post_promo(root, self.CFG, "2026-11-02", log=lambda *a: None, client=object())["ok"])
+            self.assertFalse(slackpost.post_promo(root, self.CFG, "2026-11-02", log=lambda *a: None, client=object())["ok"])
+        self.assertEqual(sent[0][2], "C02LG8YPU5V")
