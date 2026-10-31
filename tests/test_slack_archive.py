@@ -38,3 +38,8 @@ class Archive(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KnownChannel(unittest.TestCase):
+    def test_a_configured_id_skips_the_lookup(self):
+        self.assertEqual(slackpost.channel_id(object(), "t", "cto-ai-newsletter", "C0CDBLD1JT1"), "C0CDBLD1JT1")

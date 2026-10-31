@@ -97,7 +97,11 @@ def build(root: Path, cfg: dict, day: str) -> dict:
     return out
 
 
-def channel_id(client, tok: str, name: str) -> str:
+def channel_id(client, tok: str, name: str, known: str = "") -> str:
+    """The channel's id: slack.post.channel_id when set (10-31: the name lookup missed the new public channel,
+    likely past the pages the list call returns in a large workspace), else looked up by name."""
+    if known:
+        return known
     cursor = ""
     for _ in range(20):
         r = _api(client, "conversations.list", tok, types="public_channel,private_channel", limit="200", cursor=cursor)
@@ -203,7 +207,7 @@ def post_dd(root: Path, cfg: dict, day: str, log=print, client=None) -> dict:
     require(root, cfg, "slack post", log)
     import httpx
     client = client or httpx.Client()
-    ch = main.get("channel_id") or channel_id(client, tok, p["channel"])
+    ch = main.get("channel_id") or channel_id(client, tok, p["channel"], p.get("channel_id", ""))
     ts = _send(client, tok, ch, msg["text"], msg.get("card"), f"AI Briefing · deep dive · {day}", thread_ts=main.get("ts", ""))
     _stamp(root, {"day": day, "kind": "deepdive", "at": dt.datetime.now().isoformat(timespec="seconds"),
                   "channel": p["channel"], "channel_id": ch, "ts": ts, "card": bool(msg.get("card")),
@@ -231,7 +235,7 @@ def post(root: Path, cfg: dict, day: str, log=print, client=None, dry: bool = Fa
     require(root, cfg, "slack post", log)
     import httpx
     client = client or httpx.Client()
-    ch = channel_id(client, tok, p["channel"])
+    ch = channel_id(client, tok, p["channel"], p.get("channel_id", ""))
     ts = _send(client, tok, ch, msg["text"], msg.get("card"), f"AI Briefing · {day}")
     _stamp(root, {"day": day, "kind": "main", "at": dt.datetime.now().isoformat(timespec="seconds"), "channel": p["channel"],
                   "channel_id": ch, "ts": ts, "card": bool(msg.get("card")), "take": bool(msg.get("take"))})
@@ -277,7 +281,7 @@ def post_archive(root: Path, cfg: dict, days: list, log=print, client=None) -> d
     require(root, cfg, "slack post", log)
     import httpx
     client = client or httpx.Client()
-    ch = channel_id(client, tok, p["channel"])
+    ch = channel_id(client, tok, p["channel"], p.get("channel_id", ""))
     ts = _send(client, tok, ch, text, None, "")
     _stamp(root, {"day": key, "kind": "archive", "at": dt.datetime.now().isoformat(timespec="seconds"),
                   "channel": p["channel"], "channel_id": ch, "ts": ts})

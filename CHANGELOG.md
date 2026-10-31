@@ -5,6 +5,10 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.41-beta · 2026-10-31
+- Fix: the bot couldn't find #cto-ai-newsletter by name (public, bot invited); `slack.post.channel_id` is now used
+  directly when set (C0CDBLD1JT1), so the morning post and Earlier editions don't depend on the lookup.
+
 ## v0.2.40-beta · 2026-10-31
 - `./np slack-post archive FROM TO [--preview]` (queue recipe `slack-archive`, chat): one "Earlier editions" message
   in the post channel, a line per day with its first lead and briefing and deep-dive links, posted once. For the days
