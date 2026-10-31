@@ -17,8 +17,10 @@ at inference time), a change in the trajectory of the field, or a story that has
   quotation marks survive only around words found in the archived or fetched text; sentences with a $ or %
   figure found in no source are cut; private names are removed; markup or banned words fail the episode.
   The summary and "Why today" lines are then checked against the finished body (`pipeline/consistency.py`, since
-  v0.1.9): a sentence whose figure, company or "not disclosed" claim the body doesn't support is dropped. See
-  docs/FACT-CHECKING.md.
+  v0.1.9): a sentence whose figure, company or "not disclosed" claim the body doesn't support is dropped. Since
+  v0.2.33 the script's factual sentences are also checked against the dive's sources, turn by turn, before it is
+  recorded, and rewritten or left for Steven in the draft Doc (`./np audit deepdive DAY` is a dry run). See
+  docs/FACT-CHECKING.md (4e).
 - **No story twice (v0.2.5):** when the deep dive covers one of the day's Must reads, the briefing keeps that story
   to a sentence and a pointer to the deep dive, in the written edition, the email and the podcast.
 - **In the podcast (2026-10-19):** the deep dive follows the briefing in the same episode. The briefing host
@@ -63,3 +65,7 @@ at inference time), a change in the trajectory of the field, or a story that has
 - **Readers suggest topics** (v0.2.29): a link in the email and on every deep-dive page; suggestions enter the queue
   as "suggested by <name>" (or "a reader") and the episode credits them when it runs.
 - **In Slack** (v0.2.28): the deep dive is a reply, with its own card, in the thread of the morning post.
+- **Rebuilding a shipped dive** (v0.2.36–v0.2.38): the `deepdive-rebuild` queue job (auto tier from v0.2.37) runs
+  `./np deepdive DAY --topic "..." --force` on the same topic, keeps the take Steven already gave, records a
+  correction and publishes. A topic already in the queue is reused, and `--topic` exits 1 when no dive was written,
+  so a failed rebuild records no correction.

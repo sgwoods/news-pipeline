@@ -295,6 +295,10 @@ def presend(root: Path, day: str, llm, system: str, log=print, stamp=None, finde
             continue
         md = md.replace(line, new, 1)
         added = [f for f in found if f["url"] in set(_URL.findall(new)) - set(_URL.findall(line))]
+        if any(not supports_text(f["text"], _plain(new)) for f in added):     # a new link must carry the fact itself
+            held += [{"claim": c["text"], **checks[c["n"]], "why": "the page it cited doesn't carry the fix"} for c in cs]
+            md = md.replace(new, line, 1) if new in md else md
+            continue
         for f in added:
             md = _add_source(md, new, f)
         fixes.append({"before": line, "after": new, "why": "; ".join(checks[c["n"]]["why"] for c in cs)[:400],
@@ -439,10 +443,11 @@ def check_sections(root: Path, day: str, sections: list, corpus: list, llm, syst
                          "why": f"second check: {f['recheck']}; proposed: {f['after'][:200]}"})
         fixes = kept
         pages = {x["url"]: x for c in bad for x in c.get("found") or []}
-        for f in fixes:                          # a found page joins the Sources when its fix checked out
-            if f["recheck"] == "supported":
-                for u in f["found"]:
-                    used.setdefault(u, pages[u])
+        for f in fixes:                          # a found page joins the Sources only when the fix checked out AND
+            if f["recheck"] == "supported":      # the page itself carries words of the fixed sentence (10-31: an
+                for u in f["found"]:             # unrelated TechCrunch story was added because the fix was supported
+                    if supports_text(pages[u]["text"], f["after"]):   # by the dive's own sources)
+                        used.setdefault(u, pages[u])
     for c in cl:
         if checks.get(c["n"], {}).get("verdict") == "not found" and not c.get("found"):
             held.append({"claim": c["text"], "section": c["story"], **checks[c["n"]]})
@@ -457,6 +462,18 @@ def check_sections(root: Path, day: str, sections: list, corpus: list, llm, syst
     log(f"Deep-dive fact check: {res['checked']} sentences, {len(fixes)} rewritten, "
         f"{len(used)} new source(s), {len(held)} for Steven")
     return [(sid, text_of[k]) for k, (sid, _t) in enumerate(sections)], res, list(used.values())
+
+
+def supports_text(page: str, sentence: str, n: int = 5) -> bool:
+    """The page shares a run of N words with the sentence (outlet names and stopwords aside), or its quotation."""
+    q = re.findall(r'"([^"]{12,})"', sentence)
+    low = " ".join(re.findall(r"[a-z0-9$%.]+", (page or "").lower()))
+    if any(" ".join(re.findall(r"[a-z0-9$%.]+", x.lower())) in low for x in q):
+        return True
+    w = re.findall(r"[a-z0-9$%.]+", sentence.lower())
+    grams = {" ".join(w[i:i + n]) for i in range(len(w) - n + 1)}
+    stop = {"according to the", "the new york times", "reported the case"}
+    return any(g in low and not any(st in g for st in stop) for g in grams)
 
 
 def load_deepdive_check(root: Path, day: str) -> dict:

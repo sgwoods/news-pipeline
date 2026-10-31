@@ -92,14 +92,18 @@ Sentences naming an acronym no source contains go first, and the model is told w
    "don't address" is looked at again with up to 12,000 characters of them before anything else happens.
 2. **A source we didn't cite.** A claim still partly right, contradicted or not found gets a search
    (`factsearch.pages_for`: Bing News then web RSS, free, no account; at most 6 per edition). Only live pages
-   fetched now and naming the claim's main name count; government and regulator pages come first. The claim is
+   fetched now count, and only if they name the claim's main name and also a second name or a figure from it; a
+   homepage or section front never counts (v0.2.34). Government and regulator pages come first. The claim is
    checked again with them.
 3. **The rewrite.** A partly-right or contradicted line is rewritten (prompt `audit_fix.md`) to what the cited
    sources and found pages say, preferring a primary source when they differ. It keeps its label and every link;
    it may add **one** link, and only to a page found in step 2; that page also joins the story's Sources line.
-   Anything else is refused.
+   A rewrite narrows the original claim and never swaps in a different one; it may come back empty, and then
+   Steven decides. Anything else is refused.
 4. **A second judge.** The rewritten line is checked by a different model (`llm.stages.judge2`, the local model by
-   default), so the model that rewrote it doesn't grade it. The after-send audit uses that model too.
+   default), so the model that rewrote it doesn't grade it, one claim per call, falling back to the first model if
+   it doesn't answer. A rewrite is kept only when this check confirms it; otherwise it is undone and goes to Steven
+   ("rewrite not confirmed"). The after-send audit uses that model too.
 5. **Steven.** What still doesn't hold (a refused rewrite, a re-check that fails, a name no source has) is listed
    at the top of the takes email ("Check: …"), while the edition is held. Names aren't cut automatically; figures
    still are (section 3).
@@ -110,7 +114,7 @@ A corrected page also has a one-line pointer at the top. `analysis.presend_check
 
 ## 4e. The deep dive, before it is recorded (since v0.2.33)
 The same check runs on the deep dive's script (`audit.check_sections`, from `deepdive.run` after the script checks
-of section 3): up to 24 sentences of Why today, Plainly, the evidence and How people read it (So what and What to
+of section 3), turn by turn, so a two-voice script whose turns share a section keeps every turn (v0.2.36): up to 24 sentences of Why today, Plainly, the evidence and How people read it (So what and What to
 watch are analysis), names no source has first, against the dive's sources (archived stories plus the live pages
 it cites). Not found → a wider look → a search; partly right or contradicted → the sentence rewritten as one plain
 spoken sentence (prompt `audit_fix_spoken.md`: no links or markup, passes the audio rules, may say "according to
@@ -143,6 +147,7 @@ the gate, the send is blocked.
 ./np factcheck 2026-10-13   same for a day
 ./np factcheck probe "Harvey raised $300M at a $5B valuation." '$5B'    one live search
 ./np consistency all        first lines vs the body, Agenda roles, cross-day flags over published editions (dry run)
+./np audit deepdive DAY     the deep-dive check (4e) on a recorded dive, as a dry run
 ./np correct DAY "note"     record a hand edit to a shipped edition (shown on its pages)
 ./np review weekly          the weekly quality review
 ```

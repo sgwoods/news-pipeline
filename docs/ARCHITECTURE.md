@@ -13,7 +13,7 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.38-beta (2026-10-31 (fix lane))
+- **Release:** v0.2.39-beta (2026-10-31 (weekend exception, Steven's yes in chat))
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 74 in `pipeline/`
@@ -60,9 +60,9 @@ _Generated at build time._
 | cluster | Items about the same thing become one story, with an evidence mix. | `editorial.py`, `profiles.py` |
 | critique / verify | Each claim gets a verdict: holds, mixed, overstated, unsupported, unverified. Every Must read gets an evidence check. | `stages.py`, `dive.py` |
 | editorial / write | Day in brief, Top of mind, Must read, Worth knowing, Open questions; citations point at the real article. | `editorial.py`, `links.py`, `questions.py` |
-| fact check | Figures traced to their source, searched before they are cut, flagged when unconfirmed; numbers cross-checked; quotes kept only if word for word. | `factcheck.py`, `factsearch.py`, `numbers.py` |
+| fact check | Figures traced to their source, searched before they are cut, flagged when unconfirmed; numbers cross-checked; quotes kept only if word for word. Then the pre-send check: every factual sentence of the top section, What happened and Worth knowing is checked against its sources, rewritten when a second model confirms the fix, or listed to the owner in the takes email. | `factcheck.py`, `factsearch.py`, `numbers.py`, `audit.py` |
 | first lines | The day in brief, Top of mind, deep-dive summaries, "Why today" and Agenda lines checked against the checked body and the item's own source; "not disclosed" claims compared with the last 14 editions; after the deep dive is written, the briefing is aligned with it (no story twice, no contradictions). | `consistency.py` |
-| deep dive | A second segment on the day's focal topic, from a queue the owner curates. | `deepdive.py` |
+| deep dive | A second segment on the day's focal topic, from a queue the owner curates; its script is fact checked turn by turn before it is recorded. | `deepdive.py`, `audit.py` |
 | takes | A private email asks the owner for takes; the edition waits until the cutoff (09:15) or "done"; clean takes go into the site, email and audio. | `takes.py` |
 | audio | The script becomes speech: a cold open with the lead story's sharpest line, pronunciations and a lint for words the voice may garble, loudness normalised (−16 LUFS, 96 kbps); the briefing and the deep dive are joined into one episode. Stories covered on earlier days get a short "what's new" segment. | `audio.py`, `speech.py` |
 | release gate | Tests, a secret scan, privacy invariants, approval of security-sensitive changes. | `release.py` |
@@ -104,7 +104,10 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
   have reported since (right, wrong, mixed; "too early" gets more time), and the site's Calls we made page lists them.
 - **Accuracy audit** (`audit.py`): after the edition ships, about five of its claims are checked again against
   their own sources, and the consistency flags for the day are counted. Partly right or contradicted claims send
-  Steven one alert; the site's Accuracy page shows the daily counts and every correction (`shipped.py`).
+  Steven one alert; the site's Accuracy page shows the daily counts and every correction (`shipped.py`). The same
+  module runs the checks before sending (`audit.presend`) and before a deep dive is recorded
+  (`audit.check_sections`); `./np audit deepdive DAY` is a dry run on a recorded dive. Details:
+  [Fact checking](FACT-CHECKING.md) 4d and 4e.
 - **The top of the edition** (`textutil.legacy_top`): with `briefing.top_format: merged` one 5-bullet "Today in 30
   seconds" with the diligence question replaces the day in brief and Top of mind; every reader of the markdown sees
   it in the classic shape through one function.
@@ -118,7 +121,7 @@ Smaller pieces:
 
 | Area | Modules |
 |---|---|
-| Sources | `sources.py` (resolve and verify feeds for tracked people), `suggest.py` (source suggestions), `xsource.py` (X accounts through public RSS mirrors, never the paid API), `xdigest.py` (a weekly X digest by web search for accounts no mirror reaches), `linkedin.py` (the owner's own posts from LinkedIn's export), `record.py` (the owner's public record) |
+| Sources | `sources.py` (resolve and verify feeds for tracked people), `suggest.py` (source suggestions), `xsource.py` (X accounts and the members of named X lists through RSS: public mirrors or a local RSS generator, never the paid API; `./np x probe`), `xdigest.py` (a weekly X digest by web search for accounts no mirror reaches), `linkedin.py` (the owner's own posts from LinkedIn's export), `record.py` (the owner's public record) |
 | Owner touchpoints | `editor_note.py` (the owner's private evening note), `alerts.py` (an action-needed email when an edition can't go out), `todos.py` (the shared to-do list), `report.py` (the short status report in `logs/last-report.md`) |
 | Quality | `review.py` (the weekly review, from local files only), `critic.py` (the weekly critic email: scores against ten benchmark shows, charts, suggestions; owner only) |
 | Settings and time | `owner.py` (who runs this instance), `settings.py` (edit single config values without disturbing comments), `schedule.py` (when scheduled jobs actually run, by the local clock) |
@@ -220,7 +223,13 @@ the email.
 Production runs a tagged release (`VERSION`, `CHANGELOG.md`). Changes are built on a development branch whose
 checkout is in staging mode. They're verified with a full staging run compared against production, tagged as a
 release candidate, reviewed, and promoted in a safe window with a single approval. The next morning's run is the
-canary, and a rollback returns to the previous, already-approved release. Editorial content (sources, watchlist,
+canary, and a rollback returns to the previous, already-approved release.
+
+From v0.2.33 a release goes out through the `ship` job in one of two lanes: the slot lane, once per weekday from
+13:00 (`release.slot`), or the fix lane, for something broken, any time in the release window (08:30–20:00, or
+earlier once the edition is out). Every ship first soaks: today's edition is rebuilt with the dev code and compared
+with production, and a compare that needs review stops the ship unless the owner accepts it. Rules and approvals:
+docs/security/RELEASE.md. Editorial content (sources, watchlist,
 perspective, takes) isn't code and is edited in production at any time.
 
 | Command | Where | What |
@@ -247,12 +256,13 @@ three tiers:
 
 | Tier | Recipes | Runs when |
 |---|---|---|
-| auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify`, `consistency`, `critic-email`, `takes-test`, `takes-check`, `drive-save`, `mailer-status` | at once |
+| auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify`, `consistency`, `critic-email`, `takes-test`, `takes-check`, `takes-sync`, `drive-save`, `mailer-status`, `audio-check`, `audit`, `audit-deepdive`, `x-probe`, `advance`, and (from v0.2.37) `remaster` and `deepdive-rebuild` | at once |
 | chat | `correct`, `publish`, `restore`, `takes-done`, `takes-apply`, `send-held`, `source-add`, `mailer-setup` | the job quotes the owner's yes from the chat |
-| mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, `phone-setup`, the public code push, `deploy-mailer` | the owner clicks Approve in a dialog on the Mac, or on his phone (below) (also early, while the morning run is still going: the job then runs as soon as the edition is out); a ship's Approve also covers the public code export and the mail-script deploy |
+| mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, `phone-setup`, `ntfy-setup`, the public code push, `deploy-mailer` | for `ship` and `release` only (v0.2.37), the owner's yes quoted from the chat when the task starts, once tests and the soak pass; otherwise the owner clicks Approve in a dialog on the Mac, or on his phone (below) (also early, while the morning run is still going: the job then runs as soon as the edition is out); a ship's Approve also covers the public code export and the mail-script deploy |
 
-The click grants presence in memory for that job's approved steps only (`presence.py`). No file or setting can
-stand in for it: an early click is kept as a signature over that job, made with a key in the Mac's Keychain (which
+The click grants presence in memory for that job's approved steps only (`presence.py`). Apart from the quoted
+chat yes for `ship` and `release` (which rests on Claude quoting the owner faithfully, as the chat tier does), no
+file or setting can stand in for it: an early click is kept as a signature over that job, made with a key in the Mac's Keychain (which
 the VM and Claude can't read), used once and only that day. Jobs that change production wait out the morning run,
 which ends when the day's edition has gone out. Unanswered approvals lapse at 20:00.
 

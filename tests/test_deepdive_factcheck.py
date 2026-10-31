@@ -154,3 +154,10 @@ class Rebuild(unittest.TestCase):
                 item = next((q for q in deepdive.load_queue(root)
                              if deepdive._similar(q.get("topic", ""), "Who's liable when a chatbot gives medical advice?")), None)
         self.assertEqual(item["id"], "q1")
+
+
+class FoundPageSupport(unittest.TestCase):
+    def test_a_found_page_must_carry_the_fixed_sentence(self):
+        fix = 'TechCrunch reports the chatbot said her doctors\' advice would "essentially stem from risk aversion".'
+        self.assertFalse(audit.supports_text("US investigated a Chinese spy plot aimed at Nvidia's CEO, TechCrunch reports.", fix))
+        self.assertTrue(audit.supports_text("...recommendations would essentially stem from risk aversion, rather than...", fix))

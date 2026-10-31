@@ -101,8 +101,8 @@ class Gaps(Presend):
         gov = "https://www.pm.gc.ca/en/news/x"
         page = {"url": gov, "outlet": "Prime Minister of Canada", "title": "Landmark investment", "text":
                 "The Government of Canada will invest in Northwind in stages.", "primary": True}
-        good = (f"- **What happened:** Northwind announced a Series E of up to $7B, with the Government of Canada "
-                f"investing in stages [Prime Minister of Canada]({gov}) [2]({URL}).")
+        good = (f"- **What happened:** Northwind announced a Series E of up to $7B; the Government of Canada "
+                f"will invest in Northwind in stages [Prime Minister of Canada]({gov}) [2]({URL}).")
         md = MD.replace("- **Why it matters:** sovereign money.",
                         f"- **Why it matters:** sovereign money.\n- **Sources:** [BetaKit: x]({URL})")
         (self.root / "briefings" / f"{DAY}.md").write_text(md, "utf-8")

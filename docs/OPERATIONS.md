@@ -9,7 +9,7 @@
 | Advance deep dive (tomorrow's draft into Drive) | launchd agent `com.sgwoods.news-pipeline.advance`, at `schedule.advance` (15:30) | `./np service … advance` |
 | Run queue (jobs Claude queues; approvals) + Drive takes sync every 20 min | launchd agent `com.sgwoods.news-pipeline.runner`, every minute | `./np runner status` |
 | Phone notifications and one-tap approvals | ntfy.sh, private topics in the Keychain (`NP_NTFY_TOPIC`, `NP_NTFY_REPLY`) | `./np ntfy test`; `ntfy-setup` job |
-| Morning post in #cto-musings | Slack bot "AI Briefing", token in the Keychain (`SLACK_BOT_TOKEN`) | `./np slack-post …`; `slack-setup` job |
+| Morning post in #cto-ai-newsletter | Slack bot "AI Briefing", token in the Keychain (`SLACK_BOT_TOKEN`) | `./np slack-post …`; `slack-setup` job |
 | Jev shadow filter | TypeSafe API, key in the Keychain (`TYPESAFE_API_KEY`), 400k tokens/day cap | `./np jev report`; `jev-setup` job |
 | Local model | Ollama, `brew services start ollama` | `./np service restart ollama` |
 | Critical pass, clustering, editorial | Claude Code (`claude -p`) on your subscription | — |

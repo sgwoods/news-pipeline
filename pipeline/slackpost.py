@@ -1,5 +1,5 @@
 """The morning post in the team channel (Steven, 2026-10-28): when the email goes out, one short branded post in
-cto-musings: the day's leads, one of Steven's takes in his words, the deep dive, and the links, with the day's
+cto-ai-newsletter (cto-musings until 2026-10-31): the day's leads, one of Steven's takes in his words, the deep dive, and the links, with the day's
 card (pipeline/card.py) attached so it reads as the briefing, not as a text message.
 
 Posted by the app's bot user ("AI Briefing"), never as Steven: the bot token (SLACK_BOT_TOKEN, Keychain) needs

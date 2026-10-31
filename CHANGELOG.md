@@ -5,6 +5,17 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.39-beta · 2026-10-31 (weekend exception, Steven's yes in chat)
+- The morning Slack post (card + deep-dive thread) goes to #cto-ai-newsletter instead of #cto-musings (Steven,
+  2026-10-31). Links are still read from #cto-musings.
+- Fix: a page found by the fact check's search joins the Sources (or is linked) only when it carries words of the
+  fixed sentence itself (a 5-word run or its quotation); on 10-31 an unrelated TechCrunch story was added to the
+  rebuilt deep dive's Sources because the fix was supported by the dive's own sources (removed by hand).
+- Docs: ARCHITECTURE, FACT-CHECKING and DEEP-DIVES brought up to v0.2.38 (pre-send and deep-dive fact checks,
+  v0.2.34 search and second-judge rules, release lanes and soak, chat approval for ship/release, auto-tier
+  remaster and deepdive-rebuild, X via list members and a local RSS generator); run-queue, release-flow and
+  fact-checking diagrams updated.
+
 ## v0.2.38-beta · 2026-10-31 (fix lane)
 - Fix: `deepdive --topic` on a topic already in the queue (the dive being rebuilt) found no item and wrote nothing,
   and the rebuild recipe then recorded a correction anyway. The queued item is reused, and `deepdive --topic` exits 1
