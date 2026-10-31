@@ -826,6 +826,12 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     d = root / DIR
     d.mkdir(parents=True, exist_ok=True)
     tk = take_part(item, cfg, log)               # Steven's take, set from the preview email, queue page or dashboard
+    if not tk and force:                         # a rebuild of the day's dive keeps the take Steven already gave it
+        try:
+            old = json.loads((root / DIR / f"{day}.parts.json").read_text("utf-8"))
+            tk = next((tuple(x) for x in old["parts"] if x[0] == "steven_take"), None)
+        except (OSError, ValueError, KeyError):
+            tk = None
     if tk:
         rec["take"] = True
     first = flagship_opener(day, title, cfg) if flag else opener(day, title, cfg.get("audio") or {})

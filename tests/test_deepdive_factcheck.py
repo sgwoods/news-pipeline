@@ -115,6 +115,19 @@ class DeepDiveCheck(unittest.TestCase):
         got = factsearch.pages_for(F(), "Northwind took $1.6 billion from the Government of Canada.")
         self.assertEqual([g["url"] for g in got], ["https://www.pm.gc.ca/en/news/news-releases/2026/10/29/x"])
 
+    def test_a_two_voice_script_keeps_every_turn(self):
+        """10-31: the flagship repeats section ids per turn; the check returned the last turn's text for every turn
+        of that section, so the episode repeated paragraphs."""
+        turns = [("why_today~host", "First host turn about Northwind and the Government of Canada deal."),
+                 ("why_today~sceptic", "Sceptic turn one asks what Northwind actually closed."),
+                 ("why_today~host", "Second host turn says the federal deposit insurer CDIC is in the deal."),
+                 ("why_today~sceptic", "Sceptic turn two wants the Government of Canada terms.")]
+        good = "Second host turn says the Government of Canada is investing in the deal."
+        new, res, _ = audit.check_sections(self.root, DAY, turns, [SRC], Fake(good), "sys", judge=Fake(), log=lambda *a: None)
+        self.assertEqual([t for _, t in new], [turns[0][1], turns[1][1], good, turns[3][1]])
+        new, _r, _p = audit.check_sections(self.root, DAY, turns, [SRC], Fake(""), "sys", log=lambda *a: None)
+        self.assertEqual(new, turns)                                   # nothing fixed: exactly what came in
+
     def test_the_check_never_breaks_the_dive(self):
         class Boom:
             label = "boom"

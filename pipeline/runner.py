@@ -86,9 +86,10 @@ RECIPES = {
                    "steps": [("prod", ["sources", "add", "{name}", "{url}", "{url2}", "{note}"])]},
     # ship (v0.2.33): lane "" / "slot" = the weekday 13:00 slot, once a day; lane "fix" = something is broken, any
     # time in the release window. Before Approve, a soak: today's edition rebuilt with the dev code and compared with
-    # production; a compare that needs review (exit 3) stops the ship unless "accept" quotes Steven's OK.
+    # production; a compare that needs review (exit 3) stops the ship unless "accept" quotes Steven's OK. The soak passes
+    # --force: a ship only runs once the morning edition is out and no run is busy (10-31: it refused before 08:30).
     "ship":    {"tier": "mac", "args": {"version": "version", "note": "reviewed", "lane": "lane?", "accept": "accepted?"},
-                "steps": [("dev", ["staging", "sync"]), ("dev", ["tests"]), ("dev", ["staging", "run"]),
+                "steps": [("dev", ["staging", "sync"]), ("dev", ["tests"]), ("dev", ["staging", "run", "--force"]),
                           ("dev", ["staging", "compare"]), APPROVE,
                           ("local", ["release", "{version}", "{note}"]), ("local", ["verify"]),
                           ("local?", ["follow-through", "{note}"])]},   # public export + mail script, same Approve
@@ -108,6 +109,9 @@ RECIPES = {
     "slack-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["slack-setup"])]},   # the bot token
     "jev-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["jev-setup"])]},       # the TypeSafe key
     "jev-report": {"tier": "auto", "args": {}, "steps": [("prod", ["jev", "report"])]},
+    "deepdive-rebuild": {"tier": "chat", "args": {"day": "day", "topic": "text", "note": "text"},   # rewrite a shipped dive
+                         "steps": [("prod", ["deepdive", "{day}", "--topic", "{topic}", "--force"]),
+                                   ("prod", ["correct", "{day}", "{note}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "x-probe": {"tier": "auto", "args": {}, "steps": [("prod", ["x", "probe", "3"])]},
     "slack-card": {"tier": "auto", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "preview", "{day}"])]},
     "slack-post": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["slack-post", "send", "{day}"])]},
@@ -117,7 +121,7 @@ RECIPES = {
     "mailer-status": {"tier": "auto", "args": {}, "steps": [("prod", ["mailer", "status"])]},
     "mailer-setup": {"tier": "chat", "args": {"script": "text"}, "steps": [("prod", ["mailer", "setup", "{script}"])]},
 }
-CHANGES_PRODUCTION = {"setup", "correct", "publish", "remaster", "restore", "ship", "release", "rollback", "approve", "install-hooks",
+CHANGES_PRODUCTION = {"setup", "correct", "publish", "remaster", "deepdive-rebuild", "restore", "ship", "release", "rollback", "approve", "install-hooks",
                       "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive", "service-install"}
 IN_RELEASE_WINDOW = {"ship", "release"}
 NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup", "ntfy-setup",

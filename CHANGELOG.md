@@ -5,6 +5,15 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.36-beta · 2026-10-31 (fix lane)
+- Fix: the deep-dive fact check (v0.2.33) keyed a two-voice script by section, and a flagship repeats section ids on
+  every turn, so every turn of a section came back as that section's last turn. The 10-31 flagship repeated whole
+  paragraphs. The check now works turn by turn; a test covers a two-voice script.
+- `deepdive-rebuild` queue recipe (chat): rewrite a shipped day's deep dive on its topic, record the correction and
+  publish. A rebuild keeps the take Steven already gave the dive.
+- Fix: the ship's soak (`staging run`) refused before 08:30 even after the edition was out; it now passes --force,
+  since a ship only runs once the edition is out and no run is busy.
+
 ## v0.2.35-beta · 2026-10-30 (Steven asked to bring X forward for the weekend runs, an exception to the slot rule)
 - `./np x probe [N]` (queue recipe `x-probe`, auto): the first N accounts through the configured X instances, with
   post counts; nothing is archived.

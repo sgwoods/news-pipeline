@@ -349,7 +349,7 @@ def dd_claims(sections: list, corpus: list, n: int = DD_N) -> list:
     has first, then those with a figure, then the rest; each section at most 8."""
     hay = " ".join(corpus)
     pool = []
-    for sid, text in sections:
+    for k, (sid, text) in enumerate(sections):
         base = sid.split("~", 1)[0]
         if base not in DD_FACTUAL:
             continue
@@ -358,13 +358,13 @@ def dd_claims(sections: list, corpus: list, n: int = DD_N) -> list:
             if len(sent.split()) < 6:
                 continue
             pri = 0 if untraced_names(sent, hay) else 1 if _FIG.search(sent) else 2 if re.search(r"\b[A-Z][a-z]+\b.*\b[A-Z]", sent) else 3
-            pool.append((pri, sid, sent))
+            pool.append((pri, sid, sent, k))
     out, per = [], {}
-    for pri, sid, sent in sorted(pool, key=lambda x: x[0]):
+    for pri, sid, sent, k in sorted(pool, key=lambda x: x[0]):
         if per.get(sid, 0) >= 8 or pri == 3:
             continue
         per[sid] = per.get(sid, 0) + 1
-        out.append({"n": len(out) + 1, "text": sent, "story": sid, "ids": [], "texts": corpus, "line": sent})
+        out.append({"n": len(out) + 1, "text": sent, "story": sid, "turn": k, "ids": [], "texts": corpus, "line": sent})
         if len(out) >= n:
             break
     return out
@@ -400,7 +400,7 @@ def check_sections(root: Path, day: str, sections: list, corpus: list, llm, syst
            or (checks.get(c["n"], {}).get("verdict") == "not found" and c.get("found"))]
     tmpl, _ = prompt("audit_fix_spoken")
     fixes, held, used = [], [], {}
-    text_of = {sid: t for sid, t in sections}
+    text_of = [t for _sid, t in sections]        # by turn: a two-voice script repeats section ids (v0.2.36)
     for c in bad:
         found = c.get("found") or []
         ask = (tmpl.replace("{{sentence}}", c["text"])
@@ -415,12 +415,12 @@ def check_sections(root: Path, day: str, sections: list, corpus: list, llm, syst
             new = ""
         good = bool(new) and "\n" not in new and not re.search(r"https?://|\[|\]|\*|#", new) \
             and len(new) <= len(c["text"]) * 1.5 + 60 and (ok_sentence is None or ok_sentence(new))
-        sid = c["story"]
-        if not good or c["text"] not in text_of.get(sid, ""):
+        sid, k = c["story"], c["turn"]
+        if not good or c["text"] not in text_of[k]:
             held.append({"claim": c["text"], "section": sid, **checks[c["n"]]})
             continue
-        text_of[sid] = text_of[sid].replace(c["text"], new, 1)
-        fixes.append({"section": sid, "before": c["text"], "after": new, "why": checks[c["n"]]["why"][:300],
+        text_of[k] = text_of[k].replace(c["text"], new, 1)
+        fixes.append({"turn": k, "section": sid, "before": c["text"], "after": new, "why": checks[c["n"]]["why"][:300],
                       "found": [f["url"] for f in found]})
     if fixes:                                    # checked again by the second judge, with any found pages
         extra = [f"({f['outlet']}) {f['text']}" for c in bad for f in c.get("found") or []]
@@ -434,7 +434,7 @@ def check_sections(root: Path, day: str, sections: list, corpus: list, llm, syst
             if f["recheck"] == "supported":
                 kept.append(f)
                 continue
-            text_of[f["section"]] = text_of[f["section"]].replace(f["after"], f["before"], 1)
+            text_of[f["turn"]] = text_of[f["turn"]].replace(f["after"], f["before"], 1)
             held.append({"claim": f["before"], "section": f["section"], "verdict": "rewrite not confirmed",
                          "why": f"second check: {f['recheck']}; proposed: {f['after'][:200]}"})
         fixes = kept
@@ -456,7 +456,7 @@ def check_sections(root: Path, day: str, sections: list, corpus: list, llm, syst
     out.write_text(json.dumps(res, ensure_ascii=False, indent=1), "utf-8")
     log(f"Deep-dive fact check: {res['checked']} sentences, {len(fixes)} rewritten, "
         f"{len(used)} new source(s), {len(held)} for Steven")
-    return [(sid, text_of[sid]) for sid, _ in sections], res, list(used.values())
+    return [(sid, text_of[k]) for k, (sid, _t) in enumerate(sections)], res, list(used.values())
 
 
 def load_deepdive_check(root: Path, day: str) -> dict:

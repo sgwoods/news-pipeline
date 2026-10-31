@@ -26,7 +26,7 @@ class Lanes(Base):
         self.assertEqual(self.calls, [])
         self.assertEqual(self.r(THU.replace(hour=13, minute=5)).run_job(p), "ok")
         dev = [c[1] for c in self.calls if c[0] == "dev"]
-        self.assertEqual(dev, [["staging", "sync"], ["tests"], ["staging", "run"], ["staging", "compare"]])
+        self.assertEqual(dev, [["staging", "sync"], ["tests"], ["staging", "run", "--force"], ["staging", "compare"]])
 
     def test_one_slot_ship_a_day_and_none_at_weekends(self):
         self.assertEqual(self.r(THU.replace(hour=14)).run_job(self.queue("ship", SHIP)), "ok")

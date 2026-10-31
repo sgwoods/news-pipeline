@@ -13,7 +13,7 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.35-beta (2026-10-30 (Steven asked to bring X forward for the weekend runs, an exception to the slot rule))
+- **Release:** v0.2.36-beta (2026-10-31 (fix lane))
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 74 in `pipeline/`
