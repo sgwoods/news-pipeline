@@ -696,6 +696,8 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     rec = {"day": day, "at": dt.datetime.now().isoformat(timespec="seconds")}
     if topic:
         item = add_manual(root, topic, day=day)
+        if not item:                             # the topic is already in the queue (e.g. the dive being rebuilt): reuse it
+            item = next((q for q in load_queue(root) if _similar(q.get("topic", ""), topic)), None)
         item = set_status(root, item["id"], "scheduled", for_day=day) if item else None
     else:
         item = scheduled_for(root, day)

@@ -51,7 +51,19 @@ by a key only the Mac's Keychain holds (pipeline/runner.py):
 - **the approval page with a passphrase** (v0.2.22, fallback): the page sends a proof made on the phone from the
   passphrase, checked against the Keychain.
 None of the email, the mail script's records or the job files can stand in for these, so Claude, which can read all
-of them, cannot approve. Releases run 08:30–20:00, or earlier once the morning edition is out.
+of them, cannot approve.
+
+**Approval up front in chat (Steven, 2026-10-31; v0.2.37).** Taps that arrived 10–20 minutes after a task started,
+when Steven was away from the Mac, were the interruption. For `ship` and `release` only, Steven's yes in chat (asked
+by Claude when the task starts; answerable in the Claude iOS app) is the approval: Claude quotes it in the job's
+`chat_approval`, and the runner releases on its own once tests and the soak on today's edition pass, then notifies
+him. The trade-off, accepted by Steven: this rests on Claude quoting him faithfully, like the chat tier always has,
+not on a key only the Mac holds. Failed tests, a soak that needs review, the 08:30–20:00 window and the slot rules
+still stop it. `rollback`, `push-code`, `approve` and every secrets setup keep the tap.
+
+**No-ask jobs (same day):** re-recording after an agreed correction (`remaster`) and rebuilding a broken deep dive
+on its topic (`deepdive-rebuild`) are auto tier; checks, previews, probes and the daily X-list refresh already were.
+Each is logged and notified. Releases run 08:30–20:00, or earlier once the morning edition is out.
 
 ## Release rules for day-to-day stability (2026-10-30)
 The newsletter matters more than the next feature. From v0.2.33:

@@ -5,6 +5,20 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.38-beta · 2026-10-31 (fix lane)
+- Fix: `deepdive --topic` on a topic already in the queue (the dive being rebuilt) found no item and wrote nothing,
+  and the rebuild recipe then recorded a correction anyway. The queued item is reused, and `deepdive --topic` exits 1
+  when no dive was written, so a rebuild stops before recording a correction.
+- Fix: the subcommand-argument tests read config.yaml, which the public export doesn't have (public tests failed).
+
+## v0.2.37-beta · 2026-10-31 (fix lane)
+- Fix: `./np deepdive DAY --topic "..." --force` stopped at the argument parser (--topic unknown, --force taken as
+  the top-level flag), so the deepdive-rebuild recipe failed; `./np staging run --force` lost its --force the same
+  way, so the ship's soak refused before 08:30. Everything after a subcommand that takes arguments now goes to it.
+- Approvals up front (Steven, 2026-10-31): a `ship`/`release` carrying Steven's quoted yes from chat runs on its own
+  after tests and the soak pass, with no phone prompt; rollback, code push and secrets keep the tap. `remaster` and
+  `deepdive-rebuild` no longer need a chat quote (auto tier). See docs/security/RELEASE.md.
+
 ## v0.2.36-beta · 2026-10-31 (fix lane)
 - Fix: the deep-dive fact check (v0.2.33) keyed a two-voice script by section, and a flagship repeats section ids on
   every turn, so every turn of a section came back as that section's last turn. The 10-31 flagship repeated whole

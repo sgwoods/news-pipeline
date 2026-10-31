@@ -61,7 +61,7 @@ RECIPES = {
     "correct": {"tier": "chat", "args": {"day": "day", "note": "text"},
                 "steps": [("prod", ["correct", "{day}", "{note}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "publish": {"tier": "chat", "args": {}, "steps": [("prod", ["publish"]), ("local", ["verify"])]},
-    "remaster": {"tier": "chat", "args": {"day": "day", "note": "text"},   # re-record DAY's podcast from its corrected
+    "remaster": {"tier": "auto", "args": {"day": "day", "note": "text"},   # re-record DAY's podcast from its corrected
                  "steps": [("prod", ["remaster", "{day}", "--correct", "{note}"]), ("local", ["verify"])]},  # text
     "restore": {"tier": "chat", "args": {}, "steps": [("prod", ["publish", "restore"]), ("local", ["verify"])]},
     "takes-done": {"tier": "chat", "args": {}, "steps": [("prod", ["takes", "done"])]},
@@ -109,7 +109,7 @@ RECIPES = {
     "slack-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["slack-setup"])]},   # the bot token
     "jev-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["jev-setup"])]},       # the TypeSafe key
     "jev-report": {"tier": "auto", "args": {}, "steps": [("prod", ["jev", "report"])]},
-    "deepdive-rebuild": {"tier": "chat", "args": {"day": "day", "topic": "text", "note": "text"},   # rewrite a shipped dive
+    "deepdive-rebuild": {"tier": "auto", "args": {"day": "day", "topic": "text", "note": "text"},   # rewrite a shipped dive
                          "steps": [("prod", ["deepdive", "{day}", "--topic", "{topic}", "--force"]),
                                    ("prod", ["correct", "{day}", "{note}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "x-probe": {"tier": "auto", "args": {}, "steps": [("prod", ["x", "probe", "3"])]},
@@ -124,6 +124,10 @@ RECIPES = {
 CHANGES_PRODUCTION = {"setup", "correct", "publish", "remaster", "deepdive-rebuild", "restore", "ship", "release", "rollback", "approve", "install-hooks",
                       "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive", "service-install"}
 IN_RELEASE_WINDOW = {"ship", "release"}
+# Steven, 2026-10-31: "pull approvals forward to the beginning of a task". A ship or release carrying his yes from
+# chat (asked when the task starts, answerable in the Claude iOS app) needs no tap: it runs on its own once tests and
+# the soak pass, and he gets a notification after. Rollback, the public code push and secrets keep the tap.
+CHAT_APPROVES = {"ship", "release"}
 NEEDS_APPROVAL = {"release", "rollback", "approve", "install-hooks", "push-code", "deploy-mailer", "phone-setup", "ntfy-setup",
                   "slack-setup", "jev-setup"}   # local steps behind the click
 
@@ -657,7 +661,8 @@ class Runner:
             job["deferred"] = why
             _write(src, {**raw, "deferred": why})
             r0 = RECIPES[job["recipe"]]
-            if APPROVE in r0["steps"] and self.key and not self.approved_early(job) and \
+            chat_ok = job["recipe"] in CHAT_APPROVES and job.get("chat_approval")
+            if APPROVE in r0["steps"] and self.key and not chat_ok and not self.approved_early(job) and \
                     self.now().time() < RELEASE_WINDOW[1]:       # ask now; it runs when the morning is done
                 self._phone_send(job, raw, src)
                 pa = self._phone_answer(job, src)
@@ -700,6 +705,9 @@ class Runner:
                 return "waiting"
             if terminal:
                 answer = "approve"
+            elif job["recipe"] in CHAT_APPROVES and job.get("chat_approval"):
+                answer = "approve"
+                job["approved_by"] = "chat"
             elif self.approved_early(job):
                 answer, terminal = "approve", False
                 job["approved_early"] = True
@@ -731,6 +739,7 @@ class Runner:
                         "again in the window", self.notify)
                 return "expired"
             code = self._run_approved(job, steps, cut + 1, log, "terminal" if terminal else
+                                      "chat: " + job["chat_approval"][:200] if job.get("approved_by") == "chat" else
                                       "phone" if job.get("approved_by") == "phone" else
                                       "dialog (early)" if job.get("approved_early") else "dialog")
         else:

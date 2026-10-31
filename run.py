@@ -1867,6 +1867,9 @@ def cmd_deepdive(cfg: dict, argv: list) -> int:
                                                          paths=(deepdive.DIR, deepdive.LOG, "data/episodes.json")))
     elif cfg.get("archive", {}).get("git_commit", True):
         Archive(ROOT, cfg["paths"]).git_commit(f"deep dive {day}: {rec.get('status')}", paths=(deepdive.LOG,))
+    if topic and rec.get("status") not in ("published", "written"):
+        print("Deep dive: no dive was written for the given topic")   # a rebuild must not go on to record a correction
+        return 1
     return 0 if rec.get("status") in ("published", "written", "skipped") else 1
 
 
@@ -3162,7 +3165,15 @@ def main() -> int:
     ap.add_argument("--cmd", default="", help=argparse.SUPPRESS)
     ap.add_argument("--exit-code", type=int, default=None, help=argparse.SUPPRESS)
     ap.add_argument("--output-file", default="", help=argparse.SUPPRESS)
-    args = ap.parse_args()
+    argv = sys.argv[1:]                          # a subcommand that takes ARG... gets everything after it, flags too
+    multi = {o: a.dest for a in ap._actions if a.nargs == "*" for o in a.option_strings}   # (10-31: --topic, --force)
+    k = next((i for i, a in enumerate(argv) if a in multi), None)
+    own = None
+    if k is not None:
+        argv, own = argv[:k + 1], argv[k + 1:]
+    args = ap.parse_args(argv)
+    if own is not None:
+        setattr(args, multi[argv[k]], own)
     cfg = load_config(args.profile)
     if args.report:
         from pipeline import report

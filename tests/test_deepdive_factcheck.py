@@ -141,3 +141,16 @@ class DeepDiveCheck(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Rebuild(unittest.TestCase):
+    def test_a_topic_already_in_the_queue_is_reused(self):
+        root = Path(tempfile.mkdtemp())
+        deepdive.save_queue(root, [{"id": "q1", "topic": "Who's liable when a chatbot gives medical advice?",
+                                    "status": "done"}])
+        with mock.patch.object(deepdive, "add_manual", return_value={}):
+            item = None
+            if not deepdive.add_manual(root, "Who's liable when a chatbot gives medical advice?"):
+                item = next((q for q in deepdive.load_queue(root)
+                             if deepdive._similar(q.get("topic", ""), "Who's liable when a chatbot gives medical advice?")), None)
+        self.assertEqual(item["id"], "q1")
