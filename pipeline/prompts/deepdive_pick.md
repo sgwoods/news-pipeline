@@ -6,15 +6,18 @@ The deep dive is a separate episode of about ten minutes that follows the daily 
 - a release or result that may change the trajectory of the field (a new capability level, a big drop in price, a new method)
 - a surging argument or controversy (an AI bubble, lab economics, a safety incident, a regulatory turn)
 - a story that has been developing for several days and now has enough evidence for a full picture
+- a technical idea explained for investors and business people ("technical"): how something works under the hood and why it changes what can be built, what it costs or who wins. Standing themes Steven wants covered regularly: {{themes}}. A technical episode needs a hook from today or the past week (a paper, a release, a surprising result), not just a textbook topic.
 
-Suggest up to four candidate subjects, strongest first, and mark the one where an explanation adds the most beyond the briefing as "best". Prefer substance over noise: a real change in what is possible, what it costs, or what we know beats a funding round or a product tweak. Do not pick a subject covered by a deep dive in the last few weeks (listed below) unless something material is new, and say what.
+Include at least one "technical" candidate whenever today's briefing or the past week gives such a hook, even when a business story is stronger today; rate it honestly.
+
+Suggest up to five candidate subjects, strongest first, and mark the one where an explanation adds the most beyond the briefing as "best". Prefer substance over noise: a real change in what is possible, what it costs, or what we know beats a funding round or a product tweak. Do not pick a subject covered by a deep dive in the last few weeks (listed below) unless something material is new, and say what.
 
 Rate each candidate's strength from 1 to 5 (5: a real change in what is possible, what it costs or what we know, with enough evidence to explain well). Set "best" to -1 when nothing today reaches 4: a weak deep dive is worse than none. Also skip anything already waiting in the queue (listed below).
 
 Return ONLY JSON:
 {"candidates": [
    {"topic": "short title, at most 10 words, as a listener would say it",
-    "kind": "breakthrough | controversy | concept | trajectory | developing",
+    "kind": "technical | breakthrough | controversy | concept | trajectory | developing",
     "why_today": "one sentence: what happened that makes this the moment",
     "angle": "two sentences: the question the episode answers and why it matters for people building or investing in AI",
     "story_numbers": [1, 3],

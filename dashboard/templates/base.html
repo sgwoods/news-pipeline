@@ -4,16 +4,21 @@
 <title>{% block title %}News pipeline{% endblock %} · dashboard</title>
 <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
 <style>
-:root{--bg:#f7f7f5;--panel:#fff;--ink:#1d1d1b;--muted:#6b6b66;--line:#e3e2dc;--accent:#2f5d8a;
- --ok:#2e7d4f;--warn:#a86a00;--err:#b3261e;--skip:#8a8a84;--chip:#efeee9}
-@media (prefers-color-scheme:dark){:root{--bg:#161615;--panel:#1f1f1d;--ink:#ecebe6;--muted:#9b9a93;
- --line:#33322f;--accent:#8db6e0;--ok:#6cc58f;--warn:#e0a84a;--err:#f08a80;--skip:#7d7c76;--chip:#2a2a27}}
+:root{--bg:{{ brand.colors.pale }};--panel:{{ brand.colors.panel }};--ink:{{ brand.colors.ink }};--muted:{{ brand.colors.muted }};
+ --line:{{ brand.colors.line }};--accent:{{ brand.colors.teal }};--teal:{{ brand.colors.teal }};--deep:{{ brand.colors.deep }};
+ --on-teal:{{ brand.colors.on_teal }};--ok:#2e7d4f;--warn:#a86a00;--err:#b3261e;--skip:#8a8a84;--chip:{{ brand.colors.pale }}}
+/* brand/brand.yaml (2026-10-31): the dashboard wears the AI Briefing brand too; status colours stay semantic */
+@media (prefers-color-scheme:dark){:root{--bg:{{ brand.dark.pale }};--panel:{{ brand.dark.panel }};--ink:{{ brand.dark.ink }};
+ --muted:{{ brand.dark.muted }};--line:{{ brand.dark.line }};--accent:{{ brand.colors.on_deep }};--ok:#6cc58f;--warn:#e0a84a;
+ --err:#f08a80;--skip:#7d7c76;--chip:{{ brand.dark.line }}}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
- font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+ font:14px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
-header{display:flex;gap:20px;align-items:center;padding:12px 24px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
-header b{font-size:15px}header nav a{margin-right:14px;color:var(--ink)}header nav a.on{color:var(--accent);font-weight:600}
-header .r{margin-left:auto;color:var(--muted);font-size:12px}
+header{display:flex;gap:16px;align-items:center;padding:10px 24px;background:var(--teal);color:#fff;flex-wrap:wrap}
+header .wm{display:flex;gap:10px;align-items:center;color:#fff}header .wm img{width:34px;height:34px;border-radius:50%;border:2px solid #fff}
+header b{font-size:15px}header b small{display:block;font-weight:400;font-size:11px;color:var(--on-teal)}
+header nav a{margin-right:14px;color:var(--on-teal)}header nav a.on{color:#fff;font-weight:600;border-bottom:2px solid #fff}
+header .r{margin-left:auto;color:var(--on-teal);font-size:12px}
 main{max-width:1200px;margin:0 auto;padding:20px 24px 60px}
 h1{font-size:20px;margin:0 0 14px}h2{font-size:15px;margin:22px 0 8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
@@ -56,7 +61,7 @@ section.story{scroll-margin-top:60px}section.speaking{outline:2px solid var(--ac
  button,select{font-size:15px;padding:7px 12px}
 }
 </style></head><body>
-<header><b>News pipeline</b>
+<header><a class="wm" href="/"><img src="/brand/asset/author.jpg" alt=""><b>{{ brand.name }}<small>{{ brand.taglines.main }} · pipeline</small></b></a>
 <nav>{% set p = request.path %}
 <a href="/" class="{{ 'on' if p == '/' }}">Status</a>
 <a href="/schedule" class="{{ 'on' if p.startswith('/schedule') }}">Schedule</a>
@@ -68,13 +73,14 @@ section.story{scroll-margin-top:60px}section.speaking{outline:2px solid var(--ac
 <a href="/questions" class="{{ 'on' if p.startswith('/questions') }}">Questions</a>
 <a href="/lens" class="{{ 'on' if p.startswith('/lens') or p.startswith('/record') }}">Lens</a>
 <a href="/tuning" class="{{ 'on' if p.startswith('/tuning') or p.startswith('/experiments') or p.startswith('/compare') }}">Tuning</a>
-<a href="/subscribers" class="{{ 'on' if p.startswith('/subscribers') }}">Email</a>
+<a href="/subscribers" class="{{ 'on' if p.startswith('/subscribers') }}">Subscribers</a>
 <a href="/watchlist" class="{{ 'on' if p.startswith('/watchlist') }}">Watchlist</a>
 <a href="/deep-dives" class="{{ 'on' if p.startswith('/deep-dives') }}">Deep dives</a>
 <a href="/quality" class="{{ 'on' if p.startswith('/quality') }}">Quality</a>
 <a href="/feedback" class="{{ 'on' if p.startswith('/feedback') }}">Feedback{% if fb_counts and fb_counts.new %} <span class="pill flag">{{ fb_counts.new }}</span>{% elif fb_counts and fb_counts.high %} <span class="pill scr">{{ fb_counts.high }}</span>{% endif %}</a>
 <a href="/runs" class="{{ 'on' if p.startswith('/runs') }}">Runs</a>
 <a href="/voices" class="{{ 'on' if p.startswith('/voices') }}">Voices</a>
+<a href="/brand" class="{{ 'on' if p.startswith('/brand') }}">Brand</a>
 <a href="/control" class="{{ 'on' if p.startswith('/control') }}">Control</a></nav>
 <span class="r">v{{ version }} · local · {{ now }}</span></header>
 <main>{% block body %}{% endblock %}</main></body></html>

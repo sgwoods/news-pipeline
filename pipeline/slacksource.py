@@ -182,3 +182,86 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_hours: int | None = 
         if own:
             client.close()
     return {"items": items, "sources": per}
+
+
+# ---------------------------------------------------------------- more channels, read by the bot (2026-10-31)
+PULLS = "data/state/slack-pulls.jsonl"
+
+
+def channels(cfg: dict) -> list:
+    """slack.channels: more channels whose links are ingested, read with the AI Briefing bot's token (the bot is
+    invited to the channel; scope channels:history). Each: {channel, channel_id, enabled}."""
+    return [c for c in ((cfg.get("slack") or {}).get("channels") or []) if c.get("enabled", True) and c.get("channel_id")]
+
+
+def _cue(text: str) -> str:
+    """The poster's message, cut down to a private cue for why the link may matter: no mentions, no links, short."""
+    t = re.sub(r"<[@#!][^>]*>", "", text or "")
+    t = re.sub(r"<https?://[^>]+>|https?://\S+", "", t)
+    return " ".join(t.split())[:280]
+
+
+def fetch_channels(root: Path, cfg: dict, run_id: str, log, lookback_hours: int | None = None, client=None) -> dict:
+    """The links posted in each configured channel since the lookback (Steven, 2026-10-31, #discuss-generative-ai).
+    Only the linked content becomes the item; the poster's message is kept as a private cue (source_note) for the
+    model to judge relevance, never quoted, never attributed, and the poster is never stored. Every pull is logged
+    with its date and time and the links it found (data/state/slack-pulls.jsonl), to find them again."""
+    from .slackpost import token as bot_token
+    from .archive import append_jsonl
+    chans = channels(cfg)
+    if not chans:
+        return {"items": [], "sources": []}
+    tok = bot_token()
+    now = dt.datetime.now(UTC)
+    since = now - dt.timedelta(hours=lookback_hours or scfg(cfg)["lookback_hours"])
+    own = client is None
+    if own:
+        import httpx
+        client = httpx.Client(timeout=20)
+    items, per = [], []
+    try:
+        for c in chans:
+            name = c.get("channel", c["channel_id"]).lstrip("#")
+            try:
+                if not tok:
+                    raise SlackError("no SLACK_BOT_TOKEN")
+                r = client.get(f"{API}/conversations.history", headers={"Authorization": f"Bearer {tok}"},
+                               params={"channel": c["channel_id"], "oldest": f"{since.timestamp():.6f}", "limit": 200})
+                d = r.json()
+                if not d.get("ok"):
+                    raise SlackError(f"conversations.history: {d.get('error')} (is the bot invited, with channels:history?)")
+                msgs = [m for m in d.get("messages", []) if m.get("user") and not m.get("bot_id")
+                        and m.get("subtype") in (None, "thread_broadcast", "file_share")]
+                found = []
+                for m in msgs:
+                    when = dt.datetime.fromtimestamp(float(m.get("ts", "0")), UTC)
+                    cue = _cue(m.get("text", ""))
+                    for url, title, preview, site in _links(m):
+                        if private_link(url):
+                            continue
+                        text = " ".join(x for x in (title, preview) if x).strip()
+                        found.append({"url": url, "posted_at": iso(when)})
+                        items.append({
+                            "id": item_id(url), "url": url, "title": title or url, "author": site or "",
+                            "published": iso(when), "text": text, "text_chars": len(text),
+                            "person": "Shared internally", "tier": "follow", "flags": ["SHARED"], "scrutiny": False,
+                            "source_kind": "shared", "source_url": "slack", "source_label": "",
+                            "source_note": ("Someone in an internal AI discussion shared this link. The article itself is "
+                                            "the source: cite its publisher, never this note, never who shared it, and "
+                                            "never mention where it was shared."
+                                            + (f" Private cue for relevance only, never quote or paraphrase it: {cue}" if cue else "")),
+                            "pulled_at": iso(now), "fetched_at": iso(now), "run_id": run_id})
+                append_jsonl(root / PULLS, [{"channel": name, "pulled_at": now.astimezone().isoformat(timespec="seconds"),
+                                             "since": since.astimezone().isoformat(timespec="seconds"),
+                                             "messages": len(msgs), "links": found, "run_id": run_id}])
+                per.append({"person": f"Links shared in #{name}", "kind": "shared", "url": "slack", "status": "ok",
+                            "new": len(found), "messages": len(msgs)})
+                log.info("  OK   #%s: %d link(s) in %d post(s)", name, len(found), len(msgs))
+            except Exception as e:  # noqa: BLE001
+                per.append({"person": f"Links shared in #{name}", "kind": "shared", "url": "slack", "status": "error",
+                            "error": f"{type(e).__name__}: {e}"[:300]})
+                log.warning("  FAIL #%s: %s", name, e)
+    finally:
+        if own:
+            client.close()
+    return {"items": items, "sources": per}

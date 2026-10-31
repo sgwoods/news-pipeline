@@ -1,0 +1,37 @@
+# The AI Briefing brand: one file every surface reads (Steven, 2026-10-31; docs/BRAND.md).
+# Change a colour, a tagline or the author image here and the next build carries it to the website, the email,
+# the Slack cards and banner, the podcast covers, the feeds and the dashboard (`./np brand build` for the images).
+name: AI Briefing
+deep_dive_name: Deep Dive
+colors:                      # light surfaces (the reading surface is pale, like the Slack card)
+  teal: "#3e7e8a"            # masthead, buttons, labels
+  deep: "#1e4a52"            # the deep dive: its band, cover and pages
+  pale: "#eef4f5"            # reading surface
+  ink: "#14272b"             # text
+  muted: "#5b6d71"           # captions, secondary text
+  wave: "#b9d3d7"            # the waveform, rules
+  line: "#d3e2e5"            # borders
+  panel: "#ffffff"           # cards on the pale surface
+  on_teal: "#e8f5f7"         # text on teal
+  on_deep: "#9fcfd6"         # labels on deep teal
+  gold: "#f2b84b"            # rating stars only
+dark:                        # the reader's dark mode: deep teal surfaces
+  pale: "#0f2226"
+  ink: "#e4eef0"
+  muted: "#9cb6bb"
+  line: "#24444c"
+  panel: "#16303a"
+  wave: "#3f6f78"
+fonts:
+  family: Inter              # assets/fonts (OFL)
+  stack: "Inter, 'Helvetica Neue', Arial, sans-serif"
+author:
+  name: Steven Woods
+  image: brand/author-master.png   # the one author image (glasses, brown shirt); every size is made from it
+taglines:
+  main: "Slowly, then fast. Every morning."
+  deep_dive: "One story, slowly. Down to the details."
+  audience: "For early-stage investors"
+  byline: "Curated by Steven Woods"
+  channel: "The daily briefing and deep dive, posted here each morning."
+  description: "A daily briefing on AI for early-stage investors: what happened, what holds up, and what it means."

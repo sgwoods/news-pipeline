@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import re
 from pathlib import Path
 
 
@@ -30,6 +31,10 @@ def setup(root: Path, repo: str) -> str:
     else:
         msg = f"repo {repo} already exists"
     return msg
+
+
+# A JWT, or a URL carrying a token or key, in anything about to go public (Stratechery Passport token, 2026-10-31).
+CREDENTIAL = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.|[?&](?:amp;)?(?:access_?token|id_?token|auth_?token|api_?key|apikey|token)=", re.I)
 
 
 def scan_site(root: Path, site: Path) -> list:
@@ -59,6 +64,8 @@ def scan_site(root: Path, site: Path) -> list:
         from .links import DISCLOSURE_FLAG
         if p.suffix.lower() in (".html", ".xml", ".txt", ".md") and DISCLOSURE_FLAG.search(t):
             problems.append(f"{rel}: board-seat / conflict disclosure (never public)")
+        if CREDENTIAL.search(t):
+            problems.append(f"{rel}: a credential (token, key or signed link) in the text")
         for a in personal_addresses({}):
             if "@" in a and a in low:
                 problems.append(f"{rel}: Steven's address")

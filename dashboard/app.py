@@ -175,8 +175,13 @@ def create_app(root: Path = ROOT) -> Flask:
             fbc = fb.counts(root)
         except Exception:  # noqa: BLE001
             fbc = {}
+        try:
+            from pipeline import brand as _b
+            brand = _b.load(root)
+        except Exception:  # noqa: BLE001
+            brand = {"name": "AI Briefing", "colors": {}, "dark": {}, "taglines": {}}
         return {"csrf": app.config["CSRF"], "now": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "action": action_status(), "fb_counts": fbc, "version": _version()}
+                "action": action_status(), "fb_counts": fbc, "version": _version(), "brand": brand}
 
     @app.template_filter("safe_href")
     def safe_href(u):

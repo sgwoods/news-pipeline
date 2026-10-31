@@ -33,7 +33,24 @@ OUTRO = ("That's the deep dive, and today's AI Briefing. Every source is linked 
 
 def dcfg(cfg: dict) -> dict:
     return {"enabled": True, "max_per_week": 7, "minutes": 10, "max_minutes": 13, "avoid_repeat_days": 21, "web": True,
-            "timeout_seconds": 1800, **(cfg.get("deepdive") or {})}
+            "timeout_seconds": 1800, "technical_themes": list(TECH_THEMES), **(cfg.get("deepdive") or {})}
+
+
+# Technical explainers for investors and business people (Steven, 2026-10-31): the pick prompt keeps one such
+# candidate in every day's suggestions, and the writer gets this brief for kind "technical".
+TECH_THEMES = ("world models", "robotics and sim-to-real", "scaling laws: pre-training, post-training and the third "
+               "(test-time compute)", "reasoning and reinforcement learning", "surprising capability results and how to read them",
+               "architectures and efficiency (mixture of experts, distillation, long context)", "evals and benchmarks")
+TECH_BRIEF = (" This is a technical explainer for investors and business people: explain the mechanism plainly, with one "
+              "analogy a non-engineer will remember, no equations or jargon left undefined; separate what was demonstrated from what "
+              "is extrapolated; and end on what it changes in what can be built, what it costs to serve, and where a seed or Series A "
+              "company could have an edge or be exposed.")
+
+
+def angle_for(pick: dict) -> str:
+    a = pick.get("angle", "")
+    tech = (pick.get("kind") or "").lower() == "technical"
+    return a + TECH_BRIEF if tech and TECH_BRIEF.strip() not in a else a
 
 
 # ---------- the weekly flagship (Steven, 2026-10-27): Saturday's deep dive as a two-voice, ~22-minute episode ----------
@@ -490,8 +507,9 @@ def suggest(root: Path, cfg: dict, day: str, llm=None, log=print) -> dict:
     out = stages._ask(llm or _backend(cfg, False), system,
                       tmpl.replace("{{today}}", today).replace("{{week}}", week_block(root, day))
                       .replace("{{recent}}", "\n".join(f"{r['day']}: {r.get('title', '')}" for r in past) or "(none)")
-                      .replace("{{queue}}", "\n".join(waiting) or "(none)"), 2500)
-    cands = [c for c in out.get("candidates") or [] if isinstance(c, dict)][:4]
+                      .replace("{{queue}}", "\n".join(waiting) or "(none)")
+                      .replace("{{themes}}", "; ".join(dcfg(cfg)["technical_themes"])), 2500)
+    cands = [c for c in out.get("candidates") or [] if isinstance(c, dict)][:5]
     added = add_suggestions(root, day, cands, stories)
     best_i = out.get("best", -1)
     best = None
@@ -763,7 +781,7 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
               .replace("{{w_why}}", share(0.11)).replace("{{w_plain}}", share(0.25)).replace("{{w_evidence}}", share(0.25))
               .replace("{{w_readings}}", share(0.17)).replace("{{w_sowhat}}", share(0.14)).replace("{{w_watch}}", share(0.08))
               .replace("{{topic}}", pick["topic"]).replace("{{why_today}}", pick.get("why_today", ""))
-              .replace("{{angle}}", pick.get("angle", "") + (f" Look up: {hints}." if hints else ""))
+              .replace("{{angle}}", angle_for(pick) + (f" Look up: {hints}." if hints else ""))
               .replace("{{minutes}}", str(fc["minutes"])).replace("{{host}}", fc["host_name"])
               .replace("{{sceptic}}", fc["sceptic_name"])
               .replace("{{material}}", mat or "(no archived text)"))

@@ -18,7 +18,9 @@ _TRACKING = re.compile(r"^(utm_|ref$|ref_|source$|mc_|fbclid|gclid|s$|r$|_bhlid$
                        r"subscriber|sid$|uid$|email$|e$|token|oly_|rb_clickid$|__s$|lctg$|isFreemail$|post_id$|publication_id$|triedRedirect$|"
                        # gift / share links identify the subscriber who shared them (NYT, WSJ, FT, Bloomberg, ...)
                        r"unlocked_article_code$|smid$|smtyp$|gift|share_?id$|shareToken$|sharing|accessToken$|giftCopy|"
-                       r"user_?id$|segment_id$|campaign_id$|mbid$|cmpid$)", re.I)
+                       r"user_?id$|segment_id$|campaign_id$|mbid$|cmpid$|"
+                       # credentials: a paid feed's per-reader token (Stratechery Passport, 2026-10-31) must never be passed on
+                       r"access_?token$|id_?token$|auth_?token$|auth$|jwt$|api_?key$|apikey$|key$|signature$|sig$|x-amz-|passport)", re.I)
 META_RE = re.compile(r"<meta\b[^>]*>", re.I)
 ATTR_RE = re.compile(r'([\w:-]+)\s*=\s*["\']([^"\']*)["\']')
 

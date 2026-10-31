@@ -215,7 +215,11 @@ def register(app, root, cfg, P, check_post, md_html, DAY_RE):
                 err = str(ex)
         subs = data.get("subscribers", [])
         log = list(reversed(read_jsonl(root / mailer.LOG)))[:20]
+        from pipeline import audience                    # every person and every channel they get it through
+        sm = audience.slack_members(c) if request.args.get("slack", "1") != "0" else {"members": [], "error": ""}
+        people = audience.rows(subs, sm["members"])
         return render_template("subscribers.html", missing=miss, err=err, subs=subs, quota=data.get("quota"),
+                               people=people, slack_err=sm["error"], slack_n=len(sm["members"]),
                                counts={st: sum(1 for x in subs if x["status"] == st) for st in ("active", "pending", "unsubscribed")},
                                log=log, enabled=mailer.ecfg(c)["enabled"], day=latest_day(), msg=request.args.get("msg", ""))
 
@@ -247,6 +251,29 @@ def register(app, root, cfg, P, check_post, md_html, DAY_RE):
             abort(404)
         m = mailer.render(day, f.read_text("utf-8"), live_cfg(), (P["briefings"] / f"{day}.mp3").is_file())
         return m["html"].replace("{{UNSUBSCRIBE}}", "#")
+
+    # ---------- Brand (brand/brand.yaml: what every surface is made from) ----------
+    BRAND_ASSETS = {"author.jpg": "assets/steven-woods.jpg", "author-master.png": "brand/author-master.png",
+                    "author-icon.png": "brand/author-icon-512.png", "banner.png": "brand/slack-channel-banner.png",
+                    "podcast-cover.png": "assets/podcast-cover.png", "deepdive-cover.png": "assets/deepdive-cover.png"}
+
+    @app.route("/brand/asset/<name>")
+    def brand_asset(name):
+        from flask import send_file
+        rel = BRAND_ASSETS.get(name)
+        if not rel and name.startswith("card-") and name.endswith(".png"):
+            rel = f"data/cards/{name[5:]}"
+        f = (root / rel).resolve() if rel else None
+        if not f or "/" in name or not f.is_file():
+            abort(404)
+        return send_file(f)
+
+    @app.route("/brand")
+    def brand_page():
+        from pipeline import brand as b
+        cards = sorted((root / "data" / "cards").glob("????-??-??*.png"))[-2:]
+        return render_template("brand.html", b=b.load(root), cards=[c.name for c in cards],
+                               email_day=next((c.name[:10] for c in reversed(cards)), ""))
 
     # ---------- Schedule (what happens when, and the feedback window) ----------
     @app.route("/schedule")

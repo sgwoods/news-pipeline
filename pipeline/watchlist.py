@@ -225,6 +225,18 @@ def matches(c: dict, text: str):
     return None
 
 
+PROMO = re.compile(r"\b\d{1,3}\s?% off\b|\bhours? (?:left )?to (?:get|save|subscribe|claim)\b|\b(?:last|final) chance\b|"
+                   r"\bsale (?:ends|is on)\b|\b(?:black friday|cyber monday)\b|\bpromo code\b|\bfree trial\b|"
+                   r"\bgift (?:a )?subscription\b|\bsubscribe (?:now|today)\b|\bupgrade (?:now|to paid)\b|\bdiscount\b", re.I)
+
+
+def is_promo(title: str) -> bool:
+    """A newsletter's own sales email (a discount, a deadline to subscribe), not news. Judged on the title only:
+    a story can mention a price cut in its body (Steven, 2026-10-31: an Exponential View '50% off' email surfaced
+    as a watchlist company mention)."""
+    return bool(PROMO.search(title or ""))
+
+
 def scan_items(companies: list, items: list) -> list:
     """Fetched items that name a company -> mention rows."""
     from .links import personal
@@ -235,6 +247,8 @@ def scan_items(companies: list, items: list) -> list:
     comp = [(c, competitor_parts(k)[0], _names_pattern([competitor_parts(k)[0]]), competitor_parts(k)[1])
             for c in companies for k in c.get("competitors") or []]
     for it in items:
+        if is_promo(it.get("title", "")):
+            continue
         text = f"{it.get('title', '')}\n{it.get('text', '')[:20000]}"
         url = it.get("linked_url") or it.get("url") or ""
         if not url.startswith("http") or personal(url, {}):

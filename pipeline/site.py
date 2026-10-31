@@ -14,81 +14,136 @@ import shutil
 from email.utils import format_datetime
 from pathlib import Path
 
+from . import brand
+
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 CSS = '''
-:root{--bg:#07131f;--bg2:#10253b;--panel-bg:rgba(7,19,31,.68);--panel-glow:rgba(103,230,168,.14);
---card-bg:rgba(255,255,255,.05);--card-border:rgba(255,255,255,.08);--panel-border:rgba(177,222,255,.18);
---button-bg:rgba(121,184,255,.18);--button-border:rgba(121,184,255,.28);--text:#eff7ff;--muted:#9cc4df;
---muted-strong:#d7ecff;--accent:#67e6a8;--link:#d9f7ff;--shadow:0 18px 40px rgba(0,0,0,.28)}
-/* tokens from sgwoods.github.io/public/assets/public-site.css, so this site matches Steven's public pages */
-*{box-sizing:border-box}html{color-scheme:dark;-webkit-text-size-adjust:100%}
-body{margin:0;min-height:100vh;color:var(--text);font:17px/1.6 "Avenir Next","Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,sans-serif;
-background:radial-gradient(circle at top left,rgba(103,230,168,.18),transparent 26%),radial-gradient(circle at top right,rgba(121,184,255,.22),transparent 32%),linear-gradient(160deg,var(--bg),var(--bg2)) fixed}
-a{color:var(--link)}a:hover{color:var(--accent)}
-.shell{max-width:1100px;margin:0 auto;padding:32px 20px 72px}.shell--narrow{max-width:780px}
-.hero,.panel{border:1px solid var(--panel-border);border-radius:28px;box-shadow:var(--shadow);
-background:linear-gradient(160deg,rgba(12,34,54,.88),rgba(7,19,31,.72)),radial-gradient(circle at 20% 0%,var(--panel-glow),transparent 32%)}
-.hero{padding:34px 34px 30px}.panel{margin-top:22px;padding:26px 28px;background:var(--panel-bg)}
-.heroTop{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
-.eyebrow{display:inline-flex;align-items:center;gap:10px;padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.08);
-color:var(--muted-strong);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
-.heroHomeLink{font-size:14px;color:var(--muted);text-decoration:none}.heroHomeLink:hover{color:var(--accent)}
-.hero h1{font-size:44px;line-height:1.08;margin:6px 0 10px;letter-spacing:-.01em}.lead{font-size:19px;color:var(--muted-strong);max-width:720px;margin:0 0 20px}
+/* brand/brand.yaml (2026-10-31): tokens come from pipeline/brand.css_tokens(); the rules below only use them.
+   Light: pale reading surface, teal masthead. The reader's dark mode: deep-teal surfaces. */
+:root{--link:var(--teal);--soft:rgba(62,126,138,.08);--soft-line:rgba(62,126,138,.22);--shadow:0 10px 28px rgba(20,39,43,.10)}
+@media (prefers-color-scheme:dark){:root{--link:var(--on-deep);--soft:rgba(159,207,214,.08);--soft-line:rgba(159,207,214,.22);--shadow:0 10px 28px rgba(0,0,0,.35)}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%;color-scheme:light dark}
+body{margin:0;min-height:100vh;color:var(--ink);background:var(--pale);font:17px/1.6 var(--font)}
+a{color:var(--link)}a:hover{color:var(--deep)}
+@media (prefers-color-scheme:dark){a:hover{color:#fff}}
+.shell{max-width:1100px;margin:0 auto;padding:28px 20px 72px}.shell--narrow{max-width:780px}
+/* the masthead: teal band, author image in a white ring, wordmark, tagline, waveform */
+.mast{background:var(--teal);color:#fff}
+.mast.dd{background:var(--deep)}
+.mast .in{max-width:780px;margin:0 auto;padding:18px 20px 12px;display:flex;gap:14px;align-items:center}
+.mast img.au{width:52px;height:52px;border-radius:50%;border:3px solid #fff;object-fit:cover;flex:none}
+.mast a.wm{color:#fff;text-decoration:none;font-weight:700;font-size:22px;line-height:1.1;display:block}
+.mast .tg{color:var(--on-teal);font-size:13px;line-height:1.3}.mast.dd .tg{color:var(--on-deep)}
+.mast a.home{margin-left:auto;color:var(--on-teal);font-size:13px;text-decoration:none;white-space:nowrap}
+.mast a.home:hover{color:#fff}
+.wave{display:flex;gap:5px;align-items:flex-end;height:30px;max-width:780px;margin:0 auto;padding:0 20px 10px;overflow:hidden}
+.hero .wave{max-width:none;margin:18px 0 0;padding:0}
+.wave i{display:block;flex:none;width:6px;border-radius:3px;background:var(--wave)}
+.mast .wave i{background:#b9d3d7}.mast.dd .wave i{background:#3f6f78}
+.hero{background:var(--teal);color:#fff;border-radius:24px;padding:30px 32px 28px;box-shadow:var(--shadow)}
+.hero .heroTop{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+.hero .who{display:flex;gap:14px;align-items:center}.hero .who img{width:76px;height:76px;border-radius:50%;border:3px solid #fff;object-fit:cover}
+.eyebrow{display:inline-flex;align-items:center;gap:10px;padding:6px 12px;border-radius:999px;background:var(--deep);
+color:#fff;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.heroHomeLink{font-size:14px;color:var(--on-teal);text-decoration:none}.heroHomeLink:hover{color:#fff}
+.hero h1{font-size:46px;line-height:1.05;margin:4px 0 8px;letter-spacing:-.01em;color:#fff}
+.lead{font-size:19px;color:var(--muted);max-width:720px;margin:0 0 20px}.hero .lead{color:var(--on-teal)}
+.hero .small,.hero .muted{color:var(--on-teal)}
 .actions{display:flex;flex-wrap:wrap;gap:10px}
 .button,button,select{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border-radius:999px;
-background:var(--button-bg);border:1px solid var(--button-border);color:var(--text);text-decoration:none;font:inherit;font-size:14px;letter-spacing:.04em;cursor:pointer}
-.button:hover,button:hover,.button:focus{background:rgba(121,184,255,.26);color:var(--text)}
-.button.primary{background:var(--accent);border-color:var(--accent);color:#06221a;font-weight:600}.button.primary:hover{background:#86f0bd;color:#06221a}
-.button.ghost{background:rgba(255,255,255,.04)}button.on{background:var(--accent);border-color:var(--accent);color:#06221a}
-.card,.entry{padding:18px;border-radius:20px;background:var(--card-bg);border:1px solid var(--card-border)}
+background:var(--panel);border:1px solid var(--line);color:var(--ink);text-decoration:none;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.button:hover,button:hover,.button:focus{border-color:var(--teal);color:var(--ink)}
+.button.primary,button.on{background:var(--teal);border-color:var(--teal);color:#fff}.button.primary:hover{background:var(--deep);border-color:var(--deep);color:#fff}
+.button.ghost{background:transparent}
+.hero .button{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.35);color:#fff}
+.hero .button.primary{background:#fff;border-color:#fff;color:var(--deep)}.hero .button:hover{background:rgba(255,255,255,.24);color:#fff}
+.hero .button.primary:hover{background:var(--pale);color:var(--deep)}
+.panel{margin-top:22px;padding:26px 28px;border:1px solid var(--line);border-radius:24px;background:var(--panel);box-shadow:var(--shadow)}
+.card,.entry{padding:18px;border-radius:16px;background:var(--pale);border:1px solid var(--line)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
 .grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
-.panel>h2,.sectionTitle{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;border:0;padding:0}
-.k{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-.latest h3{font-size:26px;line-height:1.2;margin:6px 0 12px}.latest h3 a{text-decoration:none;color:var(--text)}
-.latest ul{padding-left:20px}.latest li{margin-bottom:8px}.latest li strong{color:var(--accent);font-weight:600}
+.panel>h2,.sectionTitle{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);margin:0 0 14px;border:0;padding:0}
+@media (prefers-color-scheme:dark){.panel>h2,.sectionTitle,.k{color:var(--on-deep)}}
+.k{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);font-weight:600}
+.latest h3{font-size:26px;line-height:1.2;margin:6px 0 12px}.latest h3 a{text-decoration:none;color:var(--ink)}
+.latest ul{padding-left:20px}.latest li{margin-bottom:8px}.latest li strong{color:var(--ink);font-weight:700}
 .bio{display:flex;gap:20px;align-items:flex-start}.bio img{width:112px;height:112px;border-radius:50%;object-fit:cover;
-border:2px solid var(--panel-border);box-shadow:0 0 0 6px rgba(103,230,168,.08);flex:none}
-.bio h3{margin:0 0 4px;font-size:22px}.bio .role{color:var(--accent);font-size:14px;margin:0 0 10px}
+border:3px solid #fff;box-shadow:0 0 0 2px var(--teal);flex:none}
+.bio h3{margin:0 0 4px;font-size:22px}.bio .role{color:var(--teal);font-size:14px;margin:0 0 10px;font-weight:600}
 .pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.pills .button{padding:7px 12px;font-size:13px}
 .how b{display:block;margin-bottom:4px}.how span{color:var(--muted);font-size:14px}
 .feedrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
-.feedrow code{font-size:13px;word-break:break-all;background:rgba(255,255,255,.06);border:1px solid var(--card-border);padding:7px 10px;border-radius:10px}
+.feedrow code{font-size:13px;word-break:break-all;background:var(--pale);border:1px solid var(--line);padding:7px 10px;border-radius:10px}
 .muted{color:var(--muted)}.small{font-size:14px}
-.day{padding:14px 0;border-bottom:1px solid var(--card-border)}.day:last-child{border-bottom:0}.day a.d{font-weight:600;font-size:18px;text-decoration:none}
+.day{padding:14px 0;border-bottom:1px solid var(--line)}.day:last-child{border-bottom:0}.day a.d{font-weight:600;font-size:18px;text-decoration:none}
 audio{width:100%;margin:10px 0;border-radius:999px}
 /* share, subscribe, rate */
-.sharebox{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0;padding:14px 16px;border-radius:20px;
-background:rgba(103,230,168,.07);border:1px solid rgba(103,230,168,.22)}
+.sharebox{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0;padding:14px 16px;border-radius:16px;
+background:var(--soft);border:1px solid var(--soft-line)}
 .sharebox .lbl{font-weight:600;margin-right:4px}.sharebox .button{padding:8px 14px;font-size:14px}
-.stars{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.stars a{font-size:34px;line-height:1;color:#ffd166;text-decoration:none;padding:0 2px}
-.stars a:hover,.stars a:focus{transform:scale(1.15)}.endbox{margin-top:34px;padding-top:6px;border-top:1px solid var(--card-border)}
+.stars{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.stars a{font-size:34px;line-height:1;color:var(--gold);text-decoration:none;padding:0 2px}
+.stars a:hover,.stars a:focus{transform:scale(1.15)}.endbox{margin-top:34px;padding-top:6px;border-top:1px solid var(--line)}
 .baracts{margin-left:auto;display:inline-flex;gap:8px}.bar .button{padding:8px 14px}
-.ddread{margin-top:10px;padding-top:4px;border-top:1px solid var(--card-border)}.ddread p{margin:0 0 14px}
-.dive h3{font-size:19px;line-height:1.3;margin:6px 0 6px}.dive h3 a{color:var(--text);text-decoration:none}
+.ddread{margin-top:10px;padding-top:4px;border-top:1px solid var(--line)}.ddread p{margin:0 0 14px}
+.dive h3{font-size:19px;line-height:1.3;margin:6px 0 6px}.dive h3 a{color:var(--ink);text-decoration:none}
 .dive .actions{margin-top:10px}.dive .button{padding:8px 14px;font-size:13px}
 .subform{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
-.subform input[type=email]{flex:1;min-width:220px;font:inherit;font-size:15px;padding:10px 14px;border-radius:999px;
-border:1px solid var(--button-border);background:rgba(255,255,255,.06);color:var(--text)}
-/* briefing pages */
-header.site{max-width:780px;margin:0 auto;padding:22px 20px 0;display:flex;justify-content:space-between;align-items:center;gap:12px}
-header.site a{color:var(--text);text-decoration:none;font-weight:600}header.site a.home{color:var(--muted);font-weight:400;font-size:14px}
-main{max-width:780px;margin:16px auto 0;padding:24px 28px 40px;border:1px solid var(--panel-border);border-radius:28px;background:var(--panel-bg);box-shadow:var(--shadow)}
-main h1{font-size:30px;line-height:1.2;margin:8px 0 12px}main h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:34px 0 10px;border-bottom:1px solid var(--card-border);padding-bottom:6px}
-main h3{font-size:19px;margin:24px 0 4px;line-height:1.35}ul{padding-left:20px}li{margin-bottom:6px}main li strong{color:var(--muted-strong)}
-table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--card-border);padding:6px 8px;text-align:left}
-.take{background:rgba(103,230,168,.08);border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 14px 14px 0;margin:8px 0 18px}
-.take b{display:block;font-size:12px;color:var(--accent);text-transform:uppercase;letter-spacing:.12em;margin-bottom:2px}
-.bar{position:sticky;top:0;background:rgba(7,19,31,.92);backdrop-filter:blur(8px);display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--card-border);z-index:5}
-section.speaking{outline:2px solid var(--accent);outline-offset:6px;border-radius:6px}
+.subform input[type=email]{flex:1;min-width:0;font:inherit;font-size:15px;padding:10px 14px;border-radius:999px;
+border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+/* briefing and deep-dive pages */
+main{max-width:780px;margin:18px auto 0;padding:24px 28px 40px;border:1px solid var(--line);border-radius:24px;background:var(--panel);box-shadow:var(--shadow)}
+main h1{font-size:30px;line-height:1.2;margin:8px 0 12px}
+main h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);margin:34px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+@media (prefers-color-scheme:dark){main h2{color:var(--on-deep)}}
+main h3{font-size:19px;margin:24px 0 4px;line-height:1.35}ul{padding-left:20px}li{margin-bottom:6px}main li strong{color:var(--ink)}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
+.take{background:var(--soft);border-left:4px solid var(--teal);padding:10px 14px;border-radius:0 12px 12px 0;margin:8px 0 18px}
+.take b{display:block;font-size:12px;color:var(--teal);text-transform:uppercase;letter-spacing:.12em;margin-bottom:2px}
+@media (prefers-color-scheme:dark){.take b{color:var(--on-deep)}}
+.bar{position:sticky;top:0;background:var(--panel);display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line);z-index:5}
+section.speaking{outline:2px solid var(--teal);outline-offset:6px;border-radius:6px}
+body.ddpage main{border-top:6px solid var(--deep)}
 footer{max-width:1100px;margin:28px auto 0;padding:0 20px 40px;font-size:13px;color:var(--muted)}
-@media(max-width:640px){.shell{padding:18px 14px 56px}.hero{padding:24px 20px;border-radius:22px}.hero h1{font-size:34px}
-.panel{padding:20px 18px;border-radius:22px}main{padding:18px 16px 30px;border-radius:22px;margin:12px 10px 0}
-.bio{flex-direction:column}.lead{font-size:17px}
-.bar{gap:6px}.bar button,.bar .button{padding:7px 11px;font-size:13px;letter-spacing:.02em}.baracts{gap:6px}}
-.doc img{max-width:100%;height:auto;margin:12px 0}.doc table{border-collapse:collapse;width:100%;font-size:14px;margin:10px 0}.doc td,.doc th{border:1px solid #d9dde3;padding:6px 8px;text-align:left;vertical-align:top}.doc pre{overflow:auto;padding:10px;background:rgba(127,127,127,.08)}.doc code{font-size:.92em}
+footer .tagl{display:block;color:var(--teal);font-weight:600;margin-bottom:4px}
+@media (prefers-color-scheme:dark){footer .tagl{color:var(--on-deep)}}
+@media(max-width:640px){.shell{padding:16px 14px 56px}.hero{padding:22px 20px;border-radius:20px}.hero h1{font-size:34px}
+.panel{padding:20px 18px;border-radius:20px}main{padding:18px 16px 30px;border-radius:20px;margin:12px 10px 0}
+.bio{flex-direction:column}.lead{font-size:17px}.mast .in{padding:14px 16px 10px}.mast a.home{display:none}
+.bar{gap:6px}.bar button,.bar .button{padding:7px 11px;font-size:13px}.baracts{gap:6px}}
+.doc img{max-width:100%;height:auto;margin:12px 0}.doc table{border-collapse:collapse;width:100%;font-size:14px;margin:10px 0}.doc td,.doc th{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}.doc pre{overflow:auto;padding:10px;background:var(--pale)}.doc code{font-size:.92em}
 '''
+
+
+def site_css(root: Path | None = None) -> str:
+    """The site's style sheet: the brand's tokens (brand/brand.yaml) and the rules above."""
+    from . import brand
+    return brand.css_tokens(root) + CSS
+
+
+def _card_image(root: Path, out: Path, day: str, suffix: str, base_url: str) -> str:
+    """The day's Slack card (data/cards/DAY[-deepdive].png) copied next to the page, as its link-preview image."""
+    src = root / "data" / "cards" / f"{day}{suffix}.png"
+    if not (src.is_file() and base_url):
+        return ""
+    name = f"card{suffix}.png"
+    (out / day).mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, out / day / name)
+    return f"{base_url.rstrip('/')}/{day}/{name}"
+
+
+def _cover_name(out: Path, cover: str) -> str:
+    """The versioned cover the podcast feed published (podcast-cover-<sha8>.png), else the plain name."""
+    found = sorted(out.glob(cover[:-4] + "-*.png"))
+    return found[-1].name if found else cover
+
+
+def _wave(seed: str = "site", n: int = 60) -> str:
+    import random
+    rnd = random.Random(seed)
+    return '<div class="wave" aria-hidden="true">' + "".join(
+        f'<i style="height:{rnd.choice((5, 8, 12, 15, 18, 20))}px"></i>' for _ in range(n)) + "</div>"
+
 
 LISTEN_JS = """
 (() => {
@@ -167,7 +222,7 @@ TAKES_JS = r"""
   var boxes = [], inMust = false;
   function add(sec, slot, label) {
     var d = document.createElement("div");
-    d.style.cssText = "margin:10px 0 18px;padding:10px 12px;border:1px dashed #60a5fa;border-radius:10px";
+    d.style.cssText = "margin:10px 0 18px;padding:10px 12px;border:1px dashed var(--teal);border-radius:10px";
     var l = document.createElement("div");
     l.textContent = "Your take: " + label + " (" + slot + ")";
     l.style.cssText = "font-size:13px;opacity:.8;margin:0 0 6px";
@@ -195,16 +250,16 @@ TAKES_JS = r"""
   if (!boxes.length) return;
   var f = document.createElement("form");
   f.method = "POST"; f.action = url;
-  f.style.cssText = "position:sticky;bottom:0;padding:12px;background:#0b1b2b;border-top:1px solid #23415d;z-index:9";
+  f.style.cssText = "position:sticky;bottom:0;padding:12px;background:var(--panel);border-top:1px solid var(--line);z-index:9";
   function hidden(n, v) { var x = document.createElement("input"); x.type = "hidden"; x.name = n; x.value = v; f.appendChild(x); return x; }
   hidden("action", "takes"); hidden("t", m[1]); hidden("d", day);
   var payload = hidden("takes", "{}"), done = hidden("done", "");
   var cb = document.createElement("label");
-  cb.style.cssText = "color:#e5f2ff;font-size:14px;margin-right:12px";
+  cb.style.cssText = "color:var(--ink);font-size:14px;margin-right:12px";
   var c = document.createElement("input"); c.type = "checkbox"; cb.appendChild(c);
   cb.appendChild(document.createTextNode(" Done: send the edition now"));
   var b = document.createElement("button"); b.type = "submit"; b.textContent = "Submit my takes";
-  b.style.cssText = "padding:8px 16px;border-radius:999px;border:0;background:#2563eb;color:#fff;font-size:15px";
+  b.style.cssText = "padding:8px 16px;border-radius:999px;border:0;background:var(--teal);color:#fff;font-size:15px";
   f.appendChild(cb); f.appendChild(b);
   f.addEventListener("submit", function () {
     var o = {};
@@ -213,7 +268,7 @@ TAKES_JS = r"""
   });
   var note = document.createElement("p");
   note.textContent = "Private: your takes for " + day + ". Type after any section, then Submit once. Only you see these boxes.";
-  note.style.cssText = "padding:10px 12px;border-radius:10px;background:#1e3a5f;color:#e5f2ff;font-size:14px";
+  note.style.cssText = "padding:10px 12px;border-radius:10px;background:var(--soft);color:var(--ink);font-size:14px";
   root.insertBefore(note, root.firstChild);
   root.parentNode.insertBefore(f, root.nextSibling);
   started = true;
@@ -332,24 +387,36 @@ def _staging_banner(cfg: dict) -> str:
             f'<a style="color:#fff;text-decoration:underline" href="{htmllib.escape(prod)}">Go to the published site</a></div>')
 
 
-def _page(title: str, body: str, rel: str = "", cfg: dict | None = None, bare: bool = False) -> str:
+def _page(title: str, body: str, rel: str = "", cfg: dict | None = None, bare: bool = False, kind: str = "",
+          image: str = "") -> str:
     from .env import staging
     if staging():
         body = _staging_banner(cfg or {}) + body
         title = f"[Preview] {title}"
     sc = site_cfg(cfg or {})
-    head_link = (f'<header class="site"><a href="{rel}index.html">AI Briefing</a><a class="home" href="{htmllib.escape(sc["home_url"])}">'
-                 f'{htmllib.escape(sc["home_label"])} ↗</a></header>')
+    from . import brand
+    e = htmllib.escape
+    dd = kind == "deepdive"
+    head_link = (f'<header class="mast{" dd" if dd else ""}"><div class="in">'
+                 f'<img class="au" src="{rel}steven-woods.jpg" alt="{e(sc["name"])}" width="52" height="52">'
+                 f'<div><a class="wm" href="{rel}index.html">{e(brand.load().get("name", "AI Briefing"))}'
+                 + (f' · {e(brand.load().get("deep_dive_name", "Deep Dive"))}' if dd else "") + '</a>'
+                 f'<div class="tg">{e(brand.tagline("deep_dive" if dd else "main"))}</div></div>'
+                 f'<a class="home" href="{e(sc["home_url"])}">{e(sc["home_label"])} ↗</a></div>'
+                 f'{_wave("dd" if dd else "site")}</header>')
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">'
             f'<title>{htmllib.escape(title)}</title><link rel="stylesheet" href="{rel}style.css">'
             f'<meta name="description" content="{htmllib.escape(sc["tagline"])}">'
             f'<meta property="og:title" content="{htmllib.escape(title)}"><meta property="og:description" content="{htmllib.escape(sc["tagline"])}">'
-            f'<meta property="og:image" content="{htmllib.escape(sc["photo"])}">'
+            f'<meta property="og:image" content="{htmllib.escape(image or sc["photo"])}">'
+            f'<meta name="theme-color" content="{brand.color("teal")}">'
             + ('<meta name="robots" content="noindex,nofollow">' if _is_staging() else '') +
-            f'<link rel="alternate" type="application/rss+xml" title="AI Briefing" href="{rel}feed.xml"></head><body>'
+            f'<link rel="alternate" type="application/rss+xml" title="AI Briefing" href="{rel}feed.xml"></head>'
+            f'<body{" class=ddpage" if dd else ""}>'
             + (body if bare else f'{head_link}<main>{body}</main>') + f'<script src="{rel}share.js"></script>' +
-            f'<footer>Daily AI briefing for early-stage investors, curated by {htmllib.escape(sc["name"])}. Analysis is machine-generated '
+            f'<footer><span class="tagl">{e(brand.tagline("main"))} {e(brand.tagline("audience"))} · '
+            f'{e(brand.tagline("byline"))}</span>Analysis is machine-generated '
             f'from public sources (every claim links to its source); "Steven\'s take" is personal opinion. '
             + (f'<a href="{rel}index.html#email">Subscribe by email</a> · ' if _script_url(cfg or {}) else "")
             + f'<a href="{rel}index.html#listen">Add the podcast</a> · '
@@ -381,7 +448,8 @@ def releases_page(cfg: dict) -> str:
     body = [f'<h1>Release notes</h1><p class="muted">Running <b>v{htmllib.escape(full())}</b>. Changes are built and '
             'tested on a development branch and reach production together as a release.</p>']
     for head, md in releases():
-        body.append(f'<section class="panel"><h2>{htmllib.escape(head)}</h2>{_md_to_html(md)}</section>')
+        from .scrub import local_urls
+        body.append(f'<section class="panel"><h2>{htmllib.escape(head)}</h2>{_md_to_html(local_urls(md))}</section>')
     return _page("AI Briefing · Release notes", "".join(body), "../", cfg)
 
 
@@ -502,9 +570,8 @@ def accuracy_page(root: Path, cfg: dict) -> str:
 def site_cfg(cfg: dict) -> dict:
     """Public-page text and links: neutral defaults, then the owner's bio (owner.yaml site:), then `site:` in config.yaml."""
     from .owner import get as owner
-    return {
-        "tagline": "Slowly, then fast. Every morning. A daily briefing on AI for early-stage investors: what happened, "
-                   "what holds up, and what it means.",
+    out = {
+        "tagline": "",
         "name": "", "role": "", "photo": "", "bio": "", "why": "",
         "about": ("Every morning this briefing reads a hand-picked list of researchers, builders, sceptics and investors, "
                   "groups what they wrote into stories, and checks the big claims before they reach you. It is written by "
@@ -515,6 +582,12 @@ def site_cfg(cfg: dict) -> dict:
         **(owner().get("site") or {}),
         **(cfg.get("site") or {}),
     }
+    from . import brand                              # brand/brand.yaml wins for the tagline and the author image
+    out["tagline"] = f'{brand.tagline("main")} {brand.tagline("description")}'
+    base = ((cfg.get("publish") or {}).get("site_url") or "").rstrip("/")
+    out["photo"] = f"{base}/steven-woods.jpg" if base else "steven-woods.jpg"
+    out["name"] = out.get("name") or brand.author().get("name", "")
+    return out
 
 
 def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", audio_days: int = 30) -> dict:
@@ -524,7 +597,7 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
     if out.exists():
         shutil.rmtree(out)
     (out / "audio").mkdir(parents=True)
-    (out / "style.css").write_text(CSS, "utf-8")
+    (out / "style.css").write_text(site_css(root), "utf-8")
     (out / "listen.js").write_text(LISTEN_JS, "utf-8")
     if _is_staging():                                    # the development preview stays out of search engines
         (out / "robots.txt").write_text("User-agent: *\nDisallow: /\n", "utf-8")
@@ -594,8 +667,9 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
         page = _page(title, f'{bar}<div id="brief">{body_html}</div>'
                      f'{_end_box(cfg, day, day_url, title, "../", what)}<script src="../listen.js"></script>'
                      + (f'<script src="../takes.js" data-takes data-script="{htmllib.escape(_script_url(cfg), quote=True)}" '
-                        f'data-day="{day}"></script>' if _script_url(cfg) else ""), "../", cfg)
-        (out / day).mkdir()
+                        f'data-day="{day}"></script>' if _script_url(cfg) else ""), "../", cfg,
+                     image=_card_image(root, out, day, "", base_url))
+        (out / day).mkdir(exist_ok=True)
         (out / day / "index.html").write_text(page, "utf-8")
         from .textutil import is_merged, legacy_top
         lm = legacy_top(md)
@@ -644,7 +718,8 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
             (out / e["day"] / "deep-dive" / "index.html").write_text(
                 _page(e["title"], body +
                       f'<p><a href="../index.html">That day\'s briefing</a> · <a href="../../index.html#deep-dives">All deep dives</a>'
-                      f' · <a href="../../{DD_FEED}">🎧 Subscribe to the deep dives</a></p>', "../../", cfg), "utf-8")
+                      f' · <a href="../../{DD_FEED}">🎧 Subscribe to the deep dives</a></p>', "../../", cfg,
+                      kind="deepdive", image=_card_image(root, out, e["day"], "-deepdive", base_url)), "utf-8")
             day_page = out / e["day"] / "index.html"
             if day_page.exists():
                 html = day_page.read_text("utf-8")
@@ -681,7 +756,9 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
         print(f"docs skipped: {e}"[:200])
     (out / "feed.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>AI Briefing</title>'
-        f'<link>{base_url or "./"}</link><description>Daily AI briefing for early-stage investors</description>'
+        f'<link>{base_url or "./"}</link><description>{htmllib.escape(brand.tagline("main") + " " + brand.tagline("description"))}</description>'
+        + (f'<image><url>{base_url.rstrip("/")}/{_cover_name(out, "podcast-cover.png")}</url><title>AI Briefing</title>'
+           f'<link>{base_url}</link></image>' if base_url else "")
         + "".join(feed[:60]) + "</channel></rss>", "utf-8")
     return {"days": len(days), "audio": n_audio, "out": str(out), "podcast": podcast_url,
             "episode_keys": built_keys + [e["key"] for e in episodes if e.get("key", "").startswith("deepdive:")]}
@@ -715,8 +792,10 @@ def landing(cfg: dict, latest, rows: list, podcast_url: str, has_podcast: bool, 
     H = ['<div class="shell">',
          '<section class="hero"><div class="heroTop"><span class="eyebrow">Daily AI briefing · podcast</span>'
          f'<a class="heroHomeLink" href="{e(sc["home_url"])}">{e(sc["home_label"])} ↗</a></div>'
-         f'<h1>{e(title)}</h1><p class="lead">{e(sc["tagline"])}</p>'
-         f'<p class="small muted">Curated by {e(sc["name"])}</p><div class="actions">{"".join(acts)}</div></section>']
+         f'<div class="who"><img src="steven-woods.jpg" alt="{e(sc["name"])}" width="76" height="76"><h1>{e(title)}</h1></div>'
+         f'<p class="lead">{e(sc["tagline"])}</p>'
+         f'<p class="small muted">{e(brand.tagline("audience"))} · {e(brand.tagline("byline"))}</p>'
+         f'<div class="actions">{"".join(acts)}</div>{_wave("home", 70)}</section>']
     if latest:
         clean = [re.sub(r"\s*\[\d+\]\(https?://[^)]+\)", "", t) for t in latest["top"][:4]]
         tops = "".join("<li>" + _md_to_html(t)[3:-4] + "</li>" for t in clean)
@@ -724,7 +803,7 @@ def landing(cfg: dict, latest, rows: list, podcast_url: str, has_podcast: bool, 
                  f'<h3><a href="{latest["day"]}/index.html">{e(latest["title"])}</a></h3>'
                  + (f'<audio controls preload="metadata" src="audio/{latest.get("file") or latest["day"] + ".mp3"}"></audio>' if latest["audio"] else "")
                  + (f'<p>{e(latest["brief"])}</p>' if latest["brief"] else "")
-                 + (f'<div class="k" style="margin-top:14px">Top of mind</div><ul>{tops}</ul>' if tops else "")
+                 + (f'<div class="k" style="margin-top:14px">Today in 30 seconds</div><ul>{tops}</ul>' if tops else "")
                  + f'<p><a class="button primary" href="{latest["day"]}/index.html">Read the full briefing</a></p>'
                  + _share_box(f"{base_url.rstrip('/')}/{latest['day']}/" if base_url else "", latest["title"], "", cfg,
                               "this episode" if latest["audio"] else "this briefing") + '</section>')
@@ -741,7 +820,7 @@ def landing(cfg: dict, latest, rows: list, podcast_url: str, has_podcast: bool, 
                             if d.get("audio") else "")
                          + f'<a class="button ghost" href="{d["day"]}/index.html">That day\'s briefing</a></div></div>')
         H.append('<section class="panel" id="deep-dives"><h2>Deep dives</h2>'
-                 '<p class="lead" style="margin-top:0"><i>One story, slowly. Down to the details.</i></p>'
+                 f'<p class="lead" style="margin-top:0"><i>{e(brand.tagline("deep_dive"))}</i></p>'
                  '<p>About ten minutes on the one thing worth understanding properly that day: a breakthrough, a '
                  'controversy, a shift in the trajectory. Each one follows that morning\'s briefing in the podcast feed, '
                  'and they also have a podcast of their own.</p>'
@@ -751,12 +830,12 @@ def landing(cfg: dict, latest, rows: list, podcast_url: str, has_podcast: bool, 
     links = "".join(f'<a class="button" href="{e(u)}" rel="noopener">{e(t)}</a>' for t, u in sc["links"])
     H.append('<section class="grid" style="margin-top:22px">'
              '<div class="panel" style="margin-top:0"><h2>Who makes it</h2><div class="bio">'
-             f'<img src="{e(sc["photo"])}" alt="{e(sc["name"])}" loading="lazy">'
+             f'<img src="steven-woods.jpg" alt="{e(sc["name"])}" loading="lazy">'
              f'<div><h3>{e(sc["name"])}</h3><p class="role">{e(sc["role"])}</p><p>{e(sc["bio"])}</p>'
              f'<p class="muted"><i>{e(sc["why"])}</i></p></div></div><div class="pills">{links}</div></div>'
              '<div class="panel" style="margin-top:0"><h2>What you get</h2>'
              f'<p>{e(sc["about"])}</p><div class="grid4 how">'
-             '<div class="card"><b>Top of mind</b><span>the few things worth carrying into the day</span></div>'
+             '<div class="card"><b>Today in 30 seconds</b><span>the few things worth carrying into the day</span></div>'
              '<div class="card"><b>Must read</b><span>stories merged across sources, each with a critical read</span></div>'
              '<div class="card"><b>Open questions</b><span>what isn\'t settled yet, and what would settle it</span></div>'
              '<div class="card"><b>Audio episode</b><span>the same briefing, read for the commute</span></div></div></div></section>')
@@ -836,7 +915,7 @@ def build_podcast(root: Path, cfg: dict, out: Path, episodes: list, base_url: st
         shutil.copy2(cover_src, out / versioned)
         cover = versioned
     title = title or pc.get("title", "AI Briefing")
-    author = pc.get("author", "Steven")
+    author = brand.author().get("name") or pc.get("author", "Steven Woods")   # brand/brand.yaml: one author name
     desc = desc or pc.get("description", "Slowly, then fast. Every morning. A daily AI briefing for early-stage investors: what happened, a critical read "
                                  "of the claims, and what it means for diligence. Written and read by AI from public "
                                  "sources, curated by Steven Woods; every claim links to its source in the written briefing.")

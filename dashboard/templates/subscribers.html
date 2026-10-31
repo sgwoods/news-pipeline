@@ -1,5 +1,5 @@
-{% extends "base.html" %}{% block title %}Email subscribers{% endblock %}{% block body %}
-<h1>Email subscribers <span class="muted small">the list lives in your Google Sheet, not in this repo</span></h1>
+{% extends "base.html" %}{% block title %}Subscribers{% endblock %}{% block body %}
+<h1>Subscribers <span class="muted small">everyone who gets the briefing, and how: email (your Google Sheet), Slack (#cto-ai-newsletter), podcast</span></h1>
 {% if action %}<div hx-get="/actions/output" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
 {% if msg %}<p class="small {{ 's-error' if msg.startswith('Failed') else 's-ok' }}">{{ msg }}</p>{% endif %}
 {% if missing %}<div class="card"><div class="k">Not set up yet</div><p>{{ missing }}</p>
@@ -10,6 +10,16 @@
 <div class="card"><div class="k">Daily send</div><div class="v {{ 's-ok' if enabled else 's-partial' }}">{{ 'on' if enabled else 'off' }}</div><div class="small muted">config.yaml email.enabled · after each morning's publish</div></div>
 <div class="card"><div class="k">Gmail quota left today</div><div class="v">{{ quota if quota is not none else '—' }}</div><div class="small muted">about 100 recipients a day</div></div>
 </div>
+<h2>Everyone, by channel</h2>
+<div class="grid">
+<div class="card"><div class="k">Email</div><div class="v">{{ counts.active }}</div><div class="small muted">active subscribers</div></div>
+<div class="card"><div class="k">Slack</div><div class="v">{{ slack_n }}</div><div class="small muted">members of #cto-ai-newsletter{% if slack_err %} · <span class="s-partial">{{ slack_err }}</span>{% endif %}</div></div>
+<div class="card"><div class="k">Podcast</div><div class="v">—</div><div class="small muted">podcast apps don't say who subscribes; listeners are anonymous</div></div>
+</div>
+{% if people %}<table style="margin-top:12px"><tr><th>Person</th><th>Email</th><th>Email status</th><th>Slack</th><th>Channels</th></tr>
+{% for r in people %}<tr><td>{{ r.name or '—' }}</td><td class="mono">{{ r.email or '—' }}</td>
+<td class="small">{% if r.email_status %}<span class="s-{{ 'ok' if r.email_status == 'active' else ('pending' if r.email_status == 'pending' else 'error') }}">{{ r.email_status }}</span>{% else %}—{% endif %}</td>
+<td>{{ '✓' if r.slack else '' }}</td><td>{% for ch in r.channels %}<span class="pill">{{ ch }}</span> {% endfor %}</td></tr>{% endfor %}</table>{% endif %}
 <h2>Add a subscriber</h2>
 <form method="post" action="/api/subscribers/add" class="small"><input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="email" name="email" required placeholder="name@example.com" maxlength="200" style="width:280px">

@@ -17,16 +17,16 @@ import os
 import re
 from pathlib import Path
 
+from . import brand as _brand
 from .archive import append_jsonl, read_jsonl
 
 LOG = "data/email-log.jsonl"
-C = {"bg": "#07131f", "panel": "#0c2236", "card": "#112a42", "border": "#23415d", "text": "#eff7ff",
-     "muted": "#9cc4df", "strong": "#d7ecff", "accent": "#67e6a8", "accent_ink": "#06221a", "link": "#d9f7ff",
-     "brand": "#3e7e8a", "brand_deep": "#36707c", "brand_ink": "#e8f5f7"}   # brand: the teal of Steven's photo
-TAGLINE = "Slowly, then fast. Every morning."                  # Steven 2026-10-27; email.tagline overrides
-DD_TAGLINE = "One story, slowly. Down to the details."          # the deep dive's line (Steven 2026-10-27)
-PHOTO = "steven-woods.jpg"                                     # assets/, copied to the site root on each build
-FONT = "'Avenir Next','Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Arial,sans-serif"
+
+C = _brand.email_palette()                                     # brand/brand.yaml (2026-10-31): pale surface, teal
+TAGLINE = _brand.tagline("main")                              # email.tagline overrides
+DD_TAGLINE = _brand.tagline("deep_dive")
+PHOTO = "steven-woods.jpg"                                     # made from brand/author-master.png (./np brand build)
+FONT = "Inter,'Helvetica Neue',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif"
 
 
 class MailError(RuntimeError):
@@ -115,7 +115,7 @@ def stars_block(day: str, big: bool = True) -> str:
     size = 34 if big else 24
     cells = "".join(
         f'<td align="center" style="padding:0 4px"><a href="{{{{RATE}}}}&amp;s={n}" title="{n} of 5" '
-        f'style="text-decoration:none;color:#ffd166;font-size:{size}px;line-height:1">&#9733;</a>'
+        f'style="text-decoration:none;color:{C["gold"]};font-size:{size}px;line-height:1">&#9733;</a>'
         f'<div style="font-size:11px;color:{C["muted"]};margin-top:2px">{n}</div></td>' for n in range(1, 6))
     return (f'<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 4px"><tr>{cells}</tr></table>')
 

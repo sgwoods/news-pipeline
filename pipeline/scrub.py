@@ -11,6 +11,15 @@ BEGIN = re.compile(r"^\s*(?:#|//|<!--|\{#)\s*" + B + r"\b.*$")
 END = re.compile(r"^\s*(?:#|//|<!--|\{#)\s*" + E + r"\b.*$")
 TEXT = {".py", ".md", ".html", ".yaml", ".yml", ".txt", ".js", ".css", ".gs", ".svg", ".example", ".gitignore", ""}
 
+LOCAL_URL = re.compile(r"https?://(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?[^\s)<>\"']*", re.I)
+
+
+def local_urls(text: str) -> str:
+    """Public text never shows a local address (the hub's privacy scan refuses one): a URL on this Mac becomes plain
+    words (2026-10-31: the X tool's address in the release notes stopped the hub export)."""
+    return LOCAL_URL.sub("a local address on the Mac", text or "")
+
+
 def strip_private(text: str) -> str:
     """Drop every private ... end-private block (marker lines included). Unbalanced markers raise."""
     out, depth = [], 0

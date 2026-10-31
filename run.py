@@ -1611,6 +1611,23 @@ def cmd_positions(cfg: dict, argv: list) -> int:
     return 0
 
 
+def cmd_brand(cfg: dict, argv: list) -> int:
+    """./np brand show | build [--covers]: the brand template (brand/brand.yaml, docs/BRAND.md). `build` remakes the
+    author image sizes and the Slack channel banner; --covers also the two podcast covers (podcast apps then refetch)."""
+    from pipeline import brand
+    sub = (argv or ["show"])[0]
+    if sub == "build":
+        brand.build(ROOT, covers="--covers" in argv)
+        return 0
+    b = brand.load(ROOT)
+    print(f"{b.get('name')} · author {b['author'].get('name')} ({b['author'].get('image')})")
+    for k, v in b["colors"].items():
+        print(f"  {k:8} {v}   dark {b['dark'][k]}")
+    for k, v in (b.get("taglines") or {}).items():
+        print(f"  {k:12} {v}")
+    return 0
+
+
 def cmd_slack_post(cfg: dict, argv: list) -> int:
     """./np slack-post preview DAY | send DAY | deepdive DAY: the morning post in the team channel, and the deep dive
     as a reply in its thread (pipeline/slackpost.py)."""
@@ -2497,6 +2514,12 @@ def cmd_run(cfg: dict, lookback_hours=None, commit=True, no_llm=False, stages_on
                     res["items"] += sres["items"]
                     res["sources"] += sres["sources"]
                     st["shared_links"] = {"new": len(sres["items"])}
+                if (cfg.get("slack") or {}).get("channels"):
+                    from pipeline import slacksource as _ss       # more channels' links, read by the bot (10-31)
+                    cres = _ss.fetch_channels(ROOT, cfg, run.run_id, run.log, lookback_hours)
+                    res["items"] += cres["items"]
+                    res["sources"] += cres["sources"]
+                    st["shared_channels"] = {"new": len(cres["items"])}
                 if (ROOT / "x.yaml").exists() and (cfg.get("x") or {}).get("enabled", True):
                     from pipeline import xsource
                     xres = xsource.fetch(ROOT, cfg, run.run_id, run.log, lookback_hours)
@@ -3147,6 +3170,7 @@ def main() -> int:
     ap.add_argument("--schedule", action="store_true", help="the day's schedule and feedback windows")
     ap.add_argument("--jev", nargs="*", metavar="ARG", help="report [DAYS]: the Jev shadow filter")
     ap.add_argument("--pronounce", nargs="*", metavar="ARG", help="lint [DAYS]: words the voice may have garbled")
+    ap.add_argument("--brand", nargs="*", metavar="ARG", help="show | build [--covers]: the brand template (brand/brand.yaml)")
     ap.add_argument("--slack-post", nargs="*", metavar="ARG", help="preview DAY | send DAY: the morning post in the team channel")
     ap.add_argument("--positions", nargs="*", metavar="ARG", help="list | score [DAY]: the house-view calls ledger")
     ap.add_argument("--mailer", nargs="*", metavar="ARG", help="status | setup SCRIPT_ID | deploy: the mail script via clasp")
@@ -3255,6 +3279,8 @@ def main() -> int:
         return cmd_pronounce(cfg, args.pronounce or ["lint"])
     if args.slack_post is not None:
         return cmd_slack_post(cfg, args.slack_post)
+    if args.brand is not None:
+        return cmd_brand(cfg, args.brand)
     if args.positions is not None:
         return cmd_positions(cfg, args.positions)
     if args.listen is not None:

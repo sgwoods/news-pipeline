@@ -5,6 +5,34 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.43-beta · 2026-11-02 (weekday slot)
+- Public pages never show a local address (2026-10-31): release notes and the hub page turn a URL on the Mac
+  (the X tool's) into plain words, so the hub export is no longer refused.
+- Technical deep dives (Steven, 2026-10-31): the daily suggestions now include at least one "technical" candidate
+  (world models, robotics, scaling laws including test-time compute, surprising results...; `deepdive.technical_themes`),
+  and a technical episode is written as an explainer for investors and business people.
+- Watchlist skips newsletter sales emails (Steven, 2026-10-31): an Exponential View "24 hours to get 50% off"
+  email surfaced as a watchlist company mention. Titles that read as a discount or subscribe deadline are no longer matched.
+- Credentials never pass through links (2026-10-31): a Stratechery feed's per-reader access token reached the
+  10-31 page and email. Token, key and signature parameters are now stripped from every link, and the publish
+  privacy scan refuses any page carrying a JWT or a token parameter.
+- X reposts skipped (2026-10-31): xsukax lists reposts in an account's feed; a post whose link is another
+  account's is no longer credited to the person who reposted it.
+- Links from more Slack channels (Steven, 2026-10-31): `slack.channels` (first: #discuss-generative-ai), read by the
+  AI Briefing bot. Linked content only; the message is a private relevance cue (mentions and links stripped, never
+  quoted or attributed); posters never stored; each pull logged with its time in data/state/slack-pulls.jsonl.
+- Subscribers page (was Email): one row per person with every channel they get the briefing through (email,
+  Slack #cto-ai-newsletter; podcast listeners are anonymous). `pipeline/audience.py`.
+- **One brand template** (Steven, 2026-10-31; docs/BRAND.md): `brand/brand.yaml` (teal palette with a dark mode, Inter,
+  the one author image, the waveform, the taglines) and `pipeline/brand.py`. The website moves from navy and mint to
+  the teal brand: pale reading surface (deep teal in dark mode), teal masthead with the author image, wordmark,
+  tagline and waveform on every page, deep-teal masthead on deep-dive pages, the day's Slack card as each page's
+  link preview, "Today in 30 seconds" on the home page. The email: pale surface, white cards, teal buttons, Inter.
+  Slack cards, the channel banner and the covers read their colours, taglines and author image from the brand
+  (`./np brand build [--covers]`); the author image is the glasses photo everywhere (also the site's og:image and
+  bio). Feeds: author "Steven Woods"; the RSS feed has the cover and the main tagline. Dashboard: brand colours and
+  header, and a Brand tab showing the template and where it appears.
+
 ## v0.2.42-beta · 2026-10-31
 - Monthly promo (Steven, 2026-10-31, option A): on the first Monday of each month, once the edition is out, one short
   post in #cto-musings pointing to #cto-ai-newsletter (a channel link: one click opens it with Join), the website

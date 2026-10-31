@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block title %}Brand{% endblock %}{% block body %}
+<h1>Brand <span class="muted small">what the website, email, Slack, covers, feeds and this dashboard are made from</span></h1>
+<p class="small muted">One file, <span class="mono">brand/brand.yaml</span> (docs/BRAND.md). Change a colour, a tagline or the author image there;
+the next build carries it everywhere. Images: <span class="mono">./np brand build</span> (author sizes, channel banner), <span class="mono">--covers</span> for the podcast covers.</p>
+<div class="row">
+ <div class="card"><div class="k">Author</div>
+  <div style="display:flex;gap:14px;align-items:center;margin-top:8px"><img src="/brand/asset/author-master.png" alt="" style="width:96px;height:96px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px var(--teal)">
+  <div><b>{{ b.author.name }}</b><br><span class="mono small">{{ b.author.image }}</span><br><span class="small muted">The one author image: every size and ring is made from it.</span></div></div></div>
+ <div class="card"><div class="k">Taglines</div>
+  <table style="margin-top:8px">{% for k, v in b.taglines.items() %}<tr><td class="mono small">{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}</table></div>
+</div>
+<h2>Colours</h2>
+<div class="grid">{% for k, v in b.colors.items() %}<div class="card" style="padding:0;overflow:hidden">
+ <div style="height:54px;background:{{ v }}"></div><div style="display:flex;height:18px"><div style="flex:1;background:{{ b.dark[k] }}"></div></div>
+ <div style="padding:8px 10px"><b>{{ k }}</b> <span class="mono small">{{ v }}</span><br><span class="small muted">dark mode {{ b.dark[k] }}</span></div></div>{% endfor %}</div>
+<p class="small muted">Type: {{ b.fonts.family }} ({{ b.fonts.stack }}).</p>
+<h2>Where it shows</h2>
+<div class="grid">
+ <div class="card"><div class="k">Podcast cover</div><img src="/brand/asset/podcast-cover.png" alt="" style="width:100%;border-radius:6px;margin-top:6px"></div>
+ <div class="card"><div class="k">Deep-dive cover</div><img src="/brand/asset/deepdive-cover.png" alt="" style="width:100%;border-radius:6px;margin-top:6px"></div>
+ {% for c in cards %}<div class="card"><div class="k">Slack card · {{ c }}</div><img src="/brand/asset/card-{{ c }}" alt="" style="width:100%;border-radius:6px;margin-top:6px"></div>{% endfor %}
+ <div class="card"><div class="k">Slack channel banner (pinned in #cto-ai-newsletter)</div><img src="/brand/asset/banner.png" alt="" style="width:100%;border-radius:6px;margin-top:6px"></div>
+ <div class="card"><div class="k">Slack app icon</div><img src="/brand/asset/author-icon.png" alt="" style="width:96px;border-radius:14px;margin-top:6px"><p class="small muted">Upload in the Slack app's settings when the image changes.</p></div>
+</div>
+{% if email_day %}<p style="margin-top:16px"><a href="/email/preview/{{ email_day }}">Email preview ({{ email_day }}) →</a> · <a href="https://sgwoods.github.io/ai-briefing/">The website →</a></p>{% endif %}
+{% endblock %}

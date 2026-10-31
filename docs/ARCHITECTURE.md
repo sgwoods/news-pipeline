@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.42-beta (2026-10-31)
+- **Release:** v0.2.43-beta (2026-11-02 (weekday slot))
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 74 in `pipeline/`
+- **Modules:** 76 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -326,9 +326,11 @@ _Generated from each module's own description at build time._
 |---|---|
 | `alerts.py` | Action-needed email to Steven when the daily edition can't go out (Steven, 2026-10-19 |
 | `archive.py` | Append-only archive on plain files. |
+| `audience.py` | Who gets the AI Briefing, and how (Steven, 2026-10-31) |
 | `audio.py` | Phase 2 |
 | `audit.py` | The daily accuracy audit (critic 2026-10-24, #10D; Steven 2026-10-27). |
 | `bluesky.py` | Bluesky lists and Steven's own posts as sources, via the public AT Protocol API (no key, no login). |
+| `brand.py` | The AI Briefing brand (Steven, 2026-10-31) |
 | `card.py` | The daily card |
 | `clasp.py` | Deploy the mail script (scripts/apps-script/Code.gs) with Google's clasp CLI instead of copy and paste. |
 | `compare.py` | Staging against production for the same day |

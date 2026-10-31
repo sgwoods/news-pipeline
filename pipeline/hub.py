@@ -248,8 +248,9 @@ def release_notes(root: Path, site: str, e) -> str:
     rel = releases(root)[:2]
     if not rel:
         return ""
+    from .scrub import local_urls
     def inline(t):
-        t = e(t)
+        t = e(local_urls(t))
         t = re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
         return re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", t)
     parts = []

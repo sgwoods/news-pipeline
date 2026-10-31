@@ -138,6 +138,8 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_hours: int | None = 
                     continue
                 text = html_to_text(e.get("summary", "") or e.get("description", "") or title)
                 url = _x_url(e.get("link", ""), a["handle"])
+                if f"x.com/{a['handle'].lower()}/" not in url.lower() + "/":
+                    continue                     # a repost of someone else's post: not this person's words (2026-10-31)
                 got.append({"id": item_id(url), "url": url, "title": (text[:90] + "…") if len(text) > 90 else text or "(post)",
                             "author": a["name"], "published": iso(pub) if pub else iso(now), "text": text,
                             "text_chars": len(text), "person": a["name"], "tier": a["tier"], "flags": a["flags"],
