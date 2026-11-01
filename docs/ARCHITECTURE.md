@@ -13,7 +13,7 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.48-beta (2026-11-02 (weekday slot))
+- **Release:** v0.2.49-beta (2026-11-02 (weekday slot))
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 78 in `pipeline/`

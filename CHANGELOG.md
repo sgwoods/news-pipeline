@@ -5,6 +5,12 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.49-beta · 2026-11-02 (weekday slot)
+- Core beliefs, first refresh (Steven approved all six proposals, 2026-11-01; doc "Core Beliefs: Proposed Updates"):
+  thesis 16 says containment is conceptual until proven; view 5 adds founders' liability; view 15 warns against
+  writing off incumbents on early cannibalisation; new view 22, "Human provenance or ruin"; perspective.md adds
+  robotics and AI-driven science, agent-to-agent authority, and a liability-and-insurance diligence rule.
+
 ## v0.2.48-beta · 2026-11-02 (weekday slot)
 Quality fixes from the 10-31 review:
 - Story fatigue: when today's lead is the same story as a lead in the last two editions and brings no new primary
