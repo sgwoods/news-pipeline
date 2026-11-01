@@ -29,7 +29,9 @@ class ReleaseError(RuntimeError):
 def _clean_env() -> dict:
     """The environment without GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE: git here always acts on the repo at cwd."""
     import os
-    return {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")}
+    env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")}
+    env["NP_RELEASE"] = "1"                      # releases and rollbacks may commit protected files (pre-commit hook)
+    return env
 
 
 def _git(root: Path, *a, check=True) -> subprocess.CompletedProcess:

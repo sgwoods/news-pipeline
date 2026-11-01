@@ -42,7 +42,52 @@ def tcfg(cfg: dict) -> dict:
     t = cfg.get("takes") or {}
     return {"enabled": bool(t.get("enabled", False)), "cutoff": str(t.get("cutoff", "06:30")),
             "poll_minutes": float(t.get("poll_minutes", 3)), "audio": bool(t.get("audio", True)),
-            "max_chars": int(t.get("max_chars", 700)), "slack": bool(t.get("slack", True))}
+            "max_chars": int(t.get("max_chars", 700)), "slack": bool(t.get("slack", True)),
+            "copyedit": bool(t.get("copyedit", True))}
+
+
+def lead_key(takes: dict) -> str:
+    """Which take leads the edition (Steven, 2026-10-31: "yes on take"): the day overall, else Top of mind."""
+    return next((k for k in ("overall", "top") if str(takes.get(k) or "").strip()), "")
+
+
+COPYEDIT = """Fix only typos and spelling slips in this short note (a wrong letter, a missing letter, an autocorrect
+word that is plainly a slip). Never change wording, tone, punctuation style, abbreviations (imho, afaik, w), emoji or
+meaning; never add or remove words. If unsure, leave it. Return ONLY JSON: {"fixes": [{"from": "word", "to": "word"}]}
+
+NOTE:
+"""
+
+
+def _dist(a: str, b: str) -> int:
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def copyedit(text: str, llm) -> tuple:
+    """(text with typo fixes, [{"from","to"}]): only single-word swaps within two letters of the original, each word
+    found once in the note, so the take stays Steven's words. Any failure -> (text, [])."""
+    try:
+        from . import stages
+        out = stages._ask(llm, "You are a careful copy editor.", COPYEDIT + text, 400) or {}
+    except Exception:  # noqa: BLE001
+        return text, []
+    done = []
+    for f in out.get("fixes") or []:
+        a, b = str(f.get("from", "")).strip(), str(f.get("to", "")).strip()
+        if not a or not b or a == b or " " in a or " " in b or _dist(a.lower(), b.lower()) > 2:
+            continue
+        pat = re.compile(rf"(?<![\w']){re.escape(a)}(?![\w'])")
+        if len(pat.findall(text)) != 1:
+            continue
+        text = pat.sub(b, text)
+        done.append({"from": a, "to": b})
+    return text, done
 
 
 def _state_path(root: Path, day: str) -> Path:
@@ -594,10 +639,17 @@ def problems(text: str, cfg: dict) -> list:
 
 
 # ---------------------------------------------------------------- collect and wait
-def collect(root: Path, cfg: dict, day: str, replies: list | None = None, log=print) -> dict:
-    """Merge reply and Slack takes, check each, publish the clean ones to commentary. -> state."""
+def collect(root: Path, cfg: dict, day: str, replies: list | None = None, log=print, llm_edit="auto") -> dict:
+    """Merge reply and Slack takes, check each, publish the clean ones to commentary. -> state.
+    Typo-level slips are fixed first (copyedit); every fix is listed in the report email with the original."""
     from dashboard import notes
     t = tcfg(cfg)
+    if llm_edit == "auto":
+        try:
+            from . import llm as _llm
+            llm_edit = _llm.for_stage(cfg, "critique") if t["copyedit"] else None
+        except Exception:  # noqa: BLE001
+            llm_edit = None
     st = state(root, day)
     sl = slots(root, day)
     by_slot = {s["slot"]: s for s in sl}
@@ -619,6 +671,13 @@ def collect(root: Path, cfg: dict, day: str, replies: list | None = None, log=pr
             unknown.append({"slot": k, "text": text[:200]})
             continue
         text = text[:t["max_chars"]]
+        original, edits = text, []
+        if t["copyedit"] and llm_edit is not None:
+            prev = next((p for p in st.get("published") or [] if p.get("slot") == k and p.get("original") == text), None)
+            if prev:                                     # already edited on an earlier poll: keep that result
+                text, edits = prev["text"], prev.get("edits") or []
+            else:
+                text, edits = copyedit(text, llm_edit)
         why = problems(text, cfg)
         if why:
             held.append({"slot": k, "title": s["title"], "text": text, "why": why, "from": origin[k]})
@@ -626,7 +685,8 @@ def collect(root: Path, cfg: dict, day: str, replies: list | None = None, log=pr
         cur = notes.load(root, day).get("notes", {}).get(s["key"], {})
         if cur.get("text") != text:
             notes.save(root, day, s["key"], text, title=s["title"])
-        published.append({"slot": k, "key": s["key"], "title": s["title"], "text": text, "from": origin[k]})
+        published.append({"slot": k, "key": s["key"], "title": s["title"], "text": text, "from": origin[k],
+                          **({"original": original, "edits": edits} if edits else {})})
     st.update({"published": published, "held": held, "unknown": unknown,
                "collected_at": dt.datetime.now().isoformat(timespec="seconds")})
     _save_state(root, day, st)
@@ -673,10 +733,15 @@ def wait(root: Path, cfg: dict, day: str, log=print, now=dt.datetime.now, sleep=
 
 def report_email(root: Path, cfg: dict, day: str, st: dict) -> str:
     """Tell Steven what was held (only when something was): the text stays with him, never published."""
-    if not st.get("held") and not st.get("unknown"):
+    edited = [p for p in st.get("published", []) if p.get("edits")]
+    if not st.get("held") and not st.get("unknown") and not edited:
         return ""
     from . import mailer
     L = [f"Takes for {day}: {len(st.get('published', []))} published."]
+    for p in edited:
+        fixes = ", ".join(f"{e['from']} → {e['to']}" for e in p["edits"])
+        L.append(f"TYPOS FIXED in {p['slot']} ({p['title'][:60]}): {fixes}. Your original: \"{p['original'][:300]}\". "
+                 f"Not what you meant? Edit it on the dashboard (Takes) or reply with the take again.")
     for h in st.get("held", []):
         L.append(f"HELD {h['slot']} ({h['title'][:60]}): {'; '.join(h['why'])}. Reword and reply again, or leave it.")
     for u in st.get("unknown", []):
@@ -684,9 +749,9 @@ def report_email(root: Path, cfg: dict, day: str, st: dict) -> str:
     text = "\n".join(L)
     html = "".join(f"<p>{htmllib.escape(x)}</p>" for x in L)
     to = mailer.ecfg(cfg).get("test_to")
-    mailer.call(cfg, "send", subject=f"AI Briefing · Your takes · held back · {day}", html=mailer.defuse(html),
+    mailer.call(cfg, "send", subject=f"AI Briefing · Your takes · {'held back' if st.get('held') else 'typos fixed'} · {day}", html=mailer.defuse(html),
                 text=mailer.defuse(text), to=to)
-    return "held-takes note sent to the owner"
+    return "takes note sent to the owner"
 
 
 # ---------------------------------------------------------------- audio
@@ -700,13 +765,13 @@ def audio_parts(parts: list, st: dict) -> list:
     say = lambda s: speech.spoken(s, table)  # noqa: E731
     out = []
     for name, text in parts:
-        if name == "Close" and "0" in pub:
-            out.append(("Take overall", say(f"And {LABEL} on the day. {pub['0']}")))
         out.append((name, text))
+        if name == "Intro" and "0" in pub:      # the day's take leads (Steven, 2026-10-31)
+            out.append(("Take overall", say(f"First, {LABEL} on the day. {pub['0']}")))
         if name == "Quick hits" and "W" in pub:
             out.append(("Take worth", say(f"{LABEL} on the quick hits. {pub['W']}")))
         if name == "Intro" and "T" in pub:
-            out.append(("Take top", say(f"{LABEL} on the top of the day. {pub['T']}")))
+            out.append(("Take top", say(f"{'And' if '0' in pub else 'First,'} {LABEL} on the top of the day. {pub['T']}")))
         m = re.fullmatch(r"Story (\d+)", name)
         if m and m.group(1) in pub:
             out.append((f"Take {m.group(1)}", say(f"Here's {LABEL}. {pub[m.group(1)]}")))

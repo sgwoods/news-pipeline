@@ -287,6 +287,8 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
     takes: {key: text} from day_takes(): "overall", "top", or a story's item id."""
     from .textutil import item_id
     takes = takes or {}
+    from .takes import lead_key
+    lead_tk = lead_key(takes)
     md = defuse(md)
     if deep:
         deep = {k: (defuse(v) if isinstance(v, str) else v) for k, v in deep.items()}
@@ -323,7 +325,7 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
              f'font-size:11px;letter-spacing:.14em;text-transform:uppercase">Daily AI briefing</div>'
              f'<h1 style="margin:14px 0 8px;font-size:26px;line-height:1.2;color:{C["text"]}">{htmllib.escape(b["title"])}</h1>'
              + (f'<p {P}>{_inline(b["brief"])}</p>' if b["brief"] and not b.get("merged") else "")
-             + (_take_html(takes["overall"]) if takes.get("overall") else "")
+             + (_take_html(takes[lead_tk]) if lead_tk else "")
              + _btn(page, "Read the full briefing") + (_btn(page, "Listen to the episode", False) if has_audio else "")
              + "</td></tr>")
     stars = bool(e.get("ratings"))
@@ -339,7 +341,7 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>'
                  f'{_label("Today in 30 seconds" if b.get("merged") else "Top of mind")}'
                  f'<ul style="margin:0;padding-left:20px">{lis}</ul>{q}'
-                 + (_take_html(takes["top"]) if takes.get("top") else "") + '</td></tr>')
+                 + (_take_html(takes["top"]) if takes.get("top") and lead_tk != "top" else "") + '</td></tr>')
     if b["must"]:
         items = []
         for n, s in enumerate(b["must"], 1):

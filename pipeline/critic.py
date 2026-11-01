@@ -136,6 +136,28 @@ def chart_trend(weeks: list, n: int = 8) -> str:
             f'{"".join(rows)}</table>' + note)
 
 
+def chart_field(weeks: list, n: int = 6) -> str:
+    """Overall score of every show (and us) over the last n weeks, newest right: the running trend in email form."""
+    weeks = weeks[-n:]
+    names = sorted({s["name"] for w in weeks for s in w.get("shows", [])})
+    def val(w, name):
+        if name == OURS:
+            return w["ours"].get("overall")
+        return next((s.get("overall") for s in w.get("shows", []) if s["name"] == name), None)
+    rows = sorted([OURS] + names, key=lambda nm: -(val(weeks[-1], nm) or 0))
+    head = "".join(f'<td style="font-size:11px;color:{C["muted"]};text-align:right;padding:0 6px">{_esc(w["date"][5:])}</td>'
+                   for w in weeks)
+    body = []
+    for nm in rows:
+        us = nm == OURS
+        cells = "".join(f'<td style="font-size:12px;text-align:right;padding:2px 6px;{"font-weight:700;color:" + C["us"] if us else ""}">'
+                        f'{"" if val(w, nm) is None else f"{val(w, nm):.1f}"}</td>' for w in weeks)
+        body.append(f'<tr><td style="font-size:12px;padding:2px 8px 2px 0;white-space:nowrap;{"font-weight:700" if us else ""}">'
+                    f'{_esc(nm)}</td>{cells}</tr>')
+    return (f'<table role="presentation" cellpadding="0" cellspacing="0"><tr><td></td>{head}</tr>{"".join(body)}</table>'
+            f'<p style="font-size:12px;color:{C["muted"]};margin:8px 0 0">Line charts of every characteristic: dashboard → Quality.</p>')
+
+
 # ---------------------------------------------------------------- the email
 def shipped(root: Path, since: str, until: str) -> list:
     p = root / "data" / "state" / "releases.jsonl"
@@ -189,6 +211,7 @@ def render(root: Path, date: str | None = None) -> dict:
         sp + f'<tr><td {cell}><h2 {H2}>How we stack up, by characteristic</h2>{chart_by_dimension(week)}</td></tr>',
         sp + f'<tr><td {cell}><h2 {H2}>Overall ranking (latest episode or issue each)</h2>{chart_ranking(week)}</td></tr>',
         sp + f'<tr><td {cell}><h2 {H2}>Our trend</h2>{chart_trend(upto)}</td></tr>',
+        sp + f'<tr><td {cell}><h2 {H2}>The field over time (overall)</h2>{chart_field(upto)}</td></tr>',
     ]
     if ships:
         blocks.append(sp + f'<tr><td {cell}><h2 {H2}>Shipped this week</h2><ul style="margin:0;padding-left:20px">'

@@ -1,6 +1,13 @@
 {% extends "base.html" %}{% block title %}Quality{% endblock %}{% block body %}
 <h1>Quality <span class="muted small">daily scorecard from the format spec · measured by code · your rating and readers' · also <span class="mono">./np quality</span></span></h1>
 <p class="small muted">Green meets the target, red misses it. Ratings: yours (1–5) from this page or the stars in your own copy of the email; readers' from their email stars or replies that start with a number; Site is anonymous stars on the public pages (shown, never counted toward the breakpoint). The weekly rubric review (grounded / interesting / opinionated / listenable) adds the judgement code can't make.</p>
+<h2>Trends</h2>
+<p class="small muted">Against the field: the weekly critic's rubric score for each show's latest episode or issue (out of 100 overall, 1–10 per characteristic). Each Saturday adds a point. Show:
+{% for k, lab in dims %}<a href="/quality?dim={{ k }}" class="{{ 'on' if k == dim }}" style="margin-right:8px{% if k == dim %};font-weight:600{% endif %}">{{ lab }}</a>{% endfor %}</p>
+<div class="panel">{{ field_svg|safe }}</div>
+<h3>Our editions, day by day</h3>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px">{% for s in daily_svgs %}<div class="panel">{{ s|safe }}</div>{% endfor %}</div>
+<h2>Daily scorecard</h2>
 <div style="overflow-x:auto"><table class="small">
 <tr><th>Day</th><th>Checks</th><th>You</th><th>Readers</th><th>Site</th>{% for k, lab, tgt in keys %}<th title="target {{ tgt }}">{{ lab }}<br><span class="muted">{{ tgt }}</span></th>{% endfor %}</tr>
 {% for r in rows %}{% set by = {} %}{% for c in r.checks %}{% set _ = by.update({c.key: c}) %}{% endfor %}

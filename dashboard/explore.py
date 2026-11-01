@@ -397,7 +397,17 @@ def register(app, root, cfg, P, check_post, md_html, DAY_RE):
         rows = [have.get(d) or quality.score_day(root, live_cfg(), d) for d in days]
         rows = [r for r in rows if r]
         keys = [(k, lab, tgt) for k, lab, tgt, _ in quality.TARGETS]
-        return render_template("quality.html", rows=rows, keys=keys, fmt=quality.fmt)
+        from pipeline import critic, trends            # running trend charts (Steven, 2026-10-31)
+        dims = [("overall", "Overall")] + [(k, lab) for k, lab, _ in critic.DIMS]
+        dim = request.args.get("dim", "overall")
+        dim = dim if dim in dict(dims) else "overall"
+        field_svg = trends.svg_lines(trends.field(root, dim),
+                                     f"{dict(dims)[dim]}: us against the top shows, by week (weekly critic)", height=340)
+        drows = trends.daily(root, live_cfg(), 30)
+        daily_svgs = [trends.svg_lines({critic.OURS: [(r["day"], r[k]) for r in drows if r.get(k) is not None]},
+                                       lab, unit, height=200, label_all=False) for k, lab, unit in trends.DAILY]
+        return render_template("quality.html", rows=rows, keys=keys, fmt=quality.fmt, dims=dims, dim=dim,
+                               field_svg=field_svg, daily_svgs=daily_svgs)
 
     @app.route("/api/quality/<day>/rate", methods=["POST"])
     def quality_rate(day):

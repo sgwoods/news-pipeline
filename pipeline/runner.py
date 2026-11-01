@@ -763,6 +763,9 @@ class Runner:
                     job = {"id": p.stem, "recipe": "?", "args": {}}
                 _finish(self.root, p, job, "expired", "not approved by 20:00; queue it again tomorrow", self.notify)
 
+    def watch_protected(self) -> str:
+        return _watch_protected(self.root, self.now(), self.notify)
+
     def tick(self) -> list:
         from .env import staging
         lock = (self.root / QUEUE)
@@ -786,11 +789,52 @@ class Runner:
                             dirty[:200], self.notify)
                 return ["refused: production code changed outside a release"]
             self.expire()
+            self.watch_protected()
             out = []
             for p in sorted(qdir(self.root, "pending").glob("*.json")) + sorted(qdir(self.root, "waiting").glob("*.json")):
                 out.append(f"{p.stem}: {self.run_job(p)}")
             _status(self.root)
             return out
+
+
+WATCH = "data/state/protected-watch.json"
+
+
+def _watch_protected(root: Path, now: dt.datetime, notify=None) -> str:
+    """Protected (security-sensitive) files that changed outside a release are caught when they change, not at
+    05:00 (2026-11-01: a house-views edit held the morning edition). Once per change: a notice, and an `approve` job
+    queued so Steven gets the approval prompt on his phone right away. -> what was done ("" if nothing)."""
+    from . import release
+    try:
+        if not release.approvals(root):              # no approval on record yet (a new checkout): nothing to compare
+            return ""
+        ok, _ = release.check_approval(root)
+    except Exception:  # noqa: BLE001 - the watch never breaks the queue
+        return ""
+    if ok:
+        return ""
+    fp = release.fingerprint(release.SENSITIVE, root)
+    p = root / WATCH
+    try:
+        seen = json.loads(p.read_text("utf-8"))
+    except (OSError, ValueError):
+        seen = {}
+    if seen.get("fingerprint") == fp:
+        return ""
+    files = release.changed_sensitive(root)[:8]
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({"fingerprint": fp, "files": files, "at": now.isoformat(timespec="seconds")}), "utf-8")
+    pending = any(json.loads(q.read_text("utf-8")).get("recipe") in ("approve", "ship", "release")
+                  for q in list(qdir(root, "pending").glob("*.json")) + list(qdir(root, "waiting").glob("*.json")))
+    if notify:
+        notify("protected files changed", "Changed outside a release: " + (", ".join(files) or "see release-check")
+               + (". A release is queued and will approve them." if pending else
+                  ". Approve now (phone prompt) or the next edition is held."))
+    if not pending:
+        enqueue(root, "approve", {"note": ("reviewed: protected files changed outside a release: "
+                                           + ", ".join(files))[:280]}, queued_by="the protected-file watch")
+        return "approval queued"
+    return "noticed (a release is queued)"
 
 
 def code_changes(root: Path) -> str:

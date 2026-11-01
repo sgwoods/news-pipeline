@@ -190,7 +190,7 @@ class Audio(unittest.TestCase):
                 mock.patch("pipeline.speech.spoken", side_effect=lambda s, t: s):
             out = takes.audio_parts(parts, st)
         names = [n for n, _ in out]
-        self.assertEqual(names, ["Intro", "Take top", "Story 1", "Take 1", "Story 2", "Take overall", "Close", "Outro"])
+        self.assertEqual(names, ["Intro", "Take overall", "Take top", "Story 1", "Take 1", "Story 2", "Close", "Outro"])   # the day's take leads (Steven, 2026-10-31)
         self.assertEqual(dict(out)["Take 1"], "Here's Steven's take. Margins matter.")
 
     def test_a_story_the_episode_does_not_voice_gets_its_take_after_the_quick_hits(self):

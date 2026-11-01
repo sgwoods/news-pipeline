@@ -76,6 +76,8 @@ def prompt_block(views: list) -> str:
     for v in views:
         out.append(f"[V{v.n}] {v.name}. {v.view} Apply: {v.apply} Changes our mind: {v.changes}"
                    + (" (a dated thesis)" if v.thesis else ""))
+    out.append("When a view was used for a story in the last few days, build on it: say what today's story adds to the "
+               "argument (stronger, weaker, a new angle), the way a columnist develops a thesis, instead of restating it.")
     return "\n".join(out)
 
 

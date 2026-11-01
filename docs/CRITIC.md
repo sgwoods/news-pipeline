@@ -67,33 +67,34 @@ daily. That reflects the use case, not their quality.
 - The rubric is weighted for this briefing's use. It is not a general ranking of the shows.
 
 ## Latest results
-_Generated at build time from the critic run of 2026-10-24._
+_Generated at build time from the critic run of 2026-10-31._
 
 | Rank | Show | Score | Rated |
 |---|---|---|---|
-| 1 | Dwarkesh Podcast | 81.4 | What will computer chips look like in 2045? (2026-10-22) |
-| 2 | Stratechery | 76.0 | Do You Trust Apple? (2026-10-19) |
-| 3 | The AI Daily Brief | 74.8 | The Most Concerning AI Bubble Signals (2026-10-23) |
-| 4 | Machine Gods (NPR) | 72.3 | Fired OpenAI Safety Researchers Speak Out + We Look Inside P (2026-10-23) |
-| 5 | Latent Space | 71.2 | Why AI Compute Comes in Rectangles (Modal) (2026-10-22) |
-| 6 | The Neuron | 66.6 | Microsoft AI scored 83% where doctors got 36% (2026-10-23) |
-| 7 | Acquired | 64.9 | Seinfeld (2026-10-18) |
-| 8 | **AI Briefing (us)** | **62.2** | the week's editions (2026-10-24) |
-| 9 | All-In | 61.6 | AI Cyber Panic, Ken Griffin's Bubble Warning, The Fall of Fr (2026-10-23) |
-| 10 | TLDR AI | 61.5 | TLDR AI 2026-10-23 (2026-10-23) |
-| 11 | Lex Fridman Podcast | 41.1 | #502 Andrew Scull: Psychiatry, Insane Asylums... (2026-09-17) |
+| 1 | Stratechery | 77.0 | The End of the Internet (2026-10-26) |
+| 2 | The AI Daily Brief (newsletter) | 74.4 | How the Most AI-Pilled Company in the World Works (2026-10-30) |
+| 3 | The AI Daily Brief | 73.0 | How the Most AI-Pilled Company in the World Works (2026-10-30) |
+| 4 | Latent Space | 71.6 | Why Agents Love Supabase (2026-10-28) |
+| 5 | All-In | 70.8 | Anthropic S-1 Shocker, Greatest Business Ever? Google's $500 (2026-10-31) |
+| 6 | Acquired | 70.6 | Seinfeld (Fall 2026, Ep 3) (2026-10-18) |
+| 7 | **AI Briefing (us)** | **69.6** | the week's editions (2026-10-31) |
+| 8 | Machine Gods (NPR) | 69.4 | OpenAI's Latest Discoveries Spark a Backlash + Help! My Kid  (2026-10-30) |
+| 9 | The Neuron | 64.5 | Mistral released a 1T-parameter open model (2026-10-30) |
+| 10 | Lex Fridman Podcast | 62.5 | #503 AI Crisis in Math (2026-10-26) |
+| 11 | Dwarkesh Podcast | 61.2 | Robert Caro, the master biographer, reflects at 91 (not AI) (2026-10-30) |
+| 12 | TLDR AI | 57.8 | Daily issue (OpenAI Model Spec; Mistral open weights) (2026-10-30) |
 
 | Characteristic (weight) | Us | Field average | Best |
 |---|---|---|---|
-| Content selection (18) | 6 | 6.4 | 8 (Latent Space) |
-| Accuracy & sourcing (15) | 6 | 7.1 | 9 (Dwarkesh Podcast) |
-| Depth & insight (14) | 7 | 6.6 | 9 (The AI Daily Brief) |
-| Timeliness & cadence (10) | 7 | 6.4 | 9 (TLDR AI) |
-| Structure & pacing (10) | 6 | 6.2 | 9 (TLDR AI) |
-| Opinion / point of view (9) | 6 | 6.5 | 10 (Stratechery) |
-| Distinctiveness & fit (7) | 7 | 6.9 | 9 (Stratechery) |
-| Writing / script (6) | 6 | 7.4 | 9 (Dwarkesh Podcast) |
-| Tone & voice (5) | 6 | 7.5 | 9 (Stratechery) |
-| Production (6) | 4.5 | 7.1 | 9 (Dwarkesh Podcast) |
+| Content selection (18) | 6 | 7.0 | 8 (Stratechery) |
+| Accuracy & sourcing (15) | 7 | 7.2 | 9 (Acquired) |
+| Depth & insight (14) | 8 | 6.0 | 8 (All-In) |
+| Timeliness & cadence (10) | 8 | 7.3 | 9 (The Neuron) |
+| Structure & pacing (10) | 7 | 7.3 | 8 (The AI Daily Brief (newsletter)) |
+| Opinion / point of view (9) | 7 | 6.3 | 9 (Stratechery) |
+| Distinctiveness & fit (7) | 8 | 5.8 | 8 (Stratechery) |
+| Writing / script (6) | 6 | 7.3 | 9 (Stratechery) |
+| Tone & voice (5) | 6 | 7.5 | 8 (The AI Daily Brief (newsletter)) |
+| Production (6) | 6 | 7.2 | 9 (Acquired) |
 
-Our trend starts with the second weekly run.
+Our overall score by week: 2026-10-24 62.2 · 2026-10-31 69.6

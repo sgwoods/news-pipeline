@@ -89,3 +89,15 @@ step is blocked (the morning briefing is still produced locally).
   or files outside a temp folder. Test runs set `NP_ENV=production` and `NP_TESTING=1`.
 - The full gate runs at release time and in the evening preflight. Mornings only confirm that the running code
   is code that already passed and is approved (`release-passed.jsonl`), so a test can never block a send.
+
+## Protected files change only through a release (since v0.2.46)
+On 2026-11-01 a house-views edit was committed straight to production the evening before; the morning run built
+the edition but the gate held the publish, the email and the backup until the change was approved. Since then:
+- Every security-sensitive file (the `SENSITIVE` list in pipeline/release.py: code, tests, config.yaml, owner.yaml,
+  author.md, house_views.md, newsletters.yaml, conflicts.yaml, source_profiles.yaml, pronunciations.yaml) changes on
+  dev and reaches production in a release, with Steven's approval. That includes Claude's edits.
+- The pre-commit hook refuses a commit on production's `main` that touches one of them, unless the release tool
+  makes it (`NP_RELEASE=1`).
+- The run queue checks every pass for protected files that no longer match the last approval (uncommitted edits
+  too). On a new change it notifies Steven and queues an `approve` job, so the approval prompt reaches his phone at
+  once; when a ship or release is already queued it only notifies, because that release approves them.

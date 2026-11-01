@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.44-beta (2026-11-02 (weekday slot))
+- **Release:** v0.2.46-beta (2026-11-02 (weekday slot))
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 76 in `pipeline/`
+- **Modules:** 77 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -123,7 +123,7 @@ Smaller pieces:
 |---|---|
 | Sources | `sources.py` (resolve and verify feeds for tracked people), `suggest.py` (source suggestions), `xsource.py` (X accounts and the members of named X lists through RSS: public mirrors or a local RSS generator, never the paid API; `./np x probe`), `xdigest.py` (a weekly X digest by web search for accounts no mirror reaches), `linkedin.py` (the owner's own posts from LinkedIn's export), `record.py` (the owner's public record) |
 | Owner touchpoints | `editor_note.py` (the owner's private evening note), `alerts.py` (an action-needed email when an edition can't go out), `todos.py` (the shared to-do list), `report.py` (the short status report in `logs/last-report.md`) |
-| Quality | `review.py` (the weekly review, from local files only), `critic.py` (the weekly critic email: scores against ten benchmark shows, charts, suggestions; owner only) |
+| Quality | `review.py` (the weekly review, from local files only), `critic.py` (the weekly critic email: scores against ten benchmark shows, charts, suggestions; owner only), `trends.py` (running line charts on the dashboard's Quality page: every show's rubric score by week, and our daily edition metrics) |
 | Settings and time | `owner.py` (who runs this instance), `settings.py` (edit single config values without disturbing comments), `schedule.py` (when scheduled jobs actually run, by the local clock) |
 | Public surfaces | `version.py` (the running version), `docs.py` (these pages on the site), `scrub.py` (scrubbing shared by the public code export and the docs) |
 | Run queue | `runner.py` (jobs from the chat, run on the Mac), `presence.py` (is a person here to approve) |
@@ -394,6 +394,7 @@ _Generated from each module's own description at build time._
 | `takes.py` | Steven's takes |
 | `textutil.py` | HTML → text, page metadata, URL ids, and date parsing. |
 | `todos.py` | A shared to-do list for Steven and Claude |
+| `trends.py` | Running trend charts (Steven, 2026-10-31) |
 | `tuning.py` | Tuning profiles |
 | `vault.py` | Secrets |
 | `version.py` | The running version |

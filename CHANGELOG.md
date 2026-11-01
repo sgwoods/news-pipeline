@@ -5,6 +5,26 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.46-beta · 2026-11-02 (weekday slot)
+- Protected files change only through a release (2026-11-01: a house-views edit committed straight to production
+  held the morning edition and its email until the gate was approved):
+  - the pre-commit hook refuses a commit on production's main branch that touches a security-sensitive file
+    (code, tests, config.yaml, house_views.md, newsletters.yaml, ...); releases and rollbacks pass (NP_RELEASE=1);
+  - the run queue watches for protected files that differ from the last approval, including uncommitted edits, and
+    says so at once: a notice, and an approval job so Steven gets the prompt on his phone right away instead of
+    finding the edition held at 05:00 (no extra job when a release is already queued: it approves them).
+
+## v0.2.45-beta · 2026-11-02 (weekday slot)
+- Steven's take leads (Steven, 2026-10-31: "yes on take"): the day's take sits under the title on the site, in the
+  email header (Top of mind's take when there is no day take) and right after the podcast intro.
+- Typo fixes in takes: obvious slips are fixed before publishing (single words, within two letters, never a
+  rewording); every fix is listed, with the original, in the takes note to Steven so he can undo it.
+- Running trend charts (Steven, 2026-10-31): the dashboard's Quality page shows every show's weekly critic score over
+  time against ours (overall or any characteristic), and our daily edition metrics as line charts
+  (`pipeline/trends.py`); the weekly critic email adds the field's scores by week.
+- House views 18-21 (Steven's standing theses from his takes of 10-27 to 10-31) are in house_views.md; Our read
+  builds on a thesis used in the last few days instead of restating it.
+
 ## v0.2.44-beta · 2026-11-02 (weekday slot)
 - Hub page in the brand (Steven, 2026-10-31): the project page on the public hub shows the author photo, the
   tagline and the teal accents (this page only; the hub's shared style is untouched).

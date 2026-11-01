@@ -374,6 +374,18 @@ def require(root: Path, cfg: dict, action: str, log=print, staging_ok: bool = Fa
         raise ReleaseBlocked(f"{action} blocked by the release gate: {bad}"[:600])
 
 
+def protected_staged(files: list, branch: str, env: dict | None = None) -> list:
+    """Security-sensitive files in a commit on production's main branch outside a release (2026-11-01: a house-views
+    edit committed straight to production held the morning edition). A release or rollback sets NP_RELEASE=1."""
+    import fnmatch
+    import os
+    env = os.environ if env is None else env
+    if branch != "main" or env.get("NP_RELEASE") == "1":
+        return []
+    pats = [g.replace("**/", "") for g in SENSITIVE] + SENSITIVE
+    return sorted({f for f in files if any(fnmatch.fnmatch(f, g) for g in pats)})
+
+
 HOOKS = {
     "pre-commit": "#!/bin/sh\n# news-pipeline: no secrets in a commit (pipeline/release.py)\n"
                   "cd \"$(git rev-parse --show-toplevel)\" || exit 1\nPY=python3; [ -x .venv/bin/python ] && PY=.venv/bin/python\n"
@@ -382,7 +394,11 @@ HOOKS = {
                   "exec \"$PY\" -c 'import sys; from pathlib import Path; from pipeline import release as r; "
                   "import subprocess; fs=[Path(f) for f in subprocess.run([\"git\",\"diff\",\"--cached\",\"--name-only\",\"--diff-filter=ACM\"],"
                   "capture_output=True,text=True).stdout.split()]; ok,d=r.check_secrets(Path(\".\").resolve(),[Path(\".\").resolve()/f for f in fs]); "
-                  "print(\"secret scan:\", d); sys.exit(0 if ok else 1)'\n",
+                  "print(\"secret scan:\", d); "
+                  "br=subprocess.run([\"git\",\"rev-parse\",\"--abbrev-ref\",\"HEAD\"],capture_output=True,text=True).stdout.strip(); "
+                  "bad=r.protected_staged([str(f) for f in fs],br); "
+                  "bad and print(\"protected files can only change through a release (change them on dev and ship): \"+\", \".join(bad)); "
+                  "sys.exit(0 if ok and not bad else 1)'\n",
     "pre-push": "#!/bin/sh\n# news-pipeline: the release gate before anything is pushed (fast when this code already passed)\n"
                 "cd \"$(git rev-parse --show-toplevel)\" || exit 1\nPY=python3; [ -x .venv/bin/python ] && PY=.venv/bin/python\n"
                 "exec \"$PY\" run.py --release-check require\n",

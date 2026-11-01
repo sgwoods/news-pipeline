@@ -199,8 +199,9 @@ def _with_takes(page: str, notes: dict) -> str:
                 key = "also"
         extra = _take(note(key)) if key and note(key) else ""
         out.append(f"<section>{ch}{extra}</section>" if m else f"<section>{ch}</section>")
-    if note("overall"):
-        out.append(f"<section>{_take(note('overall'))}</section>")
+    if note("overall"):                           # the day's take leads, under the title (Steven, 2026-10-31)
+        lead = f'<section class="lead-take">{_take(note("overall"))}</section>'
+        out.insert(1 if out else 0, lead)
     return "".join(out)
 
 
