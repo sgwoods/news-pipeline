@@ -114,7 +114,8 @@ _DISCLOSURE = [
     r"(?:(?:Read it critically|A disclosure(?: first)?):[ \t]*)?Steven(?: Woods)?(?:, who edits this briefing,)? sits on [^.\n]*?board[^.\n]*\.[ \t]*",
     r"[ \t]*\((?:and )?Steven(?: Woods)? sits on (?:its|[\w.' -]+?'s) board\)",
     r"[^.\n]*\bSteven follows closely\b[^.\n]*\.[ \t]*",
-    r"(?:Before our (?:view|read), )?[Aa] disclosure(?: first)?[.:][ \t]*",   # spoken lead-ins left behind
+    r"(?:\A|(?<=\n)|(?<=[.!?] ))(?:Before our (?:view|read), )?[Aa] disclosure(?: first)?[.:][ \t]*",   # spoken lead-ins
+    # left behind, only at the start of a sentence (2026-11-01: "a recording, not a disclosure. But" lost its words)
 ]
 OWNER_RE = re.compile(r"\b(?:shared|forwarded) by Steven(?: Woods)?\b", re.I)
 GREETING_RE = re.compile(r"\bSteven(?: Woods)?, (?=(?:here(?:'|’)?s|here is|good morning|this is)\b)", re.I)

@@ -13,6 +13,8 @@ Return JSON with exactly these keys:
   "critique_needed": true if the item makes claims the skepticism list targets (runaway capability, labs' own numbers, benchmark-as-capability, activity metrics, inflated revenue metrics, orchestration-only moats, unevidenced VC/podcast pronouncements), else false
 }
 
+Capability news counts (quality review, 2026-11-01: DeepMind's Genie 4 world model was rated 2 and never reached the briefing while every peer led with it): a new capability from a frontier lab or research group (a new model generation or class, world models, robotics, a scientific or mathematical result, a large shift in benchmarks or price) is importance 3 at least, and 4 when it is a first or a new generation, even with no cost or revenue figures. What becomes possible is the investor relevance: say what it changes for products built on it. Being self-reported lowers the evidence verdict, not the importance.
+
 If the item has too little content to identify a specific claim (for example a repost or a one-line reaction), set claim to "Not enough content in the item.", so_what to "n/a", importance to 1 and tag to "SUMMARY ONLY". Do not guess what the author meant.
 
 Do not use stock phrases such as "raises diligence questions", "for investors", "this highlights" or "this suggests"; state the implication directly.

@@ -23,7 +23,7 @@ OPPORTUNITY = re.compile(r"\b(helps?|opening|opens|opportunit\w*|wedge|tailwind|
                          r"upside|buy signal|room for|cheaper for|good news for)\b", re.I)
 DIRECTIVE = re.compile(r"(?:^|[.!?:]\s+)(Ask|Stop|Treat|Don't|Do not|Require|Demand|Insist|Get|Avoid|Make sure|Push|Discount|Accept|"
                        r"Refuse|Reject|Press|Make|Check|Verify|Watch for|Wait for)\b")
-VERDICT = re.compile(r"\*\*(?:Evidence check|Critical pass):\*\* (Holds|Mixed|Overstated|Unsupported|Unverified|Too early)\b")
+VERDICT = re.compile(r"\*\*(?:Evidence check|Critical pass):\*\* (Holds|Mixed|Overstated|Unsupported|Unverified|Too early|Reported|Self-reported|Single source)\b")
 
 # (key, label, target text, test)
 TARGETS = [
@@ -116,7 +116,7 @@ def score_day(root: Path, cfg: dict, day: str) -> dict | None:
     brief = len(re.findall(r"^- ", _section(md, "In brief"), re.M))
     verdicts = VERDICT.findall(md)
     crit = sum(1 for v in verdicts if v in ("Overstated", "Unsupported"))
-    judged_md = sum(1 for v in verdicts if v not in ("Unverified", "Too early"))
+    judged_md = sum(1 for v in verdicts if v not in ("Unverified", "Too early", "Reported", "Self-reported", "Single source"))
     judged_cv = sum(n for k, n in cv.items() if k != "unverified")
     reads = re.findall(r"\*\*Our read:\*\* (.+)", md)
     voiced = reads + re.findall(r"\*\*The (?:AGI-forward|AI-realist|market|policy) view:\*\* (.+)", md) \

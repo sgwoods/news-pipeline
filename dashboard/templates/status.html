@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Status{% endblock %}{% block body %}
-<h1>Status</h1>
+<h1>Run status</h1>
 {% include "_live.html" %}
 <div style="margin:12px 0">
 {% set busy = action and action.running %}
@@ -19,7 +19,7 @@
 <div class="card"><div class="k">Items archived</div><div class="v">{{ total }}</div><div class="small muted">{{ n_sources }} verified sources</div></div>
 <div class="card"><div class="k">Latest briefing</div><div class="v">{% if briefings %}<a href="/briefings/{{ briefings[0] }}">{{ briefings[0] }}</a>{% else %}—{% endif %}</div>
 <div class="small muted">{{ 'not built yet' if not briefings else '' }}</div></div>
-<div class="card"><div class="k">Schedule</div><div class="v">manual</div><div class="small muted">launchd comes in Phase 4</div></div>
+<div class="card"><div class="k">Schedule</div><div class="v">05:00 daily</div><div class="small muted"><a href="/schedule">what runs when →</a></div></div>
 </div>
 {% if last %}<h2>Last run stages</h2>
 <table><tr><th>Stage</th><th>Status</th><th>Time</th><th>Detail</th></tr>

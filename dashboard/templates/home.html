@@ -1,0 +1,62 @@
+{% extends "base.html" %}{% block title %}Today{% endblock %}{% block body %}
+<style>
+.hm{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px}
+@media (max-width:900px){.hm{grid-template-columns:1fr}}
+.blk{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.blk h2{margin:0 0 10px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.need{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}.need:first-of-type{border-top:0}
+.dot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:6px}.dot.act{background:var(--err)}.dot.look{background:var(--warn)}
+.calm{color:var(--ok);font-weight:600}
+.strip{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.st{display:inline-flex;gap:6px;align-items:center;padding:3px 10px;border-radius:999px;font-size:12px;border:1px solid var(--line)}
+.st.ok{border-color:var(--ok);color:var(--ok)}.st.no{color:var(--muted)}.st.warn{border-color:var(--warn);color:var(--warn)}
+.title{font-size:18px;font-weight:600;margin:2px 0 6px}
+.kpi{display:flex;gap:18px;flex-wrap:wrap}.kpi div{min-width:110px}.kpi b{display:block;font-size:22px}
+.kpi span{font-size:12px;color:var(--muted)}
+ul.top{margin:6px 0 0;padding-left:18px}ul.top li{margin:2px 0}
+</style>
+<div class="hm">
+<div style="display:grid;gap:16px">
+ <section class="blk"><h2>Needs you</h2>
+ {% if needs %}{% for n in needs %}<div class="need"><span class="dot {{ n.level }}"></span><div><a href="{{ n.href }}">{{ n.text }}</a></div></div>{% endfor %}
+ {% else %}<div class="calm">Nothing needs you right now.</div>{% endif %}
+ </section>
+ <section class="blk"><h2>Today · {{ ed.day }}</h2>
+ {% if ed.built %}<div class="title"><a href="/briefings/{{ ed.day }}">{{ ed.title }}</a></div>
+ <div class="strip">
+  <span class="st {{ 'ok' if ed.run and ed.run.status == 'ok' else 'warn' }}">Run {{ ed.run.status if ed.run else '—' }}</span>
+  <span class="st {{ 'ok' if ed.site else 'no' }}">Site {{ 'live' if ed.site else 'not yet' }}</span>
+  <span class="st {{ 'ok' if ed.email else 'no' }}">Email {{ (ed.email.at ~ ' · ' ~ ed.email.sent ~ ' sent') if ed.email else 'not yet' }}</span>
+  <span class="st {{ 'ok' if ed.slack else 'no' }}">Slack {{ ed.slack or 'not yet' }}</span>
+  <span class="st {{ 'ok' if ed.takes else 'no' }}">Your takes {{ ed.takes }}</span>
+  {% if ed.deepdive %}<span class="st {{ 'ok' if ed.deepdive.status == 'published' else 'warn' }}">Deep dive {{ ed.deepdive.status }}</span>{% endif %}
+  {% if ed.corrections %}<span class="st warn">{{ ed.corrections|length }} correction{{ 's' if ed.corrections|length > 1 }}</span>{% endif %}
+ </div>
+ {% if ed.top %}<ul class="top">{% for t in ed.top %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}
+ {% if ed.deepdive %}<p class="small muted" style="margin:10px 0 0">Deep dive: {{ ed.deepdive.title }}</p>{% endif %}
+ {% else %}<p class="muted">Not built yet. The morning run starts at 05:00.</p>{% endif %}
+ </section>
+</div>
+<div style="display:grid;gap:16px;align-content:start">
+ <section class="blk"><h2>Tomorrow · {{ tm.day }}</h2>
+ {% if tm.draft %}<div><b>{{ tm.draft.title }}</b> <span class="pill">{{ tm.draft.status }}</span></div>
+ {% elif tm.planned %}<div><b>{{ tm.planned }}</b> <span class="pill">planned</span></div>
+ {% elif tm.up_next %}<div><b>{{ tm.up_next[0] }}</b> <span class="pill">drafted at 15:30</span></div>
+ <p class="small muted" style="margin:4px 0 0">The top of Up next is drafted into Drive the afternoon before; change the order on the queue page.</p>
+ {% else %}<div class="muted">Nothing queued: tomorrow's run picks the best suggestion.</div>{% endif %}
+ {% if tm.up_next|length > (0 if tm.draft or tm.planned else 1) %}<p class="small muted" style="margin:10px 0 2px">Then</p><ol class="small" style="margin:0;padding-left:18px">{% for u in (tm.up_next if tm.draft or tm.planned else tm.up_next[1:]) %}<li>{{ u }}</li>{% endfor %}</ol>{% endif %}
+ <p class="small" style="margin:10px 0 0"><a href="/deep-dives">Deep-dive queue →</a></p>
+ </section>
+ <section class="blk"><h2>Health</h2>
+ <div class="kpi">
+  {% if hl.score %}<div><b>{{ hl.score.ours }}</b><span>critic score, #{{ hl.score.rank }} of {{ hl.score.of }}{% if hl.score.prev %} ({{ '%+.1f'|format(hl.score.ours - hl.score.prev) }}){% endif %}</span></div>{% endif %}
+  {% if hl.release %}<div><b>v{{ hl.release.version }}</b><span>released {{ hl.release.at }}</span></div>{% endif %}
+  {% if hl.sources is defined %}<div><b class="{{ 's-error' if hl.failing else '' }}">{{ hl.failing|length }}</b><span>of {{ hl.sources }} sources failing</span></div>{% endif %}
+ </div>
+ {% if hl.failing %}<p class="small muted" style="margin:8px 0 0">{{ hl.failing|join(', ') }} · <a href="/sources">Sources →</a></p>{% endif %}
+ <div style="margin-top:10px">{{ spark|safe }}</div>
+ <p class="small" style="margin:6px 0 0"><a href="/quality">Quality and trends →</a> · <a href="/status">Run detail →</a></p>
+ </section>
+</div>
+</div>
+{% endblock %}

@@ -24,7 +24,8 @@ class SourceGate(unittest.TestCase):
 class Verdicts(unittest.TestCase):
     def test_holds_with_unverified_evidence_becomes_unverified(self):
         s = {"critical_pass": "Holds. Self-reported benchmarks unverified; no independent runs."}
-        self.assertTrue(editorial.critical_line(s, {}).startswith("Unverified."))
+        self.assertTrue(editorial.critical_line(s, {}).startswith(("Unverified.", "Reported.", "Self-reported.",
+                                                                    "Single source.")))   # refined labels (11-01)
         s = {"critical_pass": "Holds. Two independent labs reproduced it."}
         self.assertTrue(editorial.critical_line(s, {}).startswith("Holds."))
         s = {"critical_pass": "Overstated. Self-reported."}

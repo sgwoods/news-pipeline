@@ -649,6 +649,12 @@ def write_v2(run, cfg, backends, system, entries, day, dropped, meta, briefings_
         raw, cv, errs = editorial.run_cluster(backends["cluster"], entries, system, acfg, run.log)
         stories = editorial.build_stories(raw, by_id)
         sel = editorial.select(stories, acfg)
+        try:                                     # story fatigue: the same lead two days running needs something new
+            why = editorial.stale_lead(sel, stories_dir, day)
+            if why:
+                run.log.info("editorial: %s", why)
+        except Exception as e:  # noqa: BLE001
+            run.log.warning("stale-lead check skipped: %s", e)
         mv, merrs = editorial.run_merge(backends["merge"], sel["must"] + sel["worth"], system, run.log)
         errs += merrs
         st.update({"records": len(entries), "stories": len(stories),
@@ -1265,6 +1271,11 @@ def _follow_through(cfg: dict, argv: list) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"mail script check skipped: {e}"[:200])
         code |= 1
+    try:                                         # the dashboard runs the released code (11-01: it kept a 3-day-old
+        from pipeline import service             # process and every page with the new header failed)
+        print("Dashboard: " + (service.kick("dashboard", kill=True) if service.loaded("dashboard") else "not loaded"))
+    except Exception as e:  # noqa: BLE001
+        print(f"dashboard restart skipped: {e}"[:200])
     return code
 
 
@@ -2822,6 +2833,18 @@ def _retry_outbound(cfg: dict, today: str) -> int:
             print(f"editor's note skipped: {e}")
     if (cfg.get("email_sources") or {}).get("enabled") and (cfg.get("email_sources") or {}).get("day_labels", True):
         cmd_newsletters(cfg, ["label", today])
+    try:                                         # the Slack morning post too (2026-11-01: the held path skipped it)
+        from pipeline import slackpost
+        if slackpost.pcfg(cfg).get("enabled") and today in mailer.sent_days(ROOT):
+            r = slackpost.post(ROOT, cfg, today, log=print)
+            if r.get("skipped"):
+                print(f"Slack post skipped: {r['skipped']}")
+        if slackpost.qcfg(cfg).get("enabled") and slackpost.promo_due(today) and today in mailer.sent_days(ROOT):
+            r = slackpost.post_promo(ROOT, cfg, today, log=print)
+            if r.get("skipped"):
+                print(f"Slack promo skipped: {r['skipped']}")
+    except Exception as e:  # noqa: BLE001
+        print(f"Slack post skipped: {e}")
     _notify("News pipeline", "Today's edition sent (it had been held back by the release gate).")
     return 0
 

@@ -5,6 +5,27 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.48-beta · 2026-11-02 (weekday slot)
+Quality fixes from the 10-31 review:
+- Story fatigue: when today's lead is the same story as a lead in the last two editions and brings no new primary
+  source or report, the next Must read leads instead (`editorial.stale_lead`; the S-1 led five days running).
+- A capability slot: when no Must read is about what AI can now do and a well-backed release or result sits in
+  Worth knowing, it moves up (`editorial.capability_slot`). The summary prompt rates capability news 3+, 4 for a
+  first or a new generation (DeepMind's Genie 4 had been rated 2 and never reached the edition).
+- Verdict labels that discriminate: Reported / Self-reported / Single source instead of a blanket "Unverified"
+  (all five Must reads on 10-31). Machine phrasing in evidence lines is put into plain words.
+- The board-seat scrubber no longer removes "a disclosure." from the middle of a sentence (it left "not But" in the
+  11-01 deep dive); the deep-dive check lists any sentence that looks cut short.
+- A held-back edition, sent later, also posts to Slack (the 11-01 post had to be sent by hand).
+
+Dashboard refresh (Steven, 11-01: "pertinent information front and centre"):
+- A new home screen: Needs you (approvals, protected-file changes, an unsent edition, held takes, fact-check items,
+  new feedback; "Nothing needs you right now" when calm), Today (run, site, email, Slack, takes, deep dive and
+  corrections as status pills, with the day's top lines), Tomorrow (the deep dive to be drafted and what follows) and
+  Health (critic score and rank, the release, failing sources, a trend chart against the top three shows).
+- Five menus instead of twenty tabs: Today, Editions, Sources, Audience, System. The old status page is /status.
+- A release restarts the dashboard, so it always runs the released code (11-01: a stale process failed every page).
+
 ## v0.2.47-beta · 2026-11-01 (fix lane)
 - A re-recorded podcast keeps Steven's takes (2026-11-01): `remaster` rebuilt the briefing audio from the take-free
   script, so the re-records of 10-30, 10-31 and 11-01 dropped his takes from the episode. It now splices the

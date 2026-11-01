@@ -18,6 +18,14 @@ header{display:flex;gap:16px;align-items:center;padding:10px 24px;background:var
 header .wm{display:flex;gap:10px;align-items:center;color:#fff}header .wm img{width:34px;height:34px;border-radius:50%;border:2px solid #fff}
 header b{font-size:15px}header b small{display:block;font-weight:400;font-size:11px;color:var(--on-teal)}
 header nav a{margin-right:14px;color:var(--on-teal)}header nav a.on{color:#fff;font-weight:600;border-bottom:2px solid #fff}
+header nav{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.grp{position:relative;margin-right:14px;padding:8px 0;color:var(--on-teal);cursor:pointer;outline:none}
+.grp .gl.on{color:#fff;font-weight:600;border-bottom:2px solid #fff}
+.grp .menu{display:none;position:absolute;left:-10px;top:100%;z-index:20;min-width:190px;padding:6px 0;margin-top:0;
+ background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.grp:hover .menu,.grp:focus-within .menu{display:block}
+.grp .menu a{display:block;margin:0;padding:6px 14px;color:var(--ink);border:0}.grp .menu a.on{color:var(--accent);font-weight:600}
+.grp .menu a:hover{background:var(--chip);text-decoration:none}
 header .r{margin-left:auto;color:var(--on-teal);font-size:12px}
 main{max-width:1200px;margin:0 auto;padding:20px 24px 60px}
 h1{font-size:20px;margin:0 0 14px}h2{font-size:15px;margin:22px 0 8px}
@@ -63,24 +71,18 @@ section.story{scroll-margin-top:60px}section.speaking{outline:2px solid var(--ac
 </style></head><body>
 <header><a class="wm" href="/"><img src="/brand/asset/author.jpg" alt=""><b>{{ brand.name }}<small>{{ brand.taglines.main }} · pipeline</small></b></a>
 <nav>{% set p = request.path %}
-<a href="/" class="{{ 'on' if p == '/' }}">Status</a>
-<a href="/schedule" class="{{ 'on' if p.startswith('/schedule') }}">Schedule</a>
-<a href="/todo" class="{{ 'on' if p.startswith('/todo') }}">To do</a>
-<a href="/sources" class="{{ 'on' if p.startswith('/sources') }}">Sources</a>
-<a href="/items" class="{{ 'on' if p.startswith('/items') }}">Items</a>
-<a href="/briefings" class="{{ 'on' if p.startswith('/briefings') }}">Briefings</a>
-<a href="/threads" class="{{ 'on' if p.startswith('/threads') }}">Threads</a>
-<a href="/questions" class="{{ 'on' if p.startswith('/questions') }}">Questions</a>
-<a href="/lens" class="{{ 'on' if p.startswith('/lens') or p.startswith('/record') }}">Lens</a>
-<a href="/tuning" class="{{ 'on' if p.startswith('/tuning') or p.startswith('/experiments') or p.startswith('/compare') }}">Tuning</a>
-<a href="/subscribers" class="{{ 'on' if p.startswith('/subscribers') }}">Subscribers</a>
-<a href="/watchlist" class="{{ 'on' if p.startswith('/watchlist') }}">Watchlist</a>
-<a href="/deep-dives" class="{{ 'on' if p.startswith('/deep-dives') }}">Deep dives</a>
-<a href="/quality" class="{{ 'on' if p.startswith('/quality') }}">Quality</a>
-<a href="/feedback" class="{{ 'on' if p.startswith('/feedback') }}">Feedback{% if fb_counts and fb_counts.new %} <span class="pill flag">{{ fb_counts.new }}</span>{% elif fb_counts and fb_counts.high %} <span class="pill scr">{{ fb_counts.high }}</span>{% endif %}</a>
-<a href="/runs" class="{{ 'on' if p.startswith('/runs') }}">Runs</a>
-<a href="/voices" class="{{ 'on' if p.startswith('/voices') }}">Voices</a>
-<a href="/brand" class="{{ 'on' if p.startswith('/brand') }}">Brand</a>
-<a href="/control" class="{{ 'on' if p.startswith('/control') }}">Control</a></nav>
+{% macro item(href, label, on) %}<a href="{{ href }}" class="{{ 'on' if on }}">{{ label }}</a>{% endmacro %}
+{% set nav_groups = [
+ ("Editions", [("/briefings", "Briefings"), ("/deep-dives", "Deep dives"), ("/threads", "Threads"), ("/questions", "Open questions")]),
+ ("Sources", [("/sources", "Sources"), ("/items", "Items"), ("/watchlist", "Watchlist")]),
+ ("Audience", [("/subscribers", "Subscribers"), ("/feedback", "Feedback"), ("/quality", "Quality and trends")]),
+ ("System", [("/status", "Run status"), ("/runs", "Runs"), ("/schedule", "Schedule"), ("/control", "Control"), ("/todo", "To do"),
+             ("/lens", "Lens"), ("/tuning", "Tuning"), ("/voices", "Voices"), ("/brand", "Brand")]),
+] %}
+<a href="/" class="{{ 'on' if p == '/' }}">Today</a>
+{% for g, links in nav_groups %}{% set ns = namespace(on=false) %}{% for h, _l in links %}{% if p.startswith(h) %}{% set ns.on = true %}{% endif %}{% endfor %}
+<span class="grp" tabindex="0"><span class="gl {{ 'on' if ns.on }}">{{ g }}{% if g == 'Audience' and fb_counts and fb_counts.new %} <span class="pill flag">{{ fb_counts.new }}</span>{% endif %} ▾</span>
+<span class="menu">{% for href, label in links %}{{ item(href, label, p.startswith(href)) }}{% endfor %}</span></span>{% endfor %}
+</nav>
 <span class="r">v{{ version }} · local · {{ now }}</span></header>
 <main>{% block body %}{% endblock %}</main></body></html>

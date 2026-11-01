@@ -26,6 +26,6 @@ The agreed breakpoint before older editions are rebuilt: three consecutive editi
 ## Questions for Steven
 All questions here, numbered. None anywhere else.
 
-House rules to judge against (do not flag these as problems): the verdicts are Holds, Mixed, Overstated, Unsupported, Unverified (only a headline could be read) and Too early. The other readings are "The AGI-forward view", "The AI-realist view", "The market view" and "The policy view". The podcast script you see is the text before speech normalisation; the audio is made from a normalised copy where figures are spelled for speech, so do not report raw figures in the script as a speech problem. Minutes in the scorecard are the real MP3 length.
+House rules to judge against (do not flag these as problems): the verdicts are Holds, Mixed, Overstated, Unsupported, Reported (a news outlet reports it, not yet confirmed), Self-reported (only the claimant), Single source, Unverified (only a headline could be read) and Too early. The other readings are "The AGI-forward view", "The AI-realist view", "The market view" and "The policy view". The podcast script you see is the text before speech normalisation; the audio is made from a normalised copy where figures are spelled for speech, so do not report raw figures in the script as a speech problem. Minutes in the scorecard are the real MP3 length.
 
 Never name any private person; published authors and sources in the editions may be named. Be specific and brief; quote short phrases, never long passages.

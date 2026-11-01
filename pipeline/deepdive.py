@@ -201,6 +201,17 @@ def cut_unsourced_figures(text: str, corpus: str) -> tuple:
     return " ".join(keep).strip(), cut
 
 
+_DANGLING = re.compile(r"\b(?:a|an|the|of|to|and|or|with|than|by|for|from|that|which|its|their)\s*[.!?]$", re.I)
+_RUN_ON = re.compile(r"\b[a-z]{2,}\s+(?:But|And|So|Yet|The|That|This|It)\s+[a-z]")
+
+
+def broken_sentence(sent: str) -> bool:
+    """A sentence that an automatic cut left without its end ("...a recording, not.") or run into the next one
+    ("...not But it matches", 2026-11-01)."""
+    s = sent.strip()
+    return bool(_DANGLING.search(s) or _RUN_ON.search(s))
+
+
 def check_script(sections: list, corpus: list, cfg: dict) -> tuple:
     """-> (sections, notes, fatal). Quotes verified, unsourced figures cut, private names scrubbed."""
     from . import stages
@@ -229,6 +240,10 @@ def check_script(sections: list, corpus: list, cfg: dict) -> tuple:
             (dropped if (banned(sent) or spelled_figures(sent)) else keep).append(sent)
         if dropped:
             notes.append(f"{sid}: {len(dropped)} sentence(s) cut (markup or a figure in words)")
+        broken = [x for x in keep if broken_sentence(x)]
+        if broken:                                       # a cut left a sentence without its end: say so, keep it
+            notes.append(f"{sid}: {len(broken)} sentence(s) look cut short, check before recording: "
+                         + " | ".join(b[:120] for b in broken[:3]))
         text = " ".join(keep).strip()
         if text:
             out.append((sid, text))

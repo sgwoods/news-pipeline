@@ -186,7 +186,80 @@ def select(stories: list, cfg: dict) -> dict:
             continue
         if single:
             used[primary] += 1
+    capability_slot(must, worth, max_must)
     return {"must": must, "worth": worth, "brief": brief, "more": more}
+
+
+_CAPABILITY = re.compile(r"\b(?:world model|models?|open[- ]weights?|benchmarks?|leaderboard|index v\d|robot\w*|humanoid|"
+                         r"reasoning|GPT-?\d|Gemini|Claude|Llama|Genie|Qwen|Kimi|DeepSeek|Mistral|proof|theorem|"
+                         r"breakthrough|research|paper|on-device|chip|inference)\b", re.I)
+_MONEY = re.compile(r"\b(?:rais\w+|funding|valuation|IPO|S-1|acqui\w+|lawsuit|sues|earnings|revenue|debt|bond|loan)\b", re.I)
+
+
+def is_capability(s: dict) -> bool:
+    """A story about what AI can now do (a release, a model, a result), not about money or law around it."""
+    lead = s.get("lead") or {}
+    text = " ".join([s.get("headline") or "", lead.get("title") or "", lead.get("claim") or "",
+                     " ".join(lead.get("topics") or [])])
+    return bool(_CAPABILITY.search(text)) and not _MONEY.search(s.get("headline") or lead.get("title") or "")
+
+
+def capability_slot(must: list, worth: list, max_must: int) -> str:
+    """Keep one capability story among the Must reads (quality review, 2026-10-31: five days of capital stories while
+    peers led with Genie 4, the model rankings and Apple's on-device model). When none made it and a well-backed one is
+    in Worth knowing (score 3+, two or more sources or a primary source), it moves up; the weakest Must read moves down
+    if the section is full. -> the headline promoted ('' if none)."""
+    if not must or any(is_capability(s) for s in must):
+        return ""
+    cands = [s for s in worth if is_capability(s) and s.get("score", 0) >= 3 and not s.get("weak_lead")
+             and (len(s.get("ids") or []) >= 2 or (s.get("evidence") or {}).get("primary"))]
+    if not cands:
+        return ""
+    best = max(cands, key=lambda s: (len(set(s.get("names") or [])), s.get("score", 0)))
+    worth.remove(best)
+    if len(must) >= max_must:
+        worth.insert(0, must.pop())
+    must.append(best)
+    best["capability_slot"] = True
+    return best.get("headline") or (best.get("lead") or {}).get("title", "")
+
+
+_STOP = {"the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with", "at", "by", "from", "as", "is", "its",
+         "new", "says", "after", "over", "amid", "into", "about", "ai"}
+
+
+def _sig(headline: str) -> set:
+    """Significant words of a headline: names, tickers and figures (lower-cased), stop words out."""
+    return {w.lower().strip(".,:;'\"()") for w in re.findall(r"[A-Z][\w.&'-]+|\$?\d[\w.,%$-]*|[A-Z]{2,}[\w-]*", headline or "")
+            if w.lower() not in _STOP}
+
+
+def stale_lead(sel: dict, stories_dir, day: str, days: int = 2) -> str:
+    """Story fatigue (quality review, 2026-10-31: the Anthropic S-1 led five days running). When today's lead is the
+    same story as a lead in the last `days` editions and brings no new primary source or report, it moves down one
+    place and the next Must read leads. -> why it moved ('' if it didn't)."""
+    must = sel.get("must") or []
+    if len(must) < 2:
+        return ""
+    from .profiles import profile
+    lead = must[0]
+    words = _sig(lead.get("headline") or (lead.get("lead") or {}).get("title", ""))
+    for rec in reversed(latest_story_records(stories_dir, day, days)):
+        prev = next((x for x in rec.get("stories", []) if x.get("section") == "must" and str(x.get("n")) == "1"), None)
+        if not prev:
+            continue
+        overlap = words & _sig(prev.get("headline", ""))
+        if len(overlap) < 2:
+            continue
+        seen = set(prev.get("ids") or [])
+        fresh = [r for r in (lead.get("records") or [lead.get("lead") or {}])
+                 if r.get("id") not in seen and profile(r)["kind"] in ("primary", "reporting")]
+        if fresh:
+            return ""
+        must[0], must[1] = must[1], must[0]
+        lead["fatigue"] = rec["day"]
+        return f"lead moved down: same story led on {rec['day']} ({', '.join(sorted(overlap))}) with nothing new from a primary source or report"
+    return ""
 
 
 # ---------- merge ----------
@@ -465,9 +538,24 @@ _PIPELINE_TALK = re.compile(r"[^.!?]*\b(?:no critical pass (?:was )?run|critical
                             r"(?:say|state|mention|specify)|the item doesn't say|link shortener|not the source\b)[^.!?]*[.!?]?\s*", re.I)
 
 
+_LINT = [   # machine phrasing in evidence lines -> plain words (quality review, 2026-10-31)
+    (re.compile(r"\b([A-Z][\w.]*) headlines? lacks? (?:full |the full )?context\b"), r"only \1's headline is available"),
+    (re.compile(r",? using unsupported terms like (['\"“][^'\"”]{1,40}['\"”]) without attribution", re.I),
+     r"; \1 is the author's word, not reporting"),
+    (re.compile(r"\s*\((?:[\w-]+ )?not (?:specified|stated|given)\)", re.I), ""),
+    (re.compile(r"\blacks sourcing for (?:its )?figures and quotes\b", re.I), "gives no source for its figures"),
+    (re.compile(r"\bis unsourced\b", re.I), "cites no source"),
+]
+
+
 def _clean(s: str) -> str:
-    """Pipeline vocabulary never reaches readers ("No critical pass was run.", "The item does not say ...")."""
-    return re.sub(r"\s{2,}", " ", _PIPELINE_TALK.sub(" ", s or "")).strip()
+    """Pipeline vocabulary never reaches readers ("No critical pass was run.", "The item does not say ..."), and
+    machine phrasing is put into plain words (_LINT)."""
+    s = _PIPELINE_TALK.sub(" ", s or "")
+    for pat, rep in _LINT:
+        s = pat.sub(rep, s)
+    s = re.sub(r"(^|[.!?] )only\b", lambda m: m.group(1) + "Only", s)
+    return re.sub(r"\s{2,}", " ", s).strip()
 
 
 def _md(s: str) -> str:
@@ -601,17 +689,42 @@ def label_fits(label: str, text: str) -> str:
     return "Unverified" if label == "Holds" and _NOT_SOLID.search(text or "") else label
 
 
+def refine_unverified(label: str, s: dict) -> str:
+    """'Unverified' says too little when it is every Must read's label (quality review, 2026-10-31: all five on 10-31).
+    Say what kind of not-yet-confirmed it is, from who backs the story:
+      Reported      a news outlet reports it; the parties haven't confirmed it
+      Self-reported the only source is the company or lab making the claim
+      Single source one post, newsletter or commentary, nothing else yet
+    Anything else stays 'Unverified'."""
+    if label != "Unverified":
+        return label
+    try:
+        from .profiles import evidence
+        recs = s.get("records") or [s.get("lead") or {}]
+        ev = s.get("evidence") or evidence(recs)
+    except Exception:  # noqa: BLE001
+        return label
+    if ev.get("reports"):
+        return "Reported"
+    if ev.get("primary"):
+        return "Self-reported"
+    if len(s.get("records") or [s.get("lead")]) <= 1 and not ev.get("tested"):
+        return "Single source"
+    return label
+
+
 def critical_line(s: dict, r: dict) -> str:
-    """The critical pass always opens with its verdict word (Holds / Overstated / Unsupported / Mixed / Too early)."""
+    """The critical pass always opens with its verdict word (Holds / Overstated / Unsupported / Mixed / Too early /
+    Reported / Self-reported / Single source / Unverified)."""
     crit = _clean(_one_line(s.get("critical_pass") or verdict_line(r)))
     if not crit:
         return ""
     m = _LABEL_RE.match(crit)
     if m:
         rest = crit[m.end():].strip()
-        return label_fits(VERDICT_LABEL[m.group(1).lower()], rest) + ". " + rest
+        return refine_unverified(label_fits(VERDICT_LABEL[m.group(1).lower()], rest), s) + ". " + rest
     v = verdict_of(r)
-    return f"{label_fits(VERDICT_LABEL[v], crit)}. {crit}" if v in VERDICT_LABEL else crit
+    return f"{refine_unverified(label_fits(VERDICT_LABEL[v], crit), s)}. {crit}" if v in VERDICT_LABEL else crit
 
 
 def _agenda(r: dict) -> str:

@@ -194,6 +194,20 @@ def create_app(root: Path = ROOT) -> Flask:
 
     # ---------- pages ----------
     @app.route("/")
+    def home():
+        """The home screen (2026-11-01): what needs Steven, today's edition, tomorrow, health. Detail is one click away."""
+        from pipeline import critic, home as h, trends
+        today = dt.date.today().isoformat()
+        cfg_now = cfg
+        field = trends.field(root, "overall")
+        ours = {critic.OURS: field.get(critic.OURS, [])}
+        best = sorted(((n, pts) for n, pts in field.items() if n != critic.OURS and pts),
+                      key=lambda kv: -kv[1][-1][1])[:3]
+        spark = trends.svg_lines({**ours, **dict(best)}, "Weekly critic score: us and the top three", height=220)
+        return render_template("home.html", needs=h.needs(root, cfg_now, today), ed=h.edition(root, cfg_now, today),
+                               tm=h.tomorrow(root, today), hl=h.health(root), spark=spark, today=today)
+
+    @app.route("/status")
     def status():
         all_runs = runs()
         idx = index()

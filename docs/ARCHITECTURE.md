@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.47-beta (2026-11-01 (fix lane))
+- **Release:** v0.2.48-beta (2026-11-02 (weekday slot))
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 77 in `pipeline/`
+- **Modules:** 78 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -114,6 +114,9 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
 - **Tuning** (`tuning.py`, `profiles/`): named presets for lengths, sections and tone, edited from the dashboard.
 - **Dashboard** (`dashboard/`): a local Flask app on 127.0.0.1 for sources, watchlist, tuning, takes, feedback,
   runs, quality and control. It's never exposed to the internet.
+  Its home screen (`home.py`, v0.2.48) leads with what needs Steven, today's edition (run, site, email, Slack, takes,
+  corrections), tomorrow's deep dive and health (critic score against the field, release, failing sources); the
+  other pages sit in five menus (Today, Editions, Sources, Audience, System). The old status page is /status.
 - **Services** (`service.py`): launchd agents for the daily run, the evening preflight and the dashboard.
 - **Secrets** (`vault.py`): macOS Keychain first, then `.env` (gitignored, mode 600).
 
@@ -349,6 +352,7 @@ _Generated from each module's own description at build time._
 | `factsearch.py` | Look for a figure before the fact check cuts it (Steven, 2026-10-18 |
 | `feedback.py` | Reader feedback |
 | `fetch.py` | Fetch new items from every verified source. |
+| `home.py` | The dashboard's home screen (Steven, 2026-11-01 |
 | `houseviews.py` | Read-only parser for house_views.md, and the positions ledger (Steven, 2026-10-27). |
 | `hub.py` | AI Briefing on Steven's public project hub (sgwoods.github.io/public) |
 | `jev.py` | Jev (TypeSafe's System One model) as a shadow filter (Steven, 2026-10-29/30). |

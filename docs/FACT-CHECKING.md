@@ -26,6 +26,7 @@ Every step runs in the morning run, before the email and the audio.
 |---|---|---|
 | Critique | `pipeline/stages.py`, stage `critique` | Each claim gets a verdict: holds, mixed, overstated, unsupported or unverified. |
 | Evidence check | `run.py`, stage `verify` | Every Must read without a verdict gets one, using the article text from the reader. |
+| Label refinement | `editorial.refine_unverified` (v0.2.48) | "Unverified" says which kind: **Reported** (a news outlet reports it; the parties haven't confirmed), **Self-reported** (only the claimant), **Single source** (one post or commentary). Plain "Unverified" stays for the rest. Machine phrasing in evidence lines is put into plain words (`editorial._LINT`). |
 
 ## 3. Check the text: every figure and quote
 | Step | Where | What it does |
@@ -165,3 +166,9 @@ cut, and the summary and "Why today" lines checked as in section 4.
 - A claim is only as good as its source: a report that misreads a release passes against that report. The search
   in 4d prefers the primary source, which catches this when the release is findable; otherwise it is caught only
   by the after-send check or a reader.
+
+## Cut sentences (since v0.2.48)
+On 2026-11-01 the board-seat scrubber removed "a disclosure." from the middle of a deep-dive sentence ("a joke on a
+recording, not a disclosure. But...") and left "not But". The scrubber now removes that lead-in only at the start of a
+sentence, and the deep dive's script check lists any sentence that looks cut short (`deepdive.broken_sentence`) in its
+notes, so it is fixed before recording.
