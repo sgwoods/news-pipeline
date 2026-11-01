@@ -178,7 +178,15 @@ def _take(text: str) -> str:
     return f'<div class="take"><b>Steven\'s take</b>{body}</div>'
 
 
-def _with_takes(page: str, notes: dict) -> str:
+_CHART_ROOT = [None]
+
+
+def _chart_for(day: str):
+    from .chart import load
+    return load(_CHART_ROOT[0], day) if _CHART_ROOT[0] else None
+
+
+def _with_takes(page: str, notes: dict, chart_day: str = "") -> str:
     from .textutil import item_id
     def note(k):
         return (notes.get(k) or {}).get("text", "").strip()
@@ -198,6 +206,12 @@ def _with_takes(page: str, notes: dict) -> str:
             elif head.startswith(("in brief", "also seen")):
                 key = "also"
         extra = _take(note(key)) if key and note(key) else ""
+        if m and m.group(1) == "3" and chart_day:
+            num = re.match(r"\s*(\d+)\\?\.", re.sub(r"<[^>]+>", "", m.group(2)))
+            c = _chart_for(chart_day)
+            if num and c and int(num.group(1)) == c["story"]:
+                from .chart import html as chart_html
+                extra = chart_html(c, bar="var(--teal,#3e7e8a)", ink="var(--ink,#14272b)", muted="var(--muted,#5b6d71)") + extra
         out.append(f"<section>{ch}{extra}</section>" if m else f"<section>{ch}</section>")
     if note("overall"):                           # the day's take leads, under the title (Steven, 2026-10-31)
         lead = f'<section class="lead-take">{_take(note("overall"))}</section>'
@@ -654,7 +668,8 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
                '<button id="play" type="button">▶ Play</button> <button id="stop" type="button">■ Stop</button> '
                '<select id="rate"><option>0.9</option><option selected>1</option><option>1.15</option><option>1.3</option></select>'
                f'</span></div>{audio_tag}')
-        body_html = _with_takes(_md_to_html(md), notes)
+        _CHART_ROOT[0] = root
+        body_html = _with_takes(_md_to_html(md), notes, day)
         try:                                     # a shipped edition that was corrected says so (pipeline/shipped.py)
             from .shipped import corrections
             fixes = corrections(root, day)

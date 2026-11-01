@@ -725,6 +725,18 @@ def write_v2(run, cfg, backends, system, entries, day, dropped, meta, briefings_
                    "reports": sum(e["reports"] for e in evs), "primary": sum(e["primary"] for e in evs),
                    "commentary": sum(e["commentary"] for e in evs), "stances": stance_mix}
         st["balance"] = balance
+        if (cfg.get("analysis") or {}).get("chart", True) and sel["must"]:
+            try:                                 # one chart a day, every value checked against its story's sources
+                from pipeline import chart
+                raw_c = stages.raw_items(ROOT, [i for s_ in sel["must"] for i in s_["ids"]])
+                texts = {n: " ".join((raw_c.get(i) or {}).get("title", "") + " " + (raw_c.get(i) or {}).get("text", "")[:6000]
+                                     for i in s_["ids"]) for n, s_ in enumerate(sel["must"], 1)}
+                must_c = [{"n": n, "headline": s_.get("headline", ""), "what": s_.get("what_happened", "")}
+                          for n, s_ in enumerate(sel["must"], 1)]
+                c = chart.make(ROOT, day, must_c, texts, backends["critique"], run.log.info)
+                st["chart"] = bool(c)
+            except Exception as e:  # noqa: BLE001 - a chart never stops the edition
+                run.log.warning("chart skipped: %s", e)
         pv = {**meta["prompt_versions"], "cluster": cv, "merge": mv, "editorial": ev}
         tp = cfg.get("tuning_profile") or {}
         try:                                     # every figure traced to the sources it cites (fact review 2026-10-18)

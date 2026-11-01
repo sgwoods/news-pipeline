@@ -272,7 +272,9 @@ def create_app(root: Path = ROOT) -> Flask:
         xs = xsource.status(root)
         bl = (live.get("bluesky") or {})
         bl_counts = Counter(r.get("person") for r in idx if r.get("source_kind") == "bluesky" and r.get("person") not in {s["person"] for s in rows})
-        return render_template("sources.html", rows=enriched, verified_at=meta.get("verified_at", ""),
+        enriched = sorted(enriched, key=lambda r: 0 if (r.get("last") or {}).get("status") == "error" else 1)
+        failing = [r for r in enriched if (r.get("last") or {}).get("status") == "error"]
+        return render_template("sources.html", rows=enriched, failing=failing, verified_at=meta.get("verified_at", ""),
                                q=q, removed=managed["removed"], news=news, bluesky=bl, bl_counts=bl_counts, xs=xs,
                                last_status=last_status, busy_suggest=bool((action_status() or {}).get("running")),
                                report_name=reports[0].name if reports else "",
@@ -371,10 +373,41 @@ def create_app(root: Path = ROOT) -> Flask:
         meta = briefing_meta()
         hidden = episodes.hidden_days(root)
         rows = [{**meta[d], "hidden": d in hidden} for d in sorted(meta, reverse=True)]
+        _briefing_extras(rows)
         live = yaml.safe_load((root / "config.yaml").read_text("utf-8")) or {}
         msg = request.args.get("msg", "")
         return render_template("briefings.html", rows=rows, msg=msg, profile=tuning.active_name(live),
                                publish_btn=bool(msg) and not (live.get("publish") or {}).get("auto"))
+
+    def _briefing_extras(rows):
+        """Email, takes and corrections per day for the Briefings table (best-effort; missing data shows a dash)."""
+        import json as _j
+        from pipeline import shipped, takes
+        mails = {}
+        try:
+            for ln in (root / "data" / "email-log.jsonl").read_text("utf-8").splitlines():
+                try:
+                    e = _j.loads(ln)
+                except ValueError:
+                    continue
+                if not e.get("test") and e.get("day"):
+                    mails[e["day"]] = e
+        except OSError:
+            pass
+        try:
+            fixes = shipped.corrections(root)
+        except Exception:  # noqa: BLE001
+            fixes = []
+        for r in rows:
+            e = mails.get(r["day"])
+            r["mail"] = ({"at": (e.get("at") or "")[11:16], "sent": e.get("sent", 0), "ok": e.get("ok")} if e else None)
+            try:
+                st = takes.state(root, r["day"])
+            except Exception:  # noqa: BLE001
+                st = {}
+            r["takes"] = ("in" if st.get("done") or st.get("published") else "skipped" if st.get("skip")
+                          else "held" if st.get("held") else "asked" if st.get("emailed_at") else "")
+            r["fixes"] = [c for c in fixes if c.get("day") == r["day"]]
 
     @app.route("/api/episodes/<day>/<op>", methods=["POST"])
     def episode_op(day, op):

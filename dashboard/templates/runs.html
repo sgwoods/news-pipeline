@@ -1,8 +1,15 @@
 {% extends "base.html" %}{% block title %}Runs{% endblock %}{% block body %}
-<h1>Runs <span class="muted small">{{ runs|length }} recorded</span></h1>
+<h1>Runs <span class="muted small">{{ runs|length }} recorded · last 14 shown</span></h1>
+{% set bad = runs[:14]|rejectattr("status", "in", ["ok", "partial"])|list %}{% set part = runs[:14]|selectattr("status", "equalto", "partial")|list %}
+{% if bad %}<p class="small s-error">{{ bad|length }} of the last 14 runs failed.</p>{% else %}<p class="small s-ok">None of the last 14 runs failed{% if part %} <span class="muted">({{ part|length }} partial: some sources did not fetch, the edition still built)</span>{% endif %}.</p>{% endif %}
 <table><tr><th>Run</th><th>Status</th><th>Stages</th><th>New items</th><th>Failed sources</th><th>LLM</th></tr>
-{% for r in runs %}<tr><td><a href="/runs/{{ r.run_id }}">{{ r.run_id }}</a></td><td class="s-{{ r.status }}">{{ r.status }}</td>
+{% for r in runs[:14] %}<tr><td><a href="/runs/{{ r.run_id }}">{{ r.run_id }}</a></td><td class="s-{{ r.status }}">{{ r.status }}</td>
 <td class="small">{% for n, s in r.stages.items() %}<span class="s-{{ s.status }}" title="{{ s.status }}">{{ n }}</span> {% endfor %}</td>
 <td>{{ r.stages.fetch.get('items_new', '') }}</td><td>{{ r.stages.fetch.get('sources_failed', '') }}</td>
 <td class="small muted">{{ r.llm.backend }} {{ r.llm.model }}</td></tr>{% endfor %}</table>
+{% if runs|length > 14 %}<details><summary class="muted">Older runs ({{ runs|length - 14 }})</summary><table><tr><th>Run</th><th>Status</th><th>Stages</th><th>New items</th><th>Failed sources</th><th>LLM</th></tr>
+{% for r in runs[14:] %}<tr><td><a href="/runs/{{ r.run_id }}">{{ r.run_id }}</a></td><td class="s-{{ r.status }}">{{ r.status }}</td>
+<td class="small">{% for n, s in r.stages.items() %}<span class="s-{{ s.status }}" title="{{ s.status }}">{{ n }}</span> {% endfor %}</td>
+<td>{{ r.stages.fetch.get('items_new', '') }}</td><td>{{ r.stages.fetch.get('sources_failed', '') }}</td>
+<td class="small muted">{{ r.llm.backend }} {{ r.llm.model }}</td></tr>{% endfor %}</table></details>{% endif %}
 {% endblock %}

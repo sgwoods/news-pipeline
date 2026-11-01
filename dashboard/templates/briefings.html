@@ -2,15 +2,18 @@
 <h1>Briefings <span class="muted small">{{ rows|length }} days · <a href="/briefings/latest">open latest →</a></span></h1>
 {% if action %}<div hx-get="/actions/output" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
 {% if msg %}<p class="s-ok small">{{ msg }}{% if publish_btn %} <form class="inline" method="post" action="/actions/publish"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/briefings"><button class="mini">Publish now</button></form>{% endif %}</p>{% endif %}
-<p class="small"><form class="inline" method="post" action="/actions/rebuild-history" onsubmit="return confirm('Rebuild every day\'s briefing and audio with the daily profile ({{ profile }})? Older versions are kept. About 5 minutes per day.')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/briefings"><button {{ 'disabled' if action and action.running }}>Rebuild all days with profile {{ profile }}</button></form>
-<span class="muted">Each day gets a new version (old ones stay under Versions) and new audio; published afterwards if auto-publish is on.</span></p>
+<details class="small"><summary class="muted">Maintenance</summary><p class="small" style="margin:.5em 0"><form class="inline" method="post" action="/actions/rebuild-history" onsubmit="return confirm('Rebuild every day\'s briefing and audio with the daily profile ({{ profile }})? Older versions are kept. About 5 minutes per day.')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/briefings"><button {{ 'disabled' if action and action.running }}>Rebuild all days with profile {{ profile }}</button></form>
+<span class="muted">Each day gets a new version (old ones stay under Versions) and new audio; published afterwards if auto-publish is on.</span></p></details>
 {% if rows %}<table>
-<tr><th style="width:110px">Day</th><th>Top of mind</th><th>Items</th><th>Audio</th><th>Versions</th><th>Public</th></tr>
+<tr><th style="width:110px">Day</th><th>Top of mind</th><th>Items</th><th>Email</th><th>Takes</th><th>Fixes</th><th>Audio</th><th>Versions</th><th>Public</th></tr>
 {% for r in rows %}<tr>
 <td><a href="/briefings/{{ r.day }}"><b>{{ r.day }}</b></a><div class="muted small">{{ (r.latest.run_id or '')[9:13] and ('run ' ~ r.latest.run_id[9:11] ~ ':' ~ r.latest.run_id[11:13]) }}</div></td>
 <td class="small">{% for b in r.bullets[:2] %}<div>• {{ b|short(150) }}</div>{% else %}<span class="muted">—</span>{% endfor %}
 {% if r.bullets|length > 2 %}<div class="muted">+{{ r.bullets|length - 2 }} more</div>{% endif %}</td>
 <td>{{ r['items'] }}</td>
+<td class="small">{% if r.mail %}<span class="{{ 's-ok' if r.mail.ok else 's-error' }}">{{ r.mail.at }}</span><div class="muted">{{ r.mail.sent }} sent</div>{% else %}<span class="muted">—</span>{% endif %}</td>
+<td class="small">{% if r.takes %}<span class="{{ 's-ok' if r.takes == 'in' else 'muted' }}">{{ r.takes }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+<td class="small">{% if r.fixes %}<span title="{% for c in r.fixes %}{{ c.note }}&#10;{% endfor %}">{{ r.fixes|length }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
 <td>{% if r.audio %}<audio controls preload="none" src="/briefings/{{ r.day }}.mp3" style="width:180px"></audio>{% else %}<span class="muted small">not yet</span>{% endif %}</td>
 <td class="small">{{ r.n_versions }}{% if r.latest.profile %}<div class="muted">profile {{ r.latest.profile }}</div>{% endif %}</td>
 <td class="small" style="white-space:nowrap">{% if r.hidden %}<span class="s-error">hidden</span>

@@ -158,7 +158,8 @@ def select(stories: list, cfg: dict) -> dict:
     max_must, max_worth = cfg.get("max_must_read", 6), cfg.get("max_worth_knowing", 8)
     max_brief, per_source = cfg.get("max_in_brief", 8), cfg.get("max_stories_per_source", 2)
     per_edition = int(cfg.get("max_items_per_source", 3))
-    must, worth, brief, more = [], [], [], 0
+    max_money = int(cfg.get("max_money", 5))
+    must, worth, brief, money, more = [], [], [], [], 0
     used, total = Counter(), Counter()
     for s in stories:
         primary = s["names"][0]
@@ -178,6 +179,9 @@ def select(stories: list, cfg: dict) -> dict:
             must.append(s)
         elif not over and len(worth) < max_worth and s["score"] >= 3:
             worth.append(s)
+        elif len(money) < max_money and imp >= 2 and is_money(s):   # rounds, valuations, M&A (critic #4A)
+            money.append(s)
+            continue
         elif len(brief) < max_brief and imp >= 2:
             brief.append(s)
             continue
@@ -187,7 +191,18 @@ def select(stories: list, cfg: dict) -> dict:
         if single:
             used[primary] += 1
     capability_slot(must, worth, max_must)
-    return {"must": must, "worth": worth, "brief": brief, "more": more}
+    return {"must": must, "worth": worth, "brief": brief, "money": money, "more": more}
+
+
+_DEAL = re.compile(r"\b(?:rais(?:es|ed|ing)|funding|Series [A-F]\b|seed round|valuation|valued at|acquir\w+|acquisition|"
+                   r"buys|merger|IPO|S-1|tender offer|secondary)\b", re.I)
+
+
+def is_money(s: dict) -> bool:
+    """A deal story: a round, a valuation, an acquisition or an IPO, with an amount (the Money section, 2026-11-01)."""
+    lead = s.get("lead") or {}
+    text = " ".join([s.get("headline") or "", lead.get("title") or "", lead.get("claim") or ""])
+    return bool(_DEAL.search(text)) and bool(re.search(r"[$€£]\s?\d|\b\d+(?:\.\d+)?\s?(?:billion|million)\b", text, re.I))
 
 
 _CAPABILITY = re.compile(r"\b(?:world model|models?|open[- ]weights?|benchmarks?|leaderboard|index v\d|robot\w*|humanoid|"
@@ -820,6 +835,15 @@ def render(day: str, sel: dict, ed: dict, meta: dict) -> tuple:
         L += ["## Recommended reading", "",
               f"**[{_md(rr['title'])}]({rr['url']})** · {rr['who']} · {kind}", "",
               f"*Why it matters:* {_md(rr['why'])}", ""]
+    if sel.get("money"):
+        L += ["## Money", ""]
+        for s in sel["money"]:
+            r = s["lead"]
+            h = _md(s.get("headline") or headline_of(r))
+            h = h if h[-1:] in ".?!" else h + "."
+            L.append(f"- **{h}** {_md(_sentences(s.get('what_happened') or claim_of(r), 25))} "
+                     f"({', '.join(_link(x) for x in s['records'])})")
+        L.append("")
     if sel["brief"]:
         L += ["## In brief", ""]
         for s in sel["brief"]:
@@ -833,14 +857,14 @@ def render(day: str, sel: dict, ed: dict, meta: dict) -> tuple:
             settle = f" *Settled by: {_md(q['settle']).rstrip('.')}.*" if q.get("settle") else ""
             L.append(f"- **{_md(q['q'])}**{why}{settle} {links}".rstrip())
         L.append("")
-    total = sum(len(s["records"]) for k in ("must", "worth", "brief") for s in sel[k])
+    total = sum(len(s["records"]) for k in ("must", "worth", "brief", "money") for s in sel.get(k, []))
     L += ["---", f"*{meta.get('n_items', total)} items analyzed from {meta.get('n_sources', '?')} sources"
           f" · {meta.get('dropped', 0)} filtered as off-topic · {sel['more']} more stories in the dashboard."
           f" Analysis: {meta.get('models', '')}. Our read, the other views and the day in brief are machine-written."
           " Sources are weighed by how they know: a primary source, a report or a hands-on test establishes a fact;"
           " analysis, opinion, summaries and posts are commentary, however many there are."
           f" Generated {meta.get('generated', '')}.*", ""]
-    order = [i for k in ("must", "worth", "brief") for s in sel[k] for i in s["ids"]]
+    order = [i for k in ("must", "worth", "brief", "money") for s in sel.get(k, []) for i in s["ids"]]
     return "\n".join(L), order
 
 
@@ -848,9 +872,11 @@ def fit(day: str, sel: dict, ed: dict, meta: dict, max_words: int) -> tuple:
     """render(), then drop the lowest In brief, then Worth knowing items until the edition is within max_words."""
     md, order = render(day, sel, ed, meta)
     dropped = 0
-    while max_words and len(md.split()) > max_words and (sel["brief"] or len(sel["worth"]) > 2):
+    while max_words and len(md.split()) > max_words and (sel["brief"] or len(sel.get("money", [])) > 3 or len(sel["worth"]) > 2):
         if sel["brief"]:
             sel["brief"].pop()
+        elif len(sel.get("money", [])) > 3:
+            sel["money"].pop()
         else:
             sel["worth"].pop()
         sel["more"] = sel.get("more", 0) + 1

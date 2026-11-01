@@ -20,7 +20,9 @@ _TRACKING = re.compile(r"^(utm_|ref$|ref_|source$|mc_|fbclid|gclid|s$|r$|_bhlid$
                        r"unlocked_article_code$|smid$|smtyp$|gift|share_?id$|shareToken$|sharing|accessToken$|giftCopy|"
                        r"user_?id$|segment_id$|campaign_id$|mbid$|cmpid$|"
                        # credentials: a paid feed's per-reader token (Stratechery Passport, 2026-10-31) must never be passed on
-                       r"access_?token$|id_?token$|auth_?token$|auth$|jwt$|api_?key$|apikey$|key$|signature$|sig$|x-amz-|passport)", re.I)
+                       r"access_?token$|id_?token$|auth_?token$|auth$|jwt$|api_?key$|apikey$|key$|signature$|sig$|x-amz-|passport|"
+                       # any other *_token (Washington Post gift links carry pwapi_token=<JWT>, 2026-11-01)
+                       r"\w*_token$)", re.I)
 META_RE = re.compile(r"<meta\b[^>]*>", re.I)
 ATTR_RE = re.compile(r'([\w:-]+)\s*=\s*["\']([^"\']*)["\']')
 

@@ -9,7 +9,12 @@ form.add input[type=text]{padding:5px 8px;border:1px solid var(--line);border-ra
 <h1>Sources <span class="muted small">verified {{ verified_at.replace('T',' ') }}</span></h1>
 {% if action %}<div hx-get="/actions/output" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
 
-<h2 id="queue">Suggestion queue <span class="muted small">{{ q.pending|length }} to review</span></h2>
+{% if failing %}<div class="card" style="margin:8px 0 14px"><b class="s-error">{{ failing|length }} source(s) failing</b>
+<ul class="small" style="margin:4px 0 0">{% for s in failing[:8] %}<li>{{ s.person }} <span class="muted">[{{ s.kind }}]</span> · {{ (s.last.error or '')|short(90) }}</li>{% endfor %}</ul>
+<div class="muted small">They are listed first under Wired sources below.</div></div>
+{% else %}<p class="small s-ok">All wired sources fetched cleanly on the last run.</p>{% endif %}
+
+<details id="queue"{{ ' open' if q.pending }}><summary><h2 style="display:inline">Suggestion queue <span class="muted small">{{ q.pending|length }} to review</span></h2></summary>
 <p>
 <form class="inline" method="post" action="/actions/suggest"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/sources">
 <button {{ 'disabled' if busy_suggest }} title="Claude suggests new sources (may search the web); every URL is verified before it is queued. ~2-6 min">Refresh suggestions</button></form>
@@ -41,6 +46,7 @@ form.add input[type=text]{padding:5px 8px;border:1px solid var(--line);border-ra
 <form class="inline" method="post" action="/actions/recheck-source"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/sources"><input type="hidden" name="id" value="{{ x.id }}"><button class="mini" {{ 'disabled' if busy_suggest }} title="Verify the candidate URLs again">recheck</button></form>
 </div></div>{% endfor %}
 </div>
+</details>
 
 <h2>Email newsletters <span class="muted small">Gmail label {{ news.config.label }} · {{ 'on' if news.config.enabled else 'off' }}{% if not news.password_set %} · app password not set{% endif %}</span></h2>
 <table><tr><th>Newsletter</th><th>Tier</th><th>Senders</th><th>Archived</th><th>Latest</th><th>Watch for</th></tr>
@@ -84,6 +90,7 @@ form.add input[type=text]{padding:5px 8px;border:1px solid var(--line);border-ra
 <span class="small">{% for h in x.x %} · X @{{ h }}{% endfor %}{% for o in x.other %} · {{ o }}{% endfor %}</span>
 <form class="inline" method="post" action="/actions/recheck-source"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/sources"><input type="hidden" name="id" value="{{ x.id }}"><button class="mini">look again</button></form></li>{% endfor %}</ul>{% endif %}
 
+<details><summary class="muted">History: accepted, denied and removed</summary>
 {% if q.accepted %}<details><summary>Accepted from the queue ({{ q.accepted|length }})</summary><ul class="small">
 {% for x in q.accepted %}<li>{{ x.name }} <span class="muted">{{ (x.decided or '')[:10] }} · {{ x.wired|default([])|length }} source(s)</span></li>{% endfor %}</ul></details>{% endif %}
 {% if q.denied %}<details><summary>Denied ({{ q.denied|length }}) <span class="muted small">never suggested again</span></summary><ul class="small">
@@ -92,6 +99,8 @@ form.add input[type=text]{padding:5px 8px;border:1px solid var(--line);border-ra
 {% if removed %}<details id="removed"><summary>Removed sources ({{ removed|length }}) <span class="muted small">skipped by re-verify</span></summary><ul class="small">
 {% for r in removed %}<li>{{ r.person }} [{{ r.kind }}] <span class="mono">{{ r.url|short(60) }}</span> <span class="muted">{{ r.at }}{% if r.reason %} · {{ r.reason }}{% endif %}</span>
 <form class="inline" method="post" action="/api/sources/restore"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="url" value="{{ r.url }}"><button class="mini">restore</button></form></li>{% endfor %}</ul></details>{% endif %}
+
+</details>
 
 {% if failed_section %}<h2>From the latest verification report <span class="muted small mono">logs/{{ report_name }}</span></h2>
 <pre>{{ failed_section }}</pre>{% endif %}

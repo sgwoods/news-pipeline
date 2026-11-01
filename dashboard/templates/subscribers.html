@@ -5,16 +5,13 @@
 {% if missing %}<div class="card"><div class="k">Not set up yet</div><p>{{ missing }}</p>
 <p class="small">Follow <span class="mono">docs/EMAIL-SETUP.md</span>: about 10 minutes, once. You can still preview the email below.</p></div>
 {% elif err %}<p class="s-error">{{ err }}</p>{% endif %}
-<div class="grid">
-<div class="card"><div class="k">Active</div><div class="v">{{ counts.active }}</div><div class="small muted">{{ counts.pending }} waiting to confirm · {{ counts.unsubscribed }} unsubscribed</div></div>
-<div class="card"><div class="k">Daily send</div><div class="v {{ 's-ok' if enabled else 's-partial' }}">{{ 'on' if enabled else 'off' }}</div><div class="small muted">config.yaml email.enabled · after each morning's publish</div></div>
-<div class="card"><div class="k">Gmail quota left today</div><div class="v">{{ quota if quota is not none else '—' }}</div><div class="small muted">about 100 recipients a day</div></div>
-</div>
 <h2>Everyone, by channel</h2>
 <div class="grid">
-<div class="card"><div class="k">Email</div><div class="v">{{ counts.active }}</div><div class="small muted">active subscribers</div></div>
+<div class="card"><div class="k">Email</div><div class="v">{{ counts.active }}</div><div class="small muted">{{ counts.pending }} waiting to confirm · {{ counts.unsubscribed }} unsubscribed</div></div>
 <div class="card"><div class="k">Slack</div><div class="v">{{ slack_n }}</div><div class="small muted">members of #cto-ai-newsletter{% if slack_err %} · <span class="s-partial">{{ slack_err }}</span>{% endif %}</div></div>
 <div class="card"><div class="k">Podcast</div><div class="v">—</div><div class="small muted">podcast apps don't say who subscribes; listeners are anonymous</div></div>
+<div class="card"><div class="k">Daily send</div><div class="v {{ 's-ok' if enabled else 's-partial' }}">{{ 'on' if enabled else 'off' }}</div><div class="small muted">config.yaml email.enabled · after each morning's publish</div></div>
+<div class="card"><div class="k">Gmail quota left today</div><div class="v">{{ quota if quota is not none else '—' }}</div><div class="small muted">about 100 recipients a day</div></div>
 </div>
 {% if people %}<table style="margin-top:12px"><tr><th>Person</th><th>Email</th><th>Email status</th><th>Slack</th><th>Channels</th></tr>
 {% for r in people %}<tr><td>{{ r.name or '—' }}</td><td class="mono">{{ r.email or '—' }}</td>
@@ -26,16 +23,16 @@
 <label><input type="checkbox" name="confirmed" value="1"> they already asked me for it (skip the confirmation email)</label>
 <button {{ 'disabled' if missing }}>Add</button></form>
 <p class="small muted">Without the tick they get a confirmation email first, which is the safest way to have consent on record.</p>
-<h2>Send</h2>
+<details><summary><b>Send by hand</b> <span class="muted small">test to me, or resend to everyone</span></summary>
 <p><form class="inline" method="post" action="/actions/email-test"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/subscribers">
 <input type="text" name="day" value="{{ day }}" size="10" pattern="\d{4}-\d{2}-\d{2}"> <button {{ 'disabled' if missing or (action and action.running) }}>Send a test to me</button></form>
 <form class="inline" method="post" action="/actions/email-send" onsubmit="return confirm('Email this day\'s briefing to every active subscriber?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/subscribers">
 <input type="text" name="day" value="{{ day }}" size="10" pattern="\d{4}-\d{2}-\d{2}"> <button {{ 'disabled' if missing or (action and action.running) }}>Send to all subscribers</button></form>
-<a class="small" href="/email/preview/{{ day }}" target="_blank">preview the email</a></p>
-{% if subs %}<h2>Subscribers</h2><table><tr><th>Email</th><th>Status</th><th>Source</th><th>Since</th><th></th></tr>
+<a class="small" href="/email/preview/{{ day }}" target="_blank">preview the email</a></p></details>
+{% if subs %}<details><summary><b>Manage the email list</b> <span class="muted small">{{ subs|length }} rows, unsubscribe</span></summary><table><tr><th>Email</th><th>Status</th><th>Source</th><th>Since</th><th></th></tr>
 {% for x in subs|sort(attribute='status') %}<tr><td class="mono">{{ x.email }}</td><td><span class="s-{{ 'ok' if x.status == 'active' else ('pending' if x.status == 'pending' else 'error') }}">{{ x.status }}</span></td>
 <td class="small">{{ x.source }}</td><td class="small">{{ (x.confirmed or x.created or '')|string|truncate(10, True, '') }}</td>
-<td>{% if x.status != 'unsubscribed' %}<form class="inline" method="post" action="/api/subscribers/remove" onsubmit="return confirm('Unsubscribe {{ x.email }}?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="email" value="{{ x.email }}"><button class="mini">remove</button></form>{% endif %}</td></tr>{% endfor %}</table>{% endif %}
+<td>{% if x.status != 'unsubscribed' %}<form class="inline" method="post" action="/api/subscribers/remove" onsubmit="return confirm('Unsubscribe {{ x.email }}?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="email" value="{{ x.email }}"><button class="mini">remove</button></form>{% endif %}</td></tr>{% endfor %}</table></details>{% endif %}
 {% if log %}<h2>Recent sends</h2><table><tr><th>When</th><th>Day</th><th>Sent</th><th>Failed</th><th>Subject</th></tr>
 {% for r in log %}<tr><td class="small">{{ r.at[:16].replace('T', ' ') }}{% if r.test %} <span class="pill">test</span>{% endif %}</td><td>{{ r.day }}</td><td>{{ r.sent }}</td><td>{{ r.failed }}</td><td class="small">{{ r.subject }}</td></tr>{% endfor %}</table>{% endif %}
 {% endblock %}

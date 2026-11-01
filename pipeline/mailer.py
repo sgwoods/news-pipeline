@@ -200,6 +200,7 @@ def parse(md: str) -> dict:
                      "other": ol.group(2) if ol else "", "other_label": ol.group(1) if ol else "", "developing": dev.group(1) if dev else "",
                      "early": es.group(1) if es else "", "deep": dd.group(1) if dd else ""})
     worth = [re.sub(r"^\*\*\d+\.\s*", "**", ln[2:]) for ln in secs.get("Worth knowing", "").splitlines() if ln.startswith("- ")]
+    money = [ln[2:] for ln in secs.get("Money", "").splitlines() if ln.startswith("- ")]
     questions = [_strip_refs(ln[2:]) for ln in secs.get("Open questions", "").splitlines() if ln.startswith("- ")]
     rr = None
     rs = secs.get("Recommended reading", "")
@@ -208,7 +209,7 @@ def parse(md: str) -> dict:
         why = re.search(r"\*Why it matters:\*\s*(.+)", rs)
         rr = {"title": m.group(1), "url": m.group(2), "who": m.group(3).strip(), "why": why.group(1).strip() if why else ""}
     return {"title": title, "brief": brief.group(1).strip() if brief else "", "top": top, "must": must,
-            "worth": worth, "questions": questions, "reading": rr, "merged": merged}
+            "worth": worth, "money": money, "questions": questions, "reading": rr, "merged": merged}
 
 
 def _not_org() -> str:
@@ -263,6 +264,14 @@ def privacy_gate(msg: dict, cfg: dict) -> list:
     return list(dict.fromkeys(bad))[:10]
 
 
+def _chart(root: Path, day: str):
+    try:
+        from .chart import load
+        return load(root, day)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def day_takes(root: Path, day: str) -> dict:
     """Steven's published takes for DAY ({key: text}): data/commentary/<day>.json (pipeline/takes.py, dashboard)."""
     p = root / "data" / "commentary" / f"{day}.json"
@@ -282,7 +291,7 @@ def _take_html(text: str) -> str:
 
 
 def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | None = None,
-           takes: dict | None = None) -> dict:
+           takes: dict | None = None, chart: dict | None = None) -> dict:
     """→ {"subject", "html", "text"} with {{UNSUBSCRIBE}} where each recipient's link goes.
     takes: {key: text} from day_takes(): "overall", "top", or a story's item id."""
     from .textutil import item_id
@@ -353,6 +362,9 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
                     + "</div>"]
             if s["what"]:
                 rows.append(f'<p style="margin:0 0 8px;color:{C["text"]};font-size:15px;line-height:1.55">{_inline(s["what"])}</p>')
+            if chart and chart.get("story") == n:      # one chart a day (pipeline/chart.py)
+                from .chart import html as chart_html
+                rows.append(chart_html(chart, bar=C["accent"], ink=C["text"], muted=C["muted"]))
             if s["crit"]:
                 rows.append(f'<p style="margin:0 0 6px;color:{C["strong"]};font-size:14px;line-height:1.5">'
                             f'<span style="color:{C["muted"]}">Evidence check:</span> {_inline(s["crit"])}</p>')
@@ -404,6 +416,10 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Worth knowing")}'
                  f'<ul style="margin:0;padding-left:20px">{lis}</ul>'
                  + (_take_html(takes["worth"]) if takes.get("worth") else "") + '</td></tr>')
+    if b.get("money"):
+        lis = "".join(f'<li style="margin:0 0 8px;color:{C["text"]};font-size:15px;line-height:1.5">{_inline(t)}</li>' for t in b["money"])
+        H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Money")}'
+                 f'<ul style="margin:0;padding-left:20px">{lis}</ul></td></tr>')
     if b["questions"]:
         lis = "".join(f'<li style="margin:0 0 8px;color:{C["text"]};font-size:15px;line-height:1.5">{_inline(t)}</li>' for t in b["questions"])
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Open questions")}'
@@ -503,7 +519,7 @@ def send_new(root: Path, cfg: dict, day: str) -> dict:
         return {"day": day, "ok": True, "sent": 0, "note": "no one has confirmed since it was emailed"}
     bdir = root / cfg.get("paths", {}).get("briefings", "briefings")
     msg = render(day, (bdir / f"{day}.md").read_text("utf-8"), cfg, (bdir / f"{day}.mp3").is_file(),
-                 deep_dive_for(root, cfg, day), day_takes(root, day))
+                 deep_dive_for(root, cfg, day), day_takes(root, day), _chart(root, day))
     bad = privacy_gate(msg, cfg)
     if bad:
         raise MailError("privacy gate blocked the email: " + "; ".join(bad))
@@ -532,7 +548,7 @@ def send_day(root: Path, cfg: dict, day: str, to: str = "", force: bool = False)
     if not to and day in sent_days(root) and not force:
         return {"ok": True, "skipped": f"{day} already emailed"}
     msg = render(day, md_file.read_text("utf-8"), cfg, (bdir / f"{day}.mp3").is_file(), deep_dive_for(root, cfg, day),
-                 day_takes(root, day))
+                 day_takes(root, day), _chart(root, day))
     bad = privacy_gate(msg, cfg)
     if bad:
         raise MailError("privacy gate blocked the email: " + "; ".join(bad))

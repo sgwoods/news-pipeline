@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.49-beta (2026-11-02 (weekday slot))
+- **Release:** v0.2.50-beta (2026-11-02 (weekday slot))
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 78 in `pipeline/`
+- **Modules:** 79 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -59,7 +59,7 @@ _Generated at build time._
 | summarize / rank | A summary, tags and a relevance score per item; the best are read in full. | `stages.py`, `reader.py` |
 | cluster | Items about the same thing become one story, with an evidence mix. | `editorial.py`, `profiles.py` |
 | critique / verify | Each claim gets a verdict: holds, mixed, overstated, unsupported, unverified. Every Must read gets an evidence check. | `stages.py`, `dive.py` |
-| editorial / write | Day in brief, Top of mind, Must read, Worth knowing, Open questions; citations point at the real article. | `editorial.py`, `links.py`, `questions.py` |
+| editorial / write | Day in brief, Top of mind, Must read, Worth knowing, Money (rounds, valuations, M&A with an amount), Open questions; citations point at the real article. One chart a day: a Must read with 3-6 comparable figures gets HTML bars, every value checked against that story's sources. | `editorial.py`, `links.py`, `questions.py`, `chart.py` |
 | fact check | Figures traced to their source, searched before they are cut, flagged when unconfirmed; numbers cross-checked; quotes kept only if word for word. Then the pre-send check: every factual sentence of the top section, What happened and Worth knowing is checked against its sources, rewritten when a second model confirms the fix, or listed to the owner in the takes email. | `factcheck.py`, `factsearch.py`, `numbers.py`, `audit.py` |
 | first lines | The day in brief, Top of mind, deep-dive summaries, "Why today" and Agenda lines checked against the checked body and the item's own source; "not disclosed" claims compared with the last 14 editions; after the deep dive is written, the briefing is aligned with it (no story twice, no contradictions). | `consistency.py` |
 | deep dive | A second segment on the day's focal topic, from a queue the owner curates; its script is fact checked turn by turn before it is recorded. | `deepdive.py`, `audit.py` |
@@ -335,6 +335,7 @@ _Generated from each module's own description at build time._
 | `bluesky.py` | Bluesky lists and Steven's own posts as sources, via the public AT Protocol API (no key, no login). |
 | `brand.py` | The AI Briefing brand (Steven, 2026-10-31) |
 | `card.py` | The daily card |
+| `chart.py` | One chart a day (quality review, 2026-10-31 |
 | `clasp.py` | Deploy the mail script (scripts/apps-script/Code.gs) with Google's clasp CLI instead of copy and paste. |
 | `compare.py` | Staging against production for the same day |
 | `consistency.py` | Short texts readers see first must agree with the checked text and the sources (2026-10-23). |

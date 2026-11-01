@@ -5,6 +5,20 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.50-beta · 2026-11-02 (weekday slot)
+- Money section: up to five funding, deal and valuation stories (a deal word plus a stated amount) get their own
+  "Money" block in the briefing, email and site, between Recommended reading and In brief.
+- One chart a day: the write stage asks for a 3-6 bar chart from one Must-read story; every value must appear in
+  that story's own sources or no chart is made. Shown under the story in the email and on the site, labelled
+  "Figures as reported in this story's sources." (`analysis.chart: false` turns it off.)
+- Dashboard phase 3: Briefings shows email time and count, takes status and corrections per day, with the
+  rebuild action folded under Maintenance; Sources leads with failing sources and folds the queue and history;
+  Runs shows the last 14 with a health line and folds older runs; Subscribers has one channel summary and folds
+  manual sends and list management.
+- Fixes found by the ship check: gift links carrying any `*_token` parameter (a Washington Post `pwapi_token`
+  JWT reached the staging site and the privacy scan stopped the release) are cleaned like other tracking
+  parameters; the chart accepts a story number returned as text ("2") and logs why no chart was made.
+
 ## v0.2.49-beta · 2026-11-02 (weekday slot)
 - Core beliefs, first refresh (Steven approved all six proposals, 2026-11-01; doc "Core Beliefs: Proposed Updates"):
   thesis 16 says containment is conceptual until proven; view 5 adds founders' liability; view 15 warns against
