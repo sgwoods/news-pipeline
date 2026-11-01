@@ -1086,6 +1086,12 @@ def cmd_remaster(cfg: dict, day: str) -> int:
     code = cmd_audio(cfg, day)                   # make_audio hands off to a published deep dive
     if code:
         return code
+    try:                                         # Steven's published takes go back into the rebuilt briefing audio
+        from pipeline import takes                # (2026-11-01: remasters of 10-30, 10-31, 11-01 had dropped them)
+        print(takes.revoice(ROOT, cfg, day, takes.state(ROOT, day), log=print))
+    except Exception as e:  # noqa: BLE001
+        print(f"takes not re-voiced: {e}")
+        return 1
     if (deepdive.latest(ROOT, day) or {}).get("status") == "published":
         deepdive.make_podcast(ROOT, cfg, day)
     if cfg.get("archive", {}).get("git_commit", True):

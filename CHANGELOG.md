@@ -5,6 +5,11 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.47-beta · 2026-11-01 (fix lane)
+- A re-recorded podcast keeps Steven's takes (2026-11-01): `remaster` rebuilt the briefing audio from the take-free
+  script, so the re-records of 10-30, 10-31 and 11-01 dropped his takes from the episode. It now splices the
+  published takes back in (the same step the morning run uses) and stops if it can't.
+
 ## v0.2.46-beta · 2026-11-02 (weekday slot)
 - Protected files change only through a release (2026-11-01: a house-views edit committed straight to production
   held the morning edition and its email until the gate was approved):
