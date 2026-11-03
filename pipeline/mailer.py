@@ -335,7 +335,7 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
              f'<h1 style="margin:14px 0 8px;font-size:26px;line-height:1.2;color:{C["text"]}">{htmllib.escape(b["title"])}</h1>'
              + (f'<p {P}>{_inline(b["brief"])}</p>' if b["brief"] and not b.get("merged") else "")
              + (_take_html(takes[lead_tk]) if lead_tk else "")
-             + _btn(page, "Read the full briefing") + (_btn(page, "Listen to the episode", False) if has_audio else "")
+             + _btn(page, "Read the full briefing") + (_btn(page + "#listen", "🎧 Listen to the briefing", False) if has_audio else "")
              + "</td></tr>")
     stars = bool(e.get("ratings"))
     if stars:
@@ -398,7 +398,7 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
                  + (f'<p {P}>{_inline(deep["summary"])}</p>' if deep.get("summary") else "")
                  + f'<p style="margin:0 0 10px;color:{C["muted"]};font-size:13px">About {deep.get("minutes") or 10} minutes, '
                    f'right after the briefing in your podcast feed, or read it on the site.</p>'
-                   + _btn(deep["url"] + "#listen", "▶ Listen to the deep dive") + _btn(deep["url"] + "#read", "Read it", False)
+                   + _btn(deep["url"] + "#listen", "🎧 Listen to the deep dive") + _btn(deep["url"] + "#read", "Read it", False)
                    + f'<p style="margin:10px 0 0;font-size:13px;color:{C["muted"]}">The deep dives are also a podcast of '
                      f'their own: <a href="{base}/deepdive.xml" style="color:{C["link"]}">subscribe to the deep dives</a>. '
                      f'Got a story that deserves a whole episode? <a href="{{{{SUGGEST}}}}" style="color:{C["link"]}">Suggest a deep dive</a>.</p>'

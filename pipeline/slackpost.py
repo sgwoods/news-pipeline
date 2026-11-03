@@ -86,8 +86,11 @@ def build(root: Path, cfg: dict, day: str) -> dict:
         L.append(f"> _Steven's take{' on ' + where if where and where != 'The day overall' else ''}:_ “{take}”")
     if title:
         L.append(f":headphones: *Deep dive:* {title}" + (f" — {line}" if line else ""))
-    links = [f"<{base}/{day}/|Read>", f"<{base}/{day}/|Listen>" if not title else f"<{dd_url}|Listen to the deep dive>",
-             f"<{base}/#email|Subscribe>"]
+    # every audio link carries the headphones (Steven, 2026-11-03): the briefing's episode and the deep dive alike
+    links = [f"<{base}/{day}/|Read>", f":headphones: <{base}/{day}/#listen|Listen to the briefing>"]
+    if title:
+        links.append(f":headphones: <{dd_url}|Listen to the deep dive>")
+    links.append(f"<{base}/#email|Subscribe>")
     L.append("  ·  ".join(links))
     out = {"text": "\n".join(L), "card": None, "take": take}
     try:
@@ -128,7 +131,7 @@ def build_dd(root: Path, cfg: dict, day: str) -> dict:
         L.append(i["summary"])
     if take:
         L.append(f"> _Steven's take:_ \u201c{take}\u201d")
-    L.append(f"<{i['url']}|Read the deep dive>  ·  <{i['url']}|Listen>")
+    L.append(f"<{i['url']}|Read the deep dive>  ·  :headphones: <{i['url']}#listen|Listen>")
     out = {"text": "\n".join(L), "card": None}
     try:
         out["card"] = card.render_dd(root, day, i["title"], i["summary"], i["take"], i["minutes"])

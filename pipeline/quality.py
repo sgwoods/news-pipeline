@@ -163,6 +163,13 @@ def score_day(root: Path, cfg: dict, day: str) -> dict | None:
            "balance": bal, "rating_steven": steven[-1] if steven else None,
            "rating_readers": (round(sum(readers) / len(readers), 1) if readers else None), "n_reader_ratings": len(readers),
            "rating_web": (round(sum(web) / len(web), 1) if web else None), "n_web_ratings": len(web)}
+    try:                                         # craft (2026-11-03): pace, paragraphs, long sentences, repeats; kept
+        from . import craft                      # apart from passed/total so the scorecard trend stays comparable
+        m = craft.ours(root, cfg, day)
+        out["craft"] = {"metrics": m, "checks": [{"key": k, "label": lab, "ok": bool(ok), "value": val}
+                                                  for k, lab, ok, val in craft.checks(m)]}
+    except Exception as e:  # noqa: BLE001 - a craft measurement never breaks the scorecard
+        out["craft"] = {"error": f"{type(e).__name__}: {e}"[:160]}
     p = root / DIR / f"{day}.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n", "utf-8")

@@ -16,7 +16,7 @@ class EditorNote(unittest.TestCase):
         m = editor_note.build(root, {}, "2026-10-14")
         self.assertIn("AI math proofs explained", m["subject"])
         for s in ("TOMORROW'S DEEP DIVE", "Lab economics in the filings (strength 5)", "Corvane: Corvane opens Ottawa office",
-                  "127.0.0.1:8765/deep-dives"):
+                  __import__("pipeline.localport", fromlist=["url"]).url("/deep-dives")[len("http://"):]):
             self.assertIn(s, m["text"])
         self.assertIn("Only you receive this note", m["html"])
         self.assertEqual(a["status"], "queued")

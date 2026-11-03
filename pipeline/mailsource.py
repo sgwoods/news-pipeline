@@ -53,10 +53,74 @@ def password() -> str:
     return get("GMAIL_APP_PASSWORD").replace(" ", "")
 
 
+AUTO = "data/state/newsletters-auto.yaml"
+# Senders that are never a newsletter, even under the label: chat/account notices and Google's own mail.
+_NOT_NEWSLETTER_DOMAINS = ("slack.com", "slack-mail.com", "google.com", "gmail.com", "googlemail.com", "icloud.com",
+                           "me.com", "outlook.com", "hotmail.com", "linkedin.com", "calendly.com")
+_NOT_NEWSLETTER_LOCAL = re.compile(r"^(no-?reply(-[\w]+)?|notifications?|notify|forwarding-noreply|feedback|"
+                                   r"support|security|account|billing|receipts?|calendar)$", re.I)
+
+
+def auto_ok(addr: str, cfg_m: dict) -> bool:
+    """A sender that may be added automatically: not Steven, not a person on a mail provider, not a notice."""
+    a = (addr or "").lower().strip()
+    if "@" not in a:
+        return False
+    local, dom = a.split("@", 1)
+    if a in [f.lower() for f in cfg_m.get("forwarders", [])]:
+        return False
+    from .links import personal_addresses
+    if a in personal_addresses({"email_sources": cfg_m}):
+        return False
+    if any(dom == d or dom.endswith("." + d) for d in _NOT_NEWSLETTER_DOMAINS):
+        return False
+    return not _NOT_NEWSLETTER_LOCAL.match(local.split("+", 1)[0])
+
+
+def _load_auto(root: Path) -> list:
+    import yaml
+    p = root / AUTO
+    try:
+        return (yaml.safe_load(p.read_text("utf-8")) if p.exists() else None) or []
+    except yaml.YAMLError:
+        return []
+
+
+def auto_add(root: Path, addr: str, display: str, subject: str, day: str, cfg_m: dict) -> dict | None:
+    """Every new sender under the sources label becomes a source as it arrives (Steven, 2026-11-03). It goes to
+    data/state/newsletters-auto.yaml (code-written; newsletters.yaml stays hand-edited and protected), flagged
+    AUTO-ADDED with scrutiny on until Steven reviews it. Returns the new entry, or None (not eligible / known)."""
+    import yaml
+    a = (addr or "").lower().strip()
+    if not auto_ok(a, cfg_m) or match_sender(a, load_newsletters(root), subject) is not None:
+        return None
+    rows = _load_auto(root)
+    names = {n["name"] for n in load_newsletters(root)}
+    name = " ".join((display or "").split())[:60] or a
+    if name in names:
+        name = f"{name} ({a})"
+    entry = {"name": name, "from": [a], "web": "", "tier": "follow", "scrutiny": True, "flags": ["AUTO-ADDED"],
+             "bias": (f"Added automatically on {day} when its first issue arrived under the sources label; Steven has "
+                      "not reviewed it yet. Weigh it as an unreviewed source: check its claims and who pays for it."),
+             "added": day, "first_subject": (subject or "")[:120]}
+    rows.append(entry)
+    p = root / AUTO
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text("# Written by the pipeline (mailsource.auto_add): new senders under the sources label, added as\n"
+                   "# they arrive. Move an entry to newsletters.yaml (on dev, with a bias note) to review it.\n"
+                   + yaml.safe_dump(rows, sort_keys=False, allow_unicode=True, width=110), "utf-8")
+    tmp.replace(p)
+    return entry
+
+
 def load_newsletters(root: Path) -> list:
     import yaml
     p = root / "newsletters.yaml"
     rows = (yaml.safe_load(p.read_text("utf-8")) if p.exists() else None) or []
+    hand = {str(f).lower() for r in rows if isinstance(r, dict) for f in (r.get("from") or [])}
+    rows = list(rows) + [r for r in _load_auto(root) if isinstance(r, dict)        # hand-edited entries win
+                         and not any(str(f).lower() in hand for f in (r.get("from") or []))]
     out = []
     for r in rows:
         if not isinstance(r, dict) or not r.get("name"):
@@ -65,7 +129,7 @@ def load_newsletters(root: Path) -> list:
                     "web": str(r.get("web") or ""), "tier": str(r.get("tier") or "follow"),
                     "scrutiny": bool(r.get("scrutiny")), "flags": [str(x) for x in (r.get("flags") or [])],
                     "bias": " ".join(str(r.get("bias") or "").split()), "note": str(r.get("note") or ""),
-                    "subject": str(r.get("subject") or "")})
+                    "subject": str(r.get("subject") or ""), "added": str(r.get("added") or "")})
     return out
 
 
@@ -312,6 +376,10 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_days: int | None = N
     stats["Forwarded by Steven"] = {"new": 0, "latest": ""}
     unlisted, confirms = {}, {}
     arrived_any = set()
+    added = adopt_unlisted(root, m, log)                  # senders noted before auto-add existed
+    if added:
+        newsletters = load_newsletters(root)
+        stats.update({n["name"]: {"new": 0, "latest": ""} for n in newsletters if n["name"] not in stats})
     try:
         typ, _ = box.select(m["label"], readonly=True)
         if typ != "OK":
@@ -337,8 +405,15 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_days: int | None = N
                 continue
             arrived_any.add(it["from_addr"])
             if it["unlisted"]:
-                unlisted[it["from_addr"]] = {"name": it["author"], "subject": it["title"], "date": it["published"][:10]}
-                continue                    # remembered for the Sources page; Steven adds it to newsletters.yaml
+                e = auto_add(root, it["from_addr"], it["author"], it["title"], it["published"][:10], m)
+                if e:                       # a new source as it arrives (2026-11-03): re-read this issue as listed
+                    log.info("  new email source added: %s <%s>", e["name"], it["from_addr"])
+                    added.append(e)
+                    newsletters = load_newsletters(root)
+                    it = parse_message(parts[0][1], newsletters, m, run_id, now) or it
+                if it["unlisted"]:
+                    unlisted[it["from_addr"]] = {"name": it["author"], "subject": it["title"], "date": it["published"][:10]}
+                    continue                # not eligible (a notice, a person, Steven): shown on the Sources page
             items.append(it)
             st = stats.setdefault(it["person"], {"new": 0, "latest": ""})
             st["new"] += 1
@@ -349,7 +424,7 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_days: int | None = N
         except Exception:  # noqa: BLE001
             pass
     _save_seen(root, seen)
-    if unlisted:
+    if unlisted or added:
         p = root / "data" / "state" / "email-unlisted.json"
         old = {}
         try:
@@ -357,6 +432,9 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_days: int | None = N
         except (OSError, json.JSONDecodeError):
             pass
         old.update(unlisted)
+        for e in added:
+            for a in e["from"]:
+                old.pop(a, None)
         p.write_text(json.dumps(old, indent=1, ensure_ascii=False) + "\n", "utf-8")
     p = root / "data" / "state" / "email-confirm.json"
     try:
@@ -375,7 +453,23 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_days: int | None = N
         log.warning("  %d subscription(s) need a confirm click (under the label): %s",
                     len(confirms), ", ".join(confirms))
     per = [{"person": n, "kind": "email", "url": f"gmail:{m['label']}", "status": "ok", **s} for n, s in stats.items()]
-    return {"items": items, "sources": per, "unlisted": unlisted, "confirms": confirms}
+    return {"items": items, "sources": per, "unlisted": unlisted, "confirms": confirms, "added": added}
+
+
+def adopt_unlisted(root: Path, m: dict, log=None) -> list:
+    """Eligible senders already waiting in email-unlisted.json become sources too (their next issue is used)."""
+    try:
+        waiting = json.loads((root / "data" / "state" / "email-unlisted.json").read_text("utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    added = []
+    for a, u in sorted(waiting.items(), key=lambda x: x[1].get("date", "")):
+        e = auto_add(root, a, u.get("name", ""), u.get("subject", ""), u.get("date", "") or dt.date.today().isoformat(), m)
+        if e:
+            added.append(e)
+            if log:
+                log.info("  new email source added (was waiting): %s <%s>", e["name"], a)
+    return added
 
 
 def _day_emails(root: Path, cfg: dict, day: str) -> tuple:

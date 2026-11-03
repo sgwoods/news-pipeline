@@ -30,6 +30,10 @@ DIMS = [("selection", "Content selection", 18), ("accuracy", "Accuracy & sourcin
         ("structure", "Structure & pacing", 10), ("opinion", "Opinion / point of view", 9),
         ("distinct", "Distinctiveness & fit", 7), ("writing", "Writing / script", 6),
         ("tone", "Tone & voice", 5), ("production", "Production", 6)]
+# Craft (Steven, 2026-11-03), judged 1-10 by the same critic for every show; reported beside the weighted score, not
+# in it, so the overall trend stays comparable. Code-measured craft numbers (pipeline/craft.py) go in "measured".
+CRAFT = [("delivery", "Pace & delivery"), ("paragraphs", "Paragraphs & scannability"), ("focus", "Focus, no rambling"),
+         ("clarity", "Walks the reader through; why it matters first"), ("repetition", "No repeated phrases")]
 OURS = "AI Briefing (us)"
 C = {"us": "#2563eb", "field": "#9ca3af", "best": "#16a34a", "text": "#111827", "muted": "#6b7280",
      "bg": "#f9fafb", "panel": "#ffffff", "border": "#e5e7eb", "low": "#dc2626"}
@@ -93,6 +97,41 @@ def chart_by_dimension(week: dict) -> str:
               f'<span style="color:{C["us"]}">■</span> us &nbsp; <span style="color:{C["low"]}">■</span> us, below the field '
               f'&nbsp; <span style="color:{C["field"]}">■</span> field average (out of 10)</div>')
     return legend + f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">{"".join(rows)}</table>'
+
+
+def chart_craft(week: dict) -> str:
+    """Craft scores (judged) for us against the field, and the code-measured numbers when the week has them."""
+    shows = [s for s in week.get("shows", []) if s.get("craft")]
+    ours = (week.get("ours") or {}).get("craft") or {}
+    if not (shows or ours):
+        return ""
+    rows = []
+    for k, label in CRAFT:
+        vals = [s["craft"].get(k) for s in shows if isinstance(s["craft"].get(k), (int, float))]
+        avg = sum(vals) / len(vals) if vals else 0
+        best = max(shows, key=lambda s: s["craft"].get(k) or 0) if shows else None
+        us = ours.get(k) or 0
+        color = C["low"] if us < avg - 0.5 else C["us"]
+        rows.append(
+            f'<tr><td style="padding:6px 8px 6px 0;font-size:13px;color:{C["text"]};white-space:nowrap">{_esc(label)}</td>'
+            f'<td style="padding:6px 0;width:100%">{_bar(us, 10, color)}<div style="height:3px"></div>{_bar(avg, 10, C["field"], 6)}</td>'
+            f'<td style="padding:6px 0 6px 8px;font-size:13px;white-space:nowrap;color:{C["text"]}"><b>{us:g}</b> '
+            f'<span style="color:{C["muted"]}">avg {avg:.1f} · best {(best or {}).get("craft", {}).get(k, 0) or 0:g} '
+            f'({_esc((best or {}).get("name", "")[:18])})</span></td></tr>')
+    out = f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">{"".join(rows)}</table>'
+    meas = week.get("measured") or {}
+    if meas:
+        cols = [("para_words", "words/para"), ("long_sent_pct", "long sent %"), ("repeat_per_1k", "repeats/1k"),
+                ("filler_per_1k", "filler/1k"), ("grade", "grade")]
+        head = "".join(f'<th style="text-align:right;padding:3px 6px;font-size:11px;color:{C["muted"]}">{_esc(l)}</th>' for _, l in cols)
+        body = "".join(
+            f'<tr><td style="padding:3px 6px 3px 0;font-size:12px;color:{C["text"]}{";font-weight:700" if n == OURS else ""}">{_esc(n[:34])}</td>'
+            + "".join(f'<td style="text-align:right;padding:3px 6px;font-size:12px">{"" if v.get(k) is None else _esc(v.get(k))}</td>' for k, _ in cols)
+            + "</tr>" for n, v in sorted(meas.items(), key=lambda x: (x[0] != OURS, x[0])))
+        out += (f'<p style="margin:10px 0 4px;font-size:12px;color:{C["muted"]}">Measured the same way for every newsletter '
+                f'we receive (medians, last two weeks):</p><table role="presentation" cellpadding="0" cellspacing="0">'
+                f'<tr><th></th>{head}</tr>{body}</table>')
+    return out
 
 
 def chart_ranking(week: dict) -> str:
@@ -209,6 +248,8 @@ def render(root: Path, date: str | None = None) -> dict:
         + (f'<p {P}><b>Suggested first batch:</b> {_esc("; ".join(week.get("first_batch", [])))}</p>' if week.get("first_batch") else "")
         + "</td></tr>",
         sp + f'<tr><td {cell}><h2 {H2}>How we stack up, by characteristic</h2>{chart_by_dimension(week)}</td></tr>',
+        *([sp + f'<tr><td {cell}><h2 {H2}>Craft: pace, paragraphs, focus, clarity, repetition</h2>{chart_craft(week)}</td></tr>']
+          if chart_craft(week) else []),
         sp + f'<tr><td {cell}><h2 {H2}>Overall ranking (latest episode or issue each)</h2>{chart_ranking(week)}</td></tr>',
         sp + f'<tr><td {cell}><h2 {H2}>Our trend</h2>{chart_trend(upto)}</td></tr>',
         sp + f'<tr><td {cell}><h2 {H2}>The field over time (overall)</h2>{chart_field(upto)}</td></tr>',

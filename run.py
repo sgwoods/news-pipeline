@@ -586,7 +586,8 @@ def cmd_dive(cfg: dict, day: str, key: str) -> int:
     if cfg.get("archive", {}).get("git_commit", True):
         print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"dive: {day} {rec['headline'][:60]}",
                                                          paths=("briefings/dives", "data/dives.jsonl")))
-    print(f"Read it: http://127.0.0.1:{cfg.get('dashboard', {}).get('port', 8765)}/dives/{day}/{key}")
+    from pipeline import localport
+    print(f"Read it: {localport.url(f'/dives/{day}/{key}')}")
     return 0
 
 
@@ -737,6 +738,12 @@ def write_v2(run, cfg, backends, system, entries, day, dropped, meta, briefings_
                 st["chart"] = bool(c)
             except Exception as e:  # noqa: BLE001 - a chart never stops the edition
                 run.log.warning("chart skipped: %s", e)
+        if (cfg.get("analysis") or {}).get("tighten", True):
+            try:                                 # long sentences split, over-used phrases varied; facts checked by code
+                from pipeline import tighten
+                md, st["tighten"] = tighten.apply(md, backends["critique"], run.log.info)
+            except Exception as e:  # noqa: BLE001 - tightening never stops the edition
+                run.log.warning("tighten skipped: %s", e)
         pv = {**meta["prompt_versions"], "cluster": cv, "merge": mv, "editorial": ev}
         tp = cfg.get("tuning_profile") or {}
         try:                                     # every figure traced to the sources it cites (fact review 2026-10-18)
@@ -896,7 +903,8 @@ def make_audio(run, cfg: dict, day: str, experiment=None) -> None:
                 run.log.info("pronunciation: check these in pronunciations.yaml: %s", ", ".join(odd))
             (bdir / f"{stem}.spoken.txt").write_text("\n\n".join(f"[{n}]\n{t}" for n, t in said) + "\n", "utf-8")
             mp3 = bdir / f"{stem}.mp3"
-            minutes = audio.render_mp3(eng, said, mp3, title, acfg.get("bitrate", "64k"))
+            from pipeline import sonic
+            minutes = audio.render_mp3(eng, said, mp3, title, acfg.get("bitrate", "64k"), brand=sonic.for_audio(ROOT))
             if not experiment:
                 from pipeline import episodes as eps
                 v = eps.rebuilt(ROOT, day)
@@ -2300,7 +2308,7 @@ def cmd_voices(cfg: dict) -> int:
             ok += 1
         except Exception as e:  # noqa: BLE001
             print(f"  FAIL {v}: {e}")
-    print(f"{ok} samples in briefings/voice-samples/. Listen: http://127.0.0.1:8765/voices")
+    print(f"{ok} samples in briefings/voice-samples/. Listen: " + __import__("pipeline.localport", fromlist=["url"]).url("/voices"))
     return 0 if ok else 1
 
 
@@ -3198,6 +3206,8 @@ def main() -> int:
     ap.add_argument("--limit", type=int, help="process at most N items (for testing)")
     ap.add_argument("--force", action="store_true", help="with --verify-sources: overwrite even if far fewer feeds verify")
     ap.add_argument("--dashboard", action="store_true", help="start the local dashboard (127.0.0.1)")
+    ap.add_argument("--status", action="store_true",
+                    help="with --dashboard: which local projects are running, on which port and version (local-ports.tsv)")
     ap.add_argument("--service", nargs="+", metavar="ARG", help="install|remove|status|restart|run|pause|resume [daily|dashboard|ollama]")
     ap.add_argument("--backup", nargs="?", const="push", choices=["push", "setup"], help="push this repo to its private GitHub remote")
     ap.add_argument("--site", action="store_true", help="build the static public site into site/")
@@ -3403,8 +3413,12 @@ def main() -> int:
     if args.publish:
         return cmd_publish(cfg, args.publish)
     if args.dashboard:
+        from pipeline import localport
+        if args.status:                                  # every registered project's /whoami (shared agreement)
+            localport.status()
+            return 0
         from dashboard.app import main as dash
-        dash(port=int(cfg.get("dashboard", {}).get("port", 8765)))
+        dash(port=int(cfg.get("dashboard", {}).get("port", localport.DEFAULT)))
         return 0
     if args.verify_sources:
         return cmd_verify_sources(cfg, args.force)

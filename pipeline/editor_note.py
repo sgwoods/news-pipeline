@@ -16,8 +16,8 @@ STAMP = "data/state/editor-note.json"
 
 def build(root: Path, cfg: dict, day: str, new_mentions: list | None = None) -> dict:
     from . import deepdive, watchlist
-    port = (cfg.get("dashboard") or {}).get("port", 8765)
-    dash = f"http://127.0.0.1:{port}"
+    from . import localport
+    dash = localport.url()
     up = deepdive.queued(root)
     today_dd = next((r for r in reversed(deepdive.records(root)) if r.get("day") == day), None)
     sugg = sorted([x for x in deepdive.load_queue(root) if x["status"] == "suggested" and x.get("source_day") == day],

@@ -398,7 +398,7 @@ def register(app, root, cfg, P, check_post, md_html, DAY_RE):
         rows = [r for r in rows if r]
         keys = [(k, lab, tgt) for k, lab, tgt, _ in quality.TARGETS]
         from pipeline import critic, trends            # running trend charts (Steven, 2026-10-31)
-        dims = [("overall", "Overall")] + [(k, lab) for k, lab, _ in critic.DIMS]
+        dims = [("overall", "Overall")] + [(k, lab) for k, lab, _ in critic.DIMS] + list(critic.CRAFT)
         dim = request.args.get("dim", "overall")
         dim = dim if dim in dict(dims) else "overall"
         field_svg = trends.svg_lines(trends.field(root, dim),
@@ -406,8 +406,19 @@ def register(app, root, cfg, P, check_post, md_html, DAY_RE):
         drows = trends.daily(root, live_cfg(), 30)
         daily_svgs = [trends.svg_lines({critic.OURS: [(r["day"], r[k]) for r in drows if r.get(k) is not None]},
                                        lab, unit, height=200, label_all=False) for k, lab, unit in trends.DAILY]
+        from pipeline import craft                     # craft against the newsletters we receive (2026-11-03)
+        try:
+            craft_field = craft.field(root, 14)
+        except Exception:  # noqa: BLE001
+            craft_field = {}
         return render_template("quality.html", rows=rows, keys=keys, fmt=quality.fmt, dims=dims, dim=dim,
-                               field_svg=field_svg, daily_svgs=daily_svgs)
+                               field_svg=field_svg, daily_svgs=daily_svgs, craft_field=craft_field, craft_ours=craft.OURS,
+                               craft_keys=[("para_words", "Words per paragraph (median)"),
+                                           ("long_para_pct", f"Paragraphs over {craft.LONG_PARA} words %"),
+                                           ("sent_words", "Words per sentence"),
+                                           ("long_sent_pct", f"Sentences over {craft.LONG_SENT} words %"),
+                                           ("repeat_per_1k", "Repeated phrases per 1,000 words"),
+                                           ("filler_per_1k", "Filler per 1,000 words"), ("grade", "Reading grade")])
 
     @app.route("/api/quality/<day>/rate", methods=["POST"])
     def quality_rate(day):

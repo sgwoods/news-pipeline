@@ -57,3 +57,12 @@ Forward to `you+briefing@example.com` (or `stevenwoods.ai+sources@`) from any of
   AI-Briefing/Sources, skip the inbox.
 - **Internal or restricted mail** (from an @example-firm.com / @example-firm.com sender, or marked not for
   redistribution / internal use only / do not forward): only its public links are kept.
+
+## New senders are added automatically (2026-11-03)
+A sender that is not in `newsletters.yaml` is added as a source the first time one of its issues arrives under the
+label: `data/state/newsletters-auto.yaml`, tier `follow`, `scrutiny: true`, flagged AUTO-ADDED, with a note saying
+it has not been reviewed. Its issue is used in that run. To review one, move the entry into `newsletters.yaml` (on
+dev, with your bias note); the hand-edited entry then wins. Never added automatically: your own addresses, people
+writing from gmail.com / outlook.com / iCloud and similar, and notices (no-reply, notifications, Slack, Google).
+Subscription confirmations are still listed on the Sources page for a click.
+

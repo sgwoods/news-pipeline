@@ -18,7 +18,9 @@ ul.top{margin:6px 0 0;padding-left:18px}ul.top li{margin:2px 0}
 <div class="hm">
 <div style="display:grid;gap:16px">
  <section class="blk"><h2>Needs you</h2>
- {% if needs %}{% for n in needs %}<div class="need"><span class="dot {{ n.level }}"></span><div><a href="{{ n.href }}">{{ n.text }}</a></div></div>{% endfor %}
+ {% if request.args.get('msg') %}<p class="small {{ 's-error' if request.args.get('msg').startswith('Not') else 's-ok' }}">{{ request.args.get('msg') }}</p>{% endif %}
+ {% if needs %}{% for n in needs %}<div class="need"><span class="dot {{ n.level }}"></span><div><a href="{{ n.href }}">{{ n.text }}</a>
+{% if n.button %}<form class="inline" method="post" action="/api/queue/{{ n.button.recipe }}" style="margin-left:8px"><input type="hidden" name="csrf" value="{{ csrf }}">{% if n.button.note %}<input type="text" name="note" placeholder="reviewed: what you checked" maxlength="200" style="width:220px"> {% endif %}<button class="mini">{{ n.button.label }}</button></form>{% endif %}</div></div>{% endfor %}
  {% else %}<div class="calm">Nothing needs you right now.</div>{% endif %}
  </section>
  <section class="blk"><h2>Today · {{ ed.day }}</h2>

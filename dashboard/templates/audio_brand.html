@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Audio branding{% endblock %}{% block body %}
+<h1>Audio branding <span class="muted small">a sound logo at the open and close, a sting between stories and before the deep dive</span></h1>
+{% if msg %}<p class="small s-ok">{{ msg }}</p>{% endif %}
+<p class="small">Each sample plays the logo, a sting, then the close. All three are made by the pipeline itself from pure tones (no samples, no licences), so they always sound the same. Your choice applies to the next briefing and deep dive; past episodes keep what they had.
+Now: <b>{{ ("Style " ~ chosen) if chosen else "off" }}</b>.</p>
+<div class="grid">
+{% for k, desc in styles.items() %}<div class="card"{% if k == chosen %} style="outline:2px solid var(--accent)"{% endif %}>
+<div class="k">Style {{ k }}</div><p class="small">{{ desc }}</p>
+<audio controls preload="none" src="/audio-brand/{{ k }}.wav" style="width:100%"></audio>
+<form method="post" action="/api/audio-brand/{{ k }}" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf }}"><button {{ 'disabled' if k == chosen }}>{{ 'In use' if k == chosen else 'Use style ' ~ k }}</button></form>
+</div>{% endfor %}
+</div>
+<form method="post" action="/api/audio-brand/off" style="margin-top:12px"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="mini" {{ 'disabled' if not chosen }}>Turn branding off</button></form>
+<p class="muted small">Loudness: the whole episode is normalised to podcast level (−16 LUFS) after the sounds are added. Code: <span class="mono">pipeline/sonic.py</span>.</p>
+{% endblock %}

@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.50-beta (2026-11-02 (weekday slot))
+- **Release:** v0.2.52-beta (2026-11-03)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 79 in `pipeline/`
+- **Modules:** 83 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -118,6 +118,10 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
   corrections), tomorrow's deep dive and health (critic score against the field, release, failing sources); the
   other pages sit in five menus (Today, Editions, Sources, Audience, System). The old status page is /status.
 - **Services** (`service.py`): launchd agents for the daily run, the evening preflight and the dashboard.
+- **Local ports** (`localport.py`): the shared localhost agreement: dashboard ports 8770-8779 (default 8775), one copy at a time via `~/.config/news-pipeline/server.json` and `/whoami`, the `~/.config/local-ports.tsv` registry, `./np dash --status`.
+- **Craft** (`craft.py`): pace, paragraphs, long sentences, repeated phrases and filler, measured for our editions and the benchmark newsletters; the daily craft checks and the Quality page table.
+- **Tighten** (`tighten.py`): splits long sentences and varies over-used phrases after writing; every rewrite is checked by code to keep numbers, citations, quotations and names.
+- **Sonic** (`sonic.py`): the audio branding (sound logo, stings, close), synthesised locally; the style is chosen on the dashboard.
 - **Secrets** (`vault.py`): macOS Keychain first, then `.env` (gitignored, mode 600).
 
 Smaller pieces:
@@ -339,6 +343,7 @@ _Generated from each module's own description at build time._
 | `clasp.py` | Deploy the mail script (scripts/apps-script/Code.gs) with Google's clasp CLI instead of copy and paste. |
 | `compare.py` | Staging against production for the same day |
 | `consistency.py` | Short texts readers see first must agree with the checked text and the sources (2026-10-23). |
+| `craft.py` | Craft metrics (Steven, 2026-11-03) |
 | `critic.py` | The weekly critic |
 | `deepdive.py` | Topical deep dive |
 | `devenv.py` | The development checkout |
@@ -361,6 +366,7 @@ _Generated from each module's own description at build time._
 | `links.py` | Make every citation point at the real article (runs in the write stage; never fails the briefing). |
 | `listen.py` | Listen to what was published (Steven, 2026-10-27) |
 | `llm.py` | LLM backends behind one tiny interface |
+| `localport.py` | Shared localhost agreement (Steven, 2026-11-02) |
 | `mailer.py` | Daily email to subscribers, sent through Steven's Google Apps Script (scripts/apps-script/Code.gs). |
 | `mailguard.py` | The only way the pipeline talks to Gmail |
 | `mailsource.py` | Newsletters as a source |
@@ -392,12 +398,14 @@ _Generated from each module's own description at build time._
 | `site.py` | Static, phone-friendly public site |
 | `slackpost.py` | The morning post in the team channel (Steven, 2026-10-28) |
 | `slacksource.py` | Links Steven shares in an internal Slack channel, as a source (read-only, Slack Web API, free). |
+| `sonic.py` | Audio branding (Steven, 2026-11-03) |
 | `sources.py` | Resolve and verify RSS/Atom feeds for every tracked person. |
 | `speech.py` | The speech layer |
 | `stages.py` | LLM stages |
 | `suggest.py` | Source suggestions |
 | `takes.py` | Steven's takes |
 | `textutil.py` | HTML → text, page metadata, URL ids, and date parsing. |
+| `tighten.py` | Tighten the written edition (Steven, 2026-11-03 |
 | `todos.py` | A shared to-do list for Steven and Claude |
 | `trends.py` | Running trend charts (Steven, 2026-10-31) |
 | `tuning.py` | Tuning profiles |

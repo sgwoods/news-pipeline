@@ -28,7 +28,8 @@ class Early(Base):
         self.assertEqual(st, "deferred (approved)")
         self.assertEqual(asked, [True])
         self.assertEqual(self.calls, [])                                    # nothing ran yet
-        st = self.make2(EARLY.replace(hour=8, minute=31), ask=lambda j, s: self.fail("asked twice")).run_job(p)
+        st = self.make2(EARLY.replace(hour=8, minute=31), ask=lambda j, s: self.fail("asked twice"),
+                        sent=True).run_job(p)                     # v0.2.53: a ship also waits for the edition
         self.assertEqual(st, "ok")
         self.assertIn(("local", ["release", "0.2.13-beta", "reviewed: x"]), self.calls)
         self.assertIn(("local", ["follow-through", "reviewed: x"]), self.calls)     # same Approve
@@ -50,7 +51,7 @@ class Early(Base):
         d = self.root / runner.APPROVED
         d.mkdir(parents=True)
         (d / "j-ship.json").write_text(json.dumps({"id": "j-ship", "day": "2026-10-27", "sig": "0" * 64}))
-        r = self.make2(EARLY.replace(hour=9), ask=lambda j, s: "timeout")
+        r = self.make2(EARLY.replace(hour=9), ask=lambda j, s: "timeout", sent=True)
         self.assertFalse(r.approved_early(runner.validate(job)))
         self.assertEqual(r.run_job(p), "waiting")                            # forged: it asks instead
         good = self.make2(EARLY.replace(hour=9))

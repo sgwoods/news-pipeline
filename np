@@ -85,7 +85,7 @@ case "$cmd" in
   listen)    day="${1:-$(ls briefings/*.mp3 2>/dev/null | sort | tail -1 | xargs -n1 basename 2>/dev/null | sed 's/\.mp3$//')}"
              f="briefings/$day.mp3"; [ -f "$f" ] || { echo "No audio yet${day:+ for $day} (Phase 2)."; exit 1; }
              open "$f" 2>/dev/null || afplay "$f" ;;
-  open)      open "http://127.0.0.1:8765/briefings/latest" ;;
+  open)      open "$($PY -c 'from pipeline.localport import url; print(url("/briefings/latest"))')" ;;
   audio)     run $PY run.py --audio "${1:-}" ;;                 # (re)build the MP3 for DAY (default latest)
   script-preview) run $PY run.py --script-preview "$@" ;;      # DAY [tts]: audio script (+MP3) into briefings/experiments/DAY/
   release-check) run $PY run.py --release-check "$@" ;;         # [live] | approve "note" | install-hooks: the release gate
@@ -139,7 +139,7 @@ case "$cmd" in
   publish)   run $PY run.py --publish "${1:-run}" ;;           # ./np publish setup (once), then ./np publish; ./np publish restore
   go-live)   bash scripts/go-live.sh ;;                       # one-time: backup + site + podcast + auto publish
   report)    $PY run.py --report ;;
-  dash)      $PY run.py --dashboard ;;
+  dash)      $PY run.py --dashboard "$@" ;;                # --status: every local project on this Mac
   *) cat <<'HELP'
 ./np setup              create/refresh .venv and install requirements
 ./np doctor             check Python, packages, Ollama + model, sources, git
@@ -205,7 +205,8 @@ case "$cmd" in
 ./np publish            build + push the site to GitHub Pages
 ./np go-live            one-time: GitHub login, private backup, public site + podcast feed, auto publish (re-runnable)
 ./np report             print the last report again
-./np dash               start the dashboard at http://127.0.0.1:8765
+./np dash               start the dashboard at http://127.0.0.1:8775 (ports 8770-8779)
+./np dash --status      which local projects (bookshelf, aurora, ...) are running, on which port
 HELP
   ;;
 esac

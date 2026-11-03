@@ -45,7 +45,8 @@ def needs(root: Path, cfg: dict, today: str, now: dt.datetime | None = None) -> 
             files = release.changed_sensitive(root)[:4]
             out.append({"level": "act", "href": "/control",
                         "text": "Protected files changed outside a release (" + (", ".join(files) or "see Control")
-                                + "): approve, or the next edition is held"})
+                                + "): approve, or the next edition is held",
+                        "button": {"recipe": "approve", "label": "Approve", "note": True}})
     _safe(gate, None)
 
     def queue():
@@ -64,7 +65,12 @@ def needs(root: Path, cfg: dict, today: str, now: dt.datetime | None = None) -> 
         from pipeline import mailer
         built = (root / "briefings" / f"{today}.md").exists()
         if built and today not in mailer.sent_days(root) and now.hour >= 7:
-            out.insert(0, {"level": "act", "href": f"/briefings/{today}", "text": "Today's edition is built but not emailed"})
+            from pipeline import takes as _t
+            waiting = _t.waiting(root, today)
+            out.insert(0, {"level": "act", "href": f"/briefings/{today}",
+                           "text": "Today's edition is waiting for your takes" if waiting else "Today's edition is built but not emailed",
+                           "button": {"recipe": "takes-done", "label": "Release it now"} if waiting
+                           else {"recipe": "send-held", "label": "Send it now"}})
     _safe(sent, None)
 
     def takes():

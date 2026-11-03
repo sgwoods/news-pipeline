@@ -96,15 +96,27 @@ def _record(root: Path, row: dict):
         f.write(json.dumps(row) + "\n")
 
 
+def _rollback(root: Path, pre: str):
+    """Undo the release merge but keep local, uncommitted edits (2026-11-02: `reset --hard` here wiped uncommitted
+    edits to newsletters.yaml/config.yaml in production, which then held the next morning's edition at the gate).
+    `reset --keep` moves HEAD back and only rewrites files the merge changed; if one of those also had local edits it
+    refuses rather than overwrite them, and production is left on the merge for a person to look at."""
+    r = _git(root, "reset", "-q", "--keep", pre, check=False)
+    if r.returncode:
+        raise ReleaseError(f"could not roll back to {pre[:12]} without discarding local edits; production is on the "
+                           f"release merge, nothing was published. Look at `git status` before anything else: "
+                           f"{(r.stderr or r.stdout).strip()[:300]}")
+
+
 def _approve(root: Path, cfg: dict, note: str, pre: str, interactive=None, log=print):
     from .release import ReleaseBlocked, approve
     try:
         rec = approve(root, cfg, note, log=log, interactive=interactive)
     except ReleaseBlocked as e:
-        _git(root, "reset", "-q", "--hard", pre)
+        _rollback(root, pre)
         raise ReleaseError(f"not released, production is back at {pre[:12]}: {e}") from e
     if not rec["passed"]:
-        _git(root, "reset", "-q", "--hard", pre)
+        _rollback(root, pre)
         raise ReleaseError(f"the release gate failed; production is back at {pre[:12]}")
     from .archive import Archive
     Archive(root, cfg.get("paths") or {}).git_commit("security: release approval", paths=("docs/security/approvals.json",))

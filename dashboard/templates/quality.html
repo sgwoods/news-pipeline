@@ -7,6 +7,15 @@
 <div class="panel">{{ field_svg|safe }}</div>
 <h3>Our editions, day by day</h3>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px">{% for s in daily_svgs %}<div class="panel">{{ s|safe }}</div>{% endfor %}</div>
+<h2>Craft against the newsletters we receive</h2>
+<p class="small muted">Measured the same way for every newsletter in our email archive and for our written edition (medians over the last two weeks; <span class="mono">pipeline/craft.py</span>). Lower is better for every column except words per paragraph, where 15–40 reads best. Pace, focus and clarity for podcasts are judged weekly by the critic (pick them in the Trends list above).</p>
+{% if craft_field %}<div style="overflow-x:auto"><table class="small"><tr><th>Newsletter</th><th>Issues</th>{% for k, lab in craft_keys %}<th>{{ lab }}</th>{% endfor %}</tr>
+{% for name, v in craft_field|dictsort %}{% if name == craft_ours %}<tr style="font-weight:600"><td>{{ name }}</td><td>{{ v.issues }}</td>{% for k, lab in craft_keys %}<td>{{ v[k] if v[k] is not none else '—' }}</td>{% endfor %}</tr>{% endif %}{% endfor %}
+{% for name, v in craft_field|dictsort %}{% if name != craft_ours %}<tr><td>{{ name }}</td><td>{{ v.issues }}</td>{% for k, lab in craft_keys %}<td>{{ v[k] if v[k] is not none else '—' }}</td>{% endfor %}</tr>{% endif %}{% endfor %}
+</table></div>{% else %}<p class="muted small">No newsletter issues in the archive for the last two weeks.</p>{% endif %}
+{% set today = rows[0] if rows else none %}{% if today and today.craft and today.craft.checks %}
+<p class="small"><b>{{ today.day }} craft checks:</b> {% for c in today.craft.checks %}<span class="{{ 's-ok' if c.ok else 's-error' }}">{{ c.label }}: {{ c.value }}</span>{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
+
 <h2>Daily scorecard</h2>
 <div style="overflow-x:auto"><table class="small">
 <tr><th>Day</th><th>Checks</th><th>You</th><th>Readers</th><th>Site</th>{% for k, lab, tgt in keys %}<th title="target {{ tgt }}">{{ lab }}<br><span class="muted">{{ tgt }}</span></th>{% endfor %}</tr>

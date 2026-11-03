@@ -50,13 +50,13 @@ form.add input[type=text]{padding:5px 8px;border:1px solid var(--line);border-ra
 
 <h2>Email newsletters <span class="muted small">Gmail label {{ news.config.label }} · {{ 'on' if news.config.enabled else 'off' }}{% if not news.password_set %} · app password not set{% endif %}</span></h2>
 <table><tr><th>Newsletter</th><th>Tier</th><th>Senders</th><th>Archived</th><th>Latest</th><th>Watch for</th></tr>
-{% for n in news.newsletters %}<tr><td><a href="{{ n.web|safe_href }}" target="_blank" rel="noopener">{{ n.name }}</a>{% if n.scrutiny %} <span class="pill scr">SCRUTINY</span>{% endif %}</td>
+{% for n in news.newsletters %}<tr><td><a href="{{ n.web|safe_href }}" target="_blank" rel="noopener">{{ n.name }}</a>{% if n.scrutiny %} <span class="pill scr">SCRUTINY</span>{% endif %}{% if 'AUTO-ADDED' in n.flags %} <span class="pill flag" title="Added automatically {{ n.added }} when its first issue arrived; not reviewed yet. Move it to newsletters.yaml with a bias note to review it.">auto-added</span>{% endif %}</td>
 <td class="small">{{ n.tier }}</td><td class="small mono">{{ n['from']|join(', ') }}</td>
 <td>{% if n.count %}<a href="/items?person={{ n.name|urlencode }}&kind=email">{{ n.count }}</a>{% else %}<span class="s-error">0</span>{% endif %}</td>
 <td class="small">{{ n.latest or 'never' }}</td><td class="small muted">{{ n.bias|short(140) }}</td></tr>{% endfor %}</table>
 {% if news.confirms %}<p class="small s-error">Subscription confirmations waiting under the label (the filter skips the inbox, so click them in Gmail): {% for a, u in news.confirms.items() %}<span class="mono">{{ a }}</span> ({{ u.date }}){{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
 {% if news.unlisted %}<p class="small s-partial">Senders under the label that are not in <span class="mono">newsletters.yaml</span>: {% for a, u in news.unlisted.items() %}<span class="mono">{{ a }}</span> ({{ u.name }}, {{ u.date }}){{ ', ' if not loop.last }}{% endfor %}. Add them to the file or unsubscribe.</p>{% endif %}
-<p class="muted small">Edit <span class="mono">newsletters.yaml</span> to add a newsletter and its bias note; setup in <span class="mono">docs/NEWSLETTERS.md</span>. Wire and coverage-check items never lead a story.</p>
+<p class="muted small">New senders under the label are added as they arrive (<span class="mono">data/state/newsletters-auto.yaml</span>, marked auto-added, every claim checked) until you review them. Edit <span class="mono">newsletters.yaml</span> to add a newsletter and its bias note; setup in <span class="mono">docs/NEWSLETTERS.md</span>. Wire and coverage-check items never lead a story.</p>
 
 <h2>Bluesky lists <span class="muted small">{{ bluesky.lists|length }} list(s){% if bluesky.own %} · own posts @{{ bluesky.own }}{% endif %}</span></h2>
 <ul class="small">{% for u in bluesky.lists %}<li><a href="{{ u|safe_href }}" target="_blank" rel="noopener">{{ u }}</a>

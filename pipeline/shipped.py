@@ -180,19 +180,43 @@ def live_urls(root: Path, base: str, n: int = 7) -> list:
     return urls
 
 
-def verify_live(root: Path, base: str, client=None, log=print) -> list:
-    """-> URLs that don't answer 200 (empty = the readers' experience is intact)."""
+def verify_live(root: Path, base: str, client=None, log=print, retries: int = 3, wait: float = 20.0, sleep=None) -> list:
+    """-> URLs that don't answer 200 (empty = the readers' experience is intact). A 5xx or a network error is
+    retried (2026-11-03: one 503 from GitHub Pages on an old page rolled back the whole site and held the email for
+    35 minutes); a 404 or other 4xx is a real failure and is not retried."""
     if not base:
         return []
     if client is None:
         from .netguard import client as guarded
         client = guarded(follow_redirects=True, timeout=20, headers={"Cache-Control": "no-cache"})
-    bad = []
-    for u in live_urls(root, base):
+    import time
+    sleep = sleep or time.sleep
+
+    def probe(u):
         try:
             r = client.head(u) if u.endswith(".mp3") else client.get(u)
-            if r.status_code != 200:
-                bad.append(f"{u} -> {r.status_code}")
+            return r.status_code, f"{u} -> {r.status_code}"
         except Exception as e:  # noqa: BLE001
-            bad.append(f"{u} -> {type(e).__name__}")
+            return None, f"{u} -> {type(e).__name__}"
+
+    bad, todo = [], []
+    for u in live_urls(root, base):
+        code, why = probe(u)
+        if code == 200:
+            continue
+        (todo if code is None or code >= 500 else bad).append(u if code is None or code >= 500 else why)
+    for attempt in range(1, retries + 1):
+        if not todo:
+            break
+        sleep(wait * attempt)
+        again = []
+        for u in todo:
+            code, why = probe(u)
+            if code == 200:
+                log(f"live check: {u} answered on retry {attempt}")
+            elif code is None or code >= 500:
+                again.append(u) if attempt < retries else bad.append(why)
+            else:
+                bad.append(why)
+        todo = again
     return bad

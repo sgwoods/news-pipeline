@@ -3,7 +3,7 @@ causing things to not run daily notify me on email if I need to take action and 
 need to be").
 
 One email per issue per day, to the owner address only (email.test_to); the callers also show a Mac notification. Each email
-says what happened, what is affected, and the exact commands to run.
+says what happened, what is affected, and what to do: in the chat or on the dashboard first, Terminal last.
 
 Release gate: an alert is the one email that does NOT wait for the gate, because the gate being blocked is the most
 common reason for one. That is safe because it can only go to the owner (Code.gs also limits recipients), its text is
@@ -19,25 +19,35 @@ from pathlib import Path
 STATE = "data/state/alerts.json"
 REPO = "~/Developer/news-pipeline"
 
+DASH = "http://127.0.0.1:8775/"
+# What to do, chat and dashboard first (Steven, 2026-11-03: revisions are driven from the chat, the dashboard and
+# notifications, not from commands pasted into Terminal). The Terminal line is a last resort, shown last.
 KINDS = {
     "approval": ("Approval needed before the briefing can go out",
                  "Security-sensitive files changed since your last release approval, so the release gate is holding "
                  "back the site, the podcast and the emails.",
-                 ['cd {repo}', './np release-check approve "reviewed: <what changed>"', '{then}']),
+                 ['Approve in the prompt on your Mac or phone if one is showing, or press Approve under "Needs you" '
+                  'on the dashboard ({dash})',
+                  'or tell Claude in the chat "approve the gate": it reviews the changed files and queues the approval',
+                  '{then}']),
     "approval-evening": ("Approval needed before tomorrow's briefing",
                          "Security-sensitive files changed since your last release approval, so the release gate is "
                          "holding back the site, the podcast and the emails.",
-                         ['cd {repo}', './np release-check approve "reviewed: <what changed>"', '{then}']),
+                         ['Approve in the prompt on your Mac or phone, or press Approve under "Needs you" on the '
+                          'dashboard ({dash})', 'or tell Claude in the chat "approve the gate"', '{then}']),
     "gate": ("The release gate failed a check",
              "A release-gate check other than the approval failed (tests, secrets scan, invariants or the output "
              "privacy scan), so nothing is published or emailed.",
-             ['cd {repo}', './np release-check', 'then tell Claude "ran ./np release-check" so it can fix the failure']),
+             ['Tell Claude in the chat "the release gate failed": it reads the gate report and fixes the cause',
+              'it then queues the held send; you confirm in the chat']),
     "run": ("This morning's run did not produce a briefing",
             "The daily run finished without a briefing.",
-            ['cd {repo}', './np daily', 'if it fails again, tell Claude "ran ./np daily"']),
+            ['Tell Claude in the chat "this morning\'s run failed": it reads the run log and queues a retry',
+             'or press Run on the dashboard\'s Control page ({dash}control)']),
     "publish": ("The site and podcast were not published",
                 "The briefing was built but the publish step failed.",
-                ['cd {repo}', './np publish', 'if it fails again, tell Claude "ran ./np publish"']),
+                ['Press "Send it now" under "Needs you" on the dashboard ({dash}): it retries the publish and then the email',
+                 'or tell Claude in the chat "send today\'s held edition"']),
     "audio": ("Part of today's podcast is missing or garbled",
               "The as-published check transcribed today's episode from the public feed and compared it with its "
               "script: a section was not heard (details below).",
@@ -52,8 +62,12 @@ KINDS = {
                   'page and on the Accuracy page)', 'if it is fine, nothing to do']),
     "email": ("The subscriber email did not go out",
               "The briefing was built but sending the email failed.",
-              ['cd {repo}', './np email send', 'if it fails again, tell Claude "ran ./np email send"']),
+              ['Press "Send it now" under "Needs you" on the dashboard ({dash})',
+               'or tell Claude in the chat "send today\'s held edition"']),
 }
+FALLBACK = {"approval": './np release-check approve "reviewed: <what changed>"',
+            "approval-evening": './np release-check approve "reviewed: <what changed>"',
+            "gate": "./np release-check", "run": "./np daily", "publish": "./np publish", "email": "./np email send"}
 
 
 def _load(root: Path) -> dict:
@@ -80,7 +94,7 @@ def build(kind: str, day: str, detail: str = "", files=(), next_try: str = "", w
     title, what, steps = KINDS[kind]
     then = ("that's all: the approval sends what was held back (site, podcast, email, your note)" if when == "morning"
             else "nothing else: tomorrow's 05:00 run will go out as normal")
-    steps = [s.format(repo=REPO, then=then) for s in steps]
+    steps = [s.format(repo=REPO, then=then, dash=DASH) for s in steps]
     if when == "evening":
         what = what.replace("is holding back", "will hold back tomorrow morning's")
     lines = [f"{title} ({day})", "", "What happened", what]
@@ -89,7 +103,9 @@ def build(kind: str, day: str, detail: str = "", files=(), next_try: str = "", w
     if files:
         lines += ["", "Changed files to review", *[f"- {f}" for f in list(files)[:20]],
                   f"(diff: cd {REPO} && git diff <last approved commit> -- <file>)"]
-    lines += ["", "What to do (in Terminal)", *[f"{i}. {s}" for i, s in enumerate(steps, 1)]]
+    lines += ["", "What to do", *[f"{i}. {s}" for i, s in enumerate(steps, 1)]]
+    if kind in FALLBACK:
+        lines += [f"(Only if the chat and dashboard are unavailable, in Terminal: cd {REPO} && {FALLBACK[kind]})"]
     if next_try:
         lines += ["", f"An automatic retry runs at {next_try}; it sends as soon as the problem is fixed."]
     lines += ["", "Sent by the news pipeline on your Mac. One email per issue per day."]

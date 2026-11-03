@@ -1,7 +1,8 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}News pipeline{% endblock %} · dashboard</title>
+<title>{{ project.label }} · {{ project.port }} · {% block title %}dashboard{% endblock %}</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='88'%3E{{ project.icon|urlencode }}%3C/text%3E%3C/svg%3E">
 <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
 <style>
 :root{--bg:{{ brand.colors.pale }};--panel:{{ brand.colors.panel }};--ink:{{ brand.colors.ink }};--muted:{{ brand.colors.muted }};
@@ -26,6 +27,7 @@ header nav{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
 .grp:hover .menu,.grp:focus-within .menu{display:block}
 .grp .menu a{display:block;margin:0;padding:6px 14px;color:var(--ink);border:0}.grp .menu a.on{color:var(--accent);font-weight:600}
 .grp .menu a:hover{background:var(--chip);text-decoration:none}
+header .proj{background:rgba(255,255,255,.14);border-radius:10px;padding:2px 8px;white-space:nowrap}
 header .r{margin-left:auto;color:var(--on-teal);font-size:12px}
 main{max-width:1200px;margin:0 auto;padding:20px 24px 60px}
 h1{font-size:20px;margin:0 0 14px}h2{font-size:15px;margin:22px 0 8px}
@@ -77,12 +79,12 @@ section.story{scroll-margin-top:60px}section.speaking{outline:2px solid var(--ac
  ("Sources", [("/sources", "Sources"), ("/items", "Items"), ("/watchlist", "Watchlist")]),
  ("Audience", [("/subscribers", "Subscribers"), ("/feedback", "Feedback"), ("/quality", "Quality and trends")]),
  ("System", [("/status", "Run status"), ("/runs", "Runs"), ("/schedule", "Schedule"), ("/control", "Control"), ("/todo", "To do"),
-             ("/lens", "Lens"), ("/tuning", "Tuning"), ("/voices", "Voices"), ("/brand", "Brand")]),
+             ("/lens", "Lens"), ("/tuning", "Tuning"), ("/voices", "Voices"), ("/audio-brand", "Audio branding"), ("/brand", "Brand")]),
 ] %}
 <a href="/" class="{{ 'on' if p == '/' }}">Today</a>
 {% for g, links in nav_groups %}{% set ns = namespace(on=false) %}{% for h, _l in links %}{% if p.startswith(h) %}{% set ns.on = true %}{% endif %}{% endfor %}
 <span class="grp" tabindex="0"><span class="gl {{ 'on' if ns.on }}">{{ g }}{% if g == 'Audience' and fb_counts and fb_counts.new %} <span class="pill flag">{{ fb_counts.new }}</span>{% endif %} ▾</span>
 <span class="menu">{% for href, label in links %}{{ item(href, label, p.startswith(href)) }}{% endfor %}</span></span>{% endfor %}
 </nav>
-<span class="r">v{{ version }} · local · {{ now }}</span></header>
+<span class="r"><span class="proj" title="Shared localhost agreement: this project owns ports 8770-8779">{{ project.icon }} {{ project.label }} · :{{ project.port }} · {{ project.commit }}</span> · v{{ version }} · {{ now }}</span></header>
 <main>{% block body %}{% endblock %}</main></body></html>

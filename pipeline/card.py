@@ -112,6 +112,27 @@ def _fit(draw, text: str, font, width: int, max_lines: int) -> list:
     return lines[:max_lines]
 
 
+def headphones(d, x: int, y: int, size: int, color) -> None:
+    """A drawn headphones glyph (no emoji font needed): band, two ear cups. (x, y) is the top-left corner."""
+    w = max(2, size // 9)
+    d.arc([x, y, x + size, y + size], 180, 360, fill=color, width=w)
+    cw, ch = size // 4, int(size * 0.42)
+    cy = y + size // 2 - w
+    d.rounded_rectangle([x - w // 2, cy, x - w // 2 + cw, cy + ch], radius=cw // 3, fill=color)
+    d.rounded_rectangle([x + size - cw + w // 2, cy, x + size + w // 2, cy + ch], radius=cw // 3, fill=color)
+
+
+def listen_pill(d, root: Path, x: int, y: int, label: str, fill, ink) -> int:
+    """'(headphones) Listen' pill; returns its width. Every card that has audio carries one (Steven, 2026-11-03)."""
+    f = _font(root, "SemiBold", 24)
+    tw = int(d.textlength(label, font=f))
+    wdt = 24 + 30 + 12 + tw + 24
+    d.rounded_rectangle([x, y, x + wdt, y + 48], radius=24, fill=fill)
+    headphones(d, x + 24, y + 10, 30, ink)
+    d.text((x + 24 + 30 + 12, y + 9), label, font=f, fill=ink)
+    return wdt
+
+
 def render(root: Path, day: str, md: str, notes: dict, dd_title: str = "", dd_line: str = "", dd_take: str = "",
            out: Path | None = None) -> Path:
     from PIL import Image, ImageDraw
@@ -128,6 +149,8 @@ def render(root: Path, day: str, md: str, notes: dict, dd_title: str = "", dd_li
         _brand.paste_author(img, root, 120, (W - 64 - 120, 25), ring=4)
     except OSError:
         pass
+    pw = listen_pill(d, root, 0, -100, "Listen", TEAL, TEAL)        # measure, off-canvas
+    listen_pill(d, root, W - 64 - 120 - 28 - pw, 61, "Listen", "white", TEAL)
     # leads
     y = 222
     d.text((64, y), "TODAY", font=_font(root, "SemiBold", 20), fill=TEAL)
@@ -164,6 +187,8 @@ def render(root: Path, day: str, md: str, notes: dict, dd_title: str = "", dd_li
     if dd_title:
         d.rectangle([0, H - 170, W, H], fill=DEEP)
         d.text((64, H - 138), f"DEEP DIVE  ·  {TAG_DD}", font=_font(root, "SemiBold", 20), fill=ON_DEEP)
+        pw = listen_pill(d, root, 0, -100, "Listen", DEEP, DEEP)
+        listen_pill(d, root, W - 64 - pw, H - 150, "Listen", TEAL, "white")
         f_t = _font(root, "Bold", 42)
         tl = _wrap(d, dd_title, f_t, W - 128)[:1]
         d.text((64, H - 102), tl[0] if tl else dd_title, font=f_t, fill="white")
@@ -190,6 +215,8 @@ def render_dd(root: Path, day: str, title: str, summary: str, take: str, minutes
     except OSError:
         pass
     d.text((64, 150), "Deep Dive", font=_font(root, "Bold", 72), fill="white")
+    pw = listen_pill(d, root, 0, -100, "Listen" + (f" · {minutes} min" if minutes else ""), DEEP, DEEP)
+    listen_pill(d, root, W - 64 - pw, 172, "Listen" + (f" · {minutes} min" if minutes else ""), TEAL, "white")
     date = dt.date.fromisoformat(day).strftime("%A, %B %-d, %Y")
     d.text((66, 240), f"{date}  ·  {TAG_DD}" + (f"  ·  {minutes} min" if minutes else ""),
            font=_font(root, "Regular", 26), fill=WAVE)

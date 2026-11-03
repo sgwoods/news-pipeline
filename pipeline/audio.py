@@ -565,8 +565,9 @@ def _silence(path: Path, seconds: float, rate: int = 24000):
     _write_wav(path, [0.0] * int(rate * seconds), rate)
 
 
-def render_mp3(engine, parts: list, out_mp3: Path, title: str = "", bitrate: str = "64k") -> float:
-    """TTS each section, join with short pauses, encode MP3. Returns duration in minutes."""
+def render_mp3(engine, parts: list, out_mp3: Path, title: str = "", bitrate: str = "64k", brand: dict | None = None) -> float:
+    """TTS each section, join with short pauses, encode MP3. Returns duration in minutes. brand (pipeline/sonic.py
+    sounds) adds the sound logo before the first section, a sting before each story and the close at the end."""
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg not found. Run: brew install ffmpeg")
     with tempfile.TemporaryDirectory() as td:
@@ -574,10 +575,21 @@ def render_mp3(engine, parts: list, out_mp3: Path, title: str = "", bitrate: str
         files = []
         pause = td / "pause.wav"
         _silence(pause, 0.9)
+        marks = []
+        if brand:
+            from .sonic import placement
+            marks = placement(parts)
+            short = td / "short.wav"
+            _silence(short, 0.35)
         for i, (_, text) in enumerate(parts):
             w = td / f"{i:02d}.wav"
             engine.synth(text, w)
+            m = marks[i] if marks else None
+            if m and brand.get(m):
+                files += [Path(brand[m]), short]
             files += [w, pause]
+        if brand and brand.get("close"):
+            files += [Path(brand["close"])]
         lst = td / "list.txt"
         lst.write_text("".join(f"file '{f}'\n" for f in files))
         out_mp3.parent.mkdir(parents=True, exist_ok=True)

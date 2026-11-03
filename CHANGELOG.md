@@ -5,6 +5,53 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.52-beta · 2026-11-03
+- Craft metrics (Steven, 2026-11-03; `pipeline/craft.py`): pace (spoken words a minute, target 145-165), paragraph
+  length, long sentences (over 35 words), repeated 4-word phrases and stock filler, measured the same way for our
+  editions and for every benchmark newsletter we receive. Daily craft checks sit beside the scorecard (not in its
+  pass count), trend lines on the Quality page, and a "Craft against the newsletters we receive" table. The weekly
+  critic also judges delivery, paragraphs, focus, clarity (why it matters first) and repetition for every show,
+  reported beside the weighted score; the critic email gains a craft section.
+- Audio symbol everywhere there is audio: the Slack post links "Listen to the briefing" and "Listen to the deep dive"
+  with :headphones: (the briefing's listen link used to disappear when there was a deep dive); email buttons read
+  "🎧 Listen to the briefing / deep dive"; the share cards carry a drawn headphones "Listen" pill.
+- Driven from the chat and the dashboard, not Terminal (Steven, 2026-11-03): the "Needs you" items on the home page
+  have buttons (Send it now, Release it now, Approve with a "reviewed:" note) that queue the matching run-queue job;
+  action-needed emails now say what to press or what to tell Claude, with a Terminal command only as a last-resort
+  line. Test: tests/test_dashboard_jobs.py.
+- Audio branding (`pipeline/sonic.py`): an original sound logo at the open, a sting before each story and the deep
+  dive's hand-off, and a close, synthesised locally (no samples, no licences). Three styles to hear and pick on the
+  dashboard's Audio branding page; off until one is chosen. Loudness is normalised after the sounds are added.
+- Tighter writing (`pipeline/tighten.py`): after the edition is written, sentences over 35 words are split and
+  over-used phrases varied by the model; each rewrite must keep the same numbers, citations, quotations and names
+  and a similar length, or the original stays. `analysis.tighten: false` turns it off.
+- Publishing no longer stalls on a GitHub Pages blip: the after-publish check retries 5xx and network errors (20 s,
+  40 s, 60 s) before rolling back; a 404 still fails at once (11-03: one 503 held the email 35 minutes).
+- A ship waits for today's edition to go out (until 11:00 at the latest), so a release never runs while the
+  morning send is held (11-03). tests/test_runner_early.py: two scenarios now say the edition is out.
+- Localhost agreement follow-ups: the tab title reads "News · 8775"; the last hard-coded 8765 in tests is gone; the
+  two dashboard tests in test_localport skip in the public export (it has no config.yaml), which had blocked the
+  0.2.51 public code push.
+
+## v0.2.51-beta · 2026-11-02
+- Shared localhost agreement (Steven, 2026-11-02; README "Local ports"): the dashboard moves to **8775** and stays
+  in 8770–8779 (virtual-bookshelf owns 8760–8769, aurora 8780–8789, Star Swarm 8790–8799), 127.0.0.1 only. One copy
+  at a time via `~/.config/news-pipeline/server.json`: an older copy whose `/whoami` names this project is asked to
+  stop, then killed; anything else is never touched. New `GET /whoami`; tab title, 📰 favicon and header label show
+  project, port and commit; registry line in `~/.config/local-ports.tsv` with an overlap warning; `./np dash --status`
+  lists every registered project. launchd restarts the dashboard after a crash but not after a clean stop.
+  Links in notes and `./np open` follow the running port. Tests: tests/test_localport.py.
+- A failed release now rolls back with `git reset --keep`, not `--hard`: on 11-02 the rollback wiped uncommitted
+  edits to newsletters.yaml/config.yaml in production, the protected-files fingerprint no longer matched the last
+  approval, and the 11-03 edition was held at the gate. Test: tests/test_release_rollback.py.
+- New email sources are added as they arrive (Steven, 2026-11-03): a new sender under the sources label becomes a
+  source in `data/state/newsletters-auto.yaml` (code-written; newsletters.yaml stays hand-edited and protected),
+  tier follow, every claim through the critical pass, marked "auto-added" on the Sources page until reviewed.
+  Senders already waiting as unlisted are adopted. Never added: Steven's own addresses, people on mail providers
+  (gmail.com, outlook.com, ...), and notices (no-reply, notifications, Slack, Google). Test: tests/test_email_autoadd.py.
+- newsletters.yaml: restores "The AI Daily Brief (newsletter)" (aidailybrief@mail.beehiiv.com), the entry that
+  rollback wiped; rebuilt from the name, tier and note recorded on its archived items (10-26 to 10-30).
+
 ## v0.2.50-beta · 2026-11-02 (weekday slot)
 - Money section: up to five funding, deal and valuation stories (a deal word plus a stated amount) get their own
   "Money" block in the briefing, email and site, between Recommended reading and In brief.

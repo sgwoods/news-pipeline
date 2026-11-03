@@ -74,7 +74,7 @@ def build_plist(kind: str, root: Path, cfg: dict) -> dict:
                      "StandardErrorPath": str(root / "logs" / "runner.log"), "RunAtLoad": True})
     else:
         base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "dash"],
-                     "RunAtLoad": True, "KeepAlive": True, "ThrottleInterval": 15,
+                     "RunAtLoad": True, "KeepAlive": {"SuccessfulExit": False}, "ThrottleInterval": 15,   # a clean stop (replaced by a newer copy) stays stopped; a crash restarts
                      "StandardOutPath": str(root / "logs" / "dashboard.out.log"),
                      "StandardErrorPath": str(root / "logs" / "dashboard.err.log")})
     return base

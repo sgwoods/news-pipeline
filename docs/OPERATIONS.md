@@ -5,7 +5,7 @@
 |---|---|---|
 | Daily run (fetch → briefing → fact check → deep dive → audio → publish → email) | launchd agent `com.sgwoods.news-pipeline`, at `schedule.times` (05:00, retries 06:30, 07:30) | `./np service … daily` |
 | Evening preflight (is the release approval current? notifies if not) | launchd agent `com.sgwoods.news-pipeline.preflight`, at `schedule.preflight` (20:30) | `./np service … preflight` |
-| Dashboard (http://127.0.0.1:8765) | launchd agent `com.sgwoods.news-pipeline.dashboard`, always on, restarts on crash | `./np service … dashboard` |
+| Dashboard (http://127.0.0.1:8775, ports 8770–8779; README "Local ports") | launchd agent `com.sgwoods.news-pipeline.dashboard`, always on, restarts on crash | `./np service … dashboard` |
 | Advance deep dive (tomorrow's draft into Drive) | launchd agent `com.sgwoods.news-pipeline.advance`, at `schedule.advance` (15:30) | `./np service … advance` |
 | Run queue (jobs Claude queues; approvals) + Drive takes sync every 20 min | launchd agent `com.sgwoods.news-pipeline.runner`, every minute | `./np runner status` |
 | Phone notifications and one-tap approvals | ntfy.sh, private topics in the Keychain (`NP_NTFY_TOPIC`, `NP_NTFY_REPLY`) | `./np ntfy test`; `ntfy-setup` job |
@@ -17,7 +17,7 @@
 | Subscriber email + your evening note | Apps Script "AI Briefing mailer" in briefing@example.com (docs/security/MIGRATION-stevenwoods-ai.md) | `./np email …`, `./np note …` |
 | Private backup of this repo (code + full archive) | GitHub, repo `archive.remote_repo` (private) | `./np backup` |
 
-Everything is also on the dashboard's **Control** page (http://127.0.0.1:8765/control).
+Everything is also on the dashboard's **Control** page (http://127.0.0.1:8775/control).
 
 ## Commands
 ```

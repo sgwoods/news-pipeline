@@ -1,6 +1,6 @@
 """Builder dashboard: a local, read-mostly view of the pipeline and its archive.
 
-Run:  python run.py --dashboard      (http://127.0.0.1:8765)
+Run:  python run.py --dashboard      (http://127.0.0.1:8775; ports 8770-8779, pipeline/localport.py)
 
 - Binds to 127.0.0.1 only.
 - Never modifies data/, briefings/ or perspective.md. The only writes happen through the
@@ -180,8 +180,28 @@ def create_app(root: Path = ROOT) -> Flask:
             brand = _b.load(root)
         except Exception:  # noqa: BLE001
             brand = {"name": "AI Briefing", "colors": {}, "dark": {}, "taglines": {}}
+        from pipeline import localport as lp
         return {"csrf": app.config["CSRF"], "now": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "action": action_status(), "fb_counts": fbc, "version": _version(), "brand": brand}
+                "action": action_status(), "fb_counts": fbc, "version": _version(), "brand": brand,
+                "project": {"label": lp.LABEL, "name": lp.PROJECT, "icon": lp.ICON, "commit": _commit(),
+                            "port": app.config.get("PORT") or request.host.rpartition(":")[2] or lp.DEFAULT}}
+
+    def _commit():
+        if "COMMIT" not in app.config:
+            try:
+                r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=root, capture_output=True,
+                                   text=True, timeout=5)
+                app.config["COMMIT"] = r.stdout.strip() or "unknown"
+            except Exception:  # noqa: BLE001
+                app.config["COMMIT"] = "unknown"
+        return app.config["COMMIT"]
+
+    @app.route("/whoami")
+    def whoami():
+        """Shared localhost agreement: which project answers on this port (pipeline/localport.py)."""
+        from pipeline import localport as lp
+        port = app.config.get("PORT") or int(request.host.rpartition(":")[2] or 0) or None
+        return jsonify({"project": lp.PROJECT, "port": port, "pid": os.getpid(), "version": _commit()})
 
     @app.template_filter("safe_href")
     def safe_href(u):
@@ -408,6 +428,60 @@ def create_app(root: Path = ROOT) -> Flask:
             r["takes"] = ("in" if st.get("done") or st.get("published") else "skipped" if st.get("skip")
                           else "held" if st.get("held") else "asked" if st.get("emailed_at") else "")
             r["fixes"] = [c for c in fixes if c.get("day") == r["day"]]
+
+    # One-click jobs for what the home page says needs Steven (2026-11-03: revisions are driven from the chat, the
+    # dashboard and notifications, not from commands pasted into Terminal). The click is his approval; jobs the
+    # run queue gates on the Mac (approve) still ask in its dialog or on his phone.
+    DASH_JOBS = {"send-held": "Send today's held edition", "takes-done": "Release the edition now (takes done)",
+                 "approve": "Approve the protected-file changes", "service-install": "Restart the dashboard service"}
+
+    @app.route("/api/queue/<recipe>", methods=["POST"])
+    def queue_job(recipe):
+        _check_post()
+        from pipeline import runner
+        if recipe not in DASH_JOBS:
+            abort(404)
+        args = {}
+        if recipe == "approve":
+            note = (request.form.get("note") or "").strip()[:200]
+            args = {"note": note if note.lower().startswith("reviewed") else "reviewed: " + (note or "changes listed on the dashboard")}
+        elif recipe == "service-install":
+            args = {"kind": "dashboard"}
+        stamp = f"Steven, {dt.date.today().isoformat()}, dashboard button: {DASH_JOBS[recipe]}"
+        try:
+            p = runner.enqueue(root, recipe, args, chat_approval=stamp if recipe != "approve" else "", queued_by="Steven (dashboard)")
+        except Exception as e:  # noqa: BLE001
+            return redirect(url_for("home", msg=f"Not queued: {e}"[:200]))
+        return redirect(url_for("home", msg=f"Queued: {DASH_JOBS[recipe]} ({p.stem}). It runs within a minute."))
+
+    # ---------- audio branding (2026-11-03): hear the three styles, pick one (data/state/audio-brand.json) ----------
+    @app.route("/audio-brand")
+    def audio_brand_page():
+        from pipeline import sonic
+        return render_template("audio_brand.html", styles=sonic.STYLES, chosen=sonic.chosen(root),
+                               msg=request.args.get("msg", ""))
+
+    @app.route("/audio-brand/<style>.wav")
+    def audio_brand_demo(style):
+        from flask import send_file
+        from pipeline import sonic
+        if style not in sonic.STYLES:
+            abort(404)
+        f = root / sonic.DIR / style / "demo.wav"
+        if not f.exists():
+            f.parent.mkdir(parents=True, exist_ok=True)
+            sonic.demo(root, style, f)
+        return send_file(f, mimetype="audio/wav")
+
+    @app.route("/api/audio-brand/<style>", methods=["POST"])
+    def audio_brand_choose(style):
+        _check_post()
+        from pipeline import sonic
+        if style not in sonic.STYLES and style != "off":
+            abort(404)
+        sonic.choose(root, style, "Steven (dashboard)")
+        return redirect(url_for("audio_brand_page", msg=("Branding off" if style == "off" else f"Style {style} chosen")
+                                + ": the next episode uses it (re-recorded days keep what they had)."))
 
     @app.route("/api/episodes/<day>/<op>", methods=["POST"])
     def episode_op(day, op):
@@ -683,16 +757,29 @@ def create_app(root: Path = ROOT) -> Flask:
     return app
 
 
-def main(port: int = 8765):
-    import socket
-    with socket.socket() as s:
-        if s.connect_ex(("127.0.0.1", port)) == 0:
-            print(f"Port {port} is already in use: the dashboard is probably already running "
-                  f"(as a service, or in another Terminal). Open http://127.0.0.1:{port}")
-            sys.exit(0)
+def main(port: int | None = None):
+    """Start the dashboard under the shared localhost agreement (pipeline/localport.py): our block 8770-8779,
+    127.0.0.1 only, one copy at a time (an older copy of this project is replaced), registry line kept."""
+    import atexit
+    import signal
+    from pipeline import localport as lp
+    if port is not None and not lp.in_block(port):
+        print(f"{lp.PROJECT}: port {port} is outside this project's block {lp.FIRST}-{lp.LAST}; using the block")
+        port = None
+    try:
+        lp.ensure_registry(str(ROOT))
+        freed = lp.replace_old()
+        chosen = lp.choose(freed or port)
+    except lp.PortsBusy as e:
+        print(e)
+        sys.exit(1)
     app = create_app()
-    print(f"Dashboard: http://127.0.0.1:{port}  (Ctrl-C to stop)")
-    app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
+    app.config["PORT"] = chosen
+    lp.write_state(chosen)
+    atexit.register(lp.clear_state, os.getpid())
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))      # a stop request is a clean exit: atexit runs
+    print(f"{lp.PROJECT} running at http://127.0.0.1:{chosen}/", flush=True)
+    app.run(host="127.0.0.1", port=chosen, debug=False, use_reloader=False)
 
 
 if __name__ == "__main__":

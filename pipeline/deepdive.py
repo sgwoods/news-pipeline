@@ -920,8 +920,9 @@ def _render(root: Path, cfg: dict, day: str, title: str, parts: list) -> float:
     table = speech.load_table(root)
     said = [(n, speech.spoken(t, table)) for n, t in parts]
     (d / f"{day}.spoken.txt").write_text("\n\n".join(f"[{n}]\n{t}" for n, t in said) + "\n", "utf-8")
+    from . import sonic
     minutes = round(audio.render_mp3(eng, said, d / f"{day}.mp3", f"Deep dive: {title}",
-                                     (cfg.get("audio") or {}).get("bitrate", "64k")), 1)
+                                     (cfg.get("audio") or {}).get("bitrate", "64k"), brand=sonic.for_audio(root)), 1)
     rebuilt(root, f"deepdive:{day}")
     return minutes
 

@@ -16,18 +16,21 @@ from . import critic
 
 DAILY = [("checks_pct", "Scorecard checks passed", "%"), ("words", "Written words", ""),
          ("must_grounded", "Must reads with a primary source or report", "%"), ("corrections", "Corrections after send", ""),
-         ("takes", "Steven's takes published", ""), ("rating_readers", "Reader rating (1-5)", "")]
+         ("takes", "Steven's takes published", ""), ("rating_readers", "Reader rating (1-5)", ""),
+         # craft (2026-11-03, pipeline/craft.py): the target band or limit is in each title
+         ("pace_podcast", "Podcast pace, words a minute (145-165)", ""), ("pace_deepdive", "Deep-dive pace, words a minute (145-165)", ""),
+         ("long_sents", "Written sentences over 35 words (≤10%)", "%"), ("repeats", "Repeated 4-word phrases, all three pieces (0)", "")]
 
 
 def field(root: Path, dim: str = "overall") -> dict:
     out = {}
     for w in critic.history(root):
         for s in w.get("shows", []):
-            v = s.get("overall") if dim == "overall" else (s.get("scores") or {}).get(dim)
+            v = s.get("overall") if dim == "overall" else ((s.get("scores") or {}).get(dim) or (s.get("craft") or {}).get(dim))
             if v is not None:
                 out.setdefault(s["name"], []).append((w["date"], float(v)))
         o = w.get("ours") or {}
-        v = o.get("overall") if dim == "overall" else (o.get("scores") or {}).get(dim)
+        v = o.get("overall") if dim == "overall" else ((o.get("scores") or {}).get(dim) or (o.get("craft") or {}).get(dim))
         if v is not None:
             out.setdefault(critic.OURS, []).append((w["date"], float(v)))
     return out
@@ -53,6 +56,20 @@ def _takes(root: Path, day: str) -> int:
         return 0
 
 
+def _craft(root: Path, cfg: dict, day: str, r: dict | None) -> dict:
+    m = ((r or {}).get("craft") or {}).get("metrics")
+    if m is None:
+        try:
+            from . import craft
+            m = craft.ours(root, cfg, day)
+        except Exception:  # noqa: BLE001
+            m = {}
+    b, s, dd = m.get("briefing") or {}, m.get("script") or {}, m.get("deepdive") or {}
+    reps = [x.get("repeats") for x in (b, s, dd) if x.get("repeats") is not None]
+    return {"pace_podcast": s.get("pace_wpm"), "pace_deepdive": dd.get("pace_wpm"),
+            "long_sents": b.get("long_sent_pct"), "repeats": sum(reps) if reps else None}
+
+
 def daily(root: Path, cfg: dict, n: int = 30) -> list:
     from . import quality
     have = {r["day"]: r for r in quality.load_all(root)}
@@ -73,7 +90,7 @@ def daily(root: Path, cfg: dict, n: int = 30) -> list:
                      "words": checks.get("words"),
                      "must_grounded": round(100 * mg) if isinstance(mg, (int, float)) else None,
                      "corrections": corr.get(d, 0), "takes": _takes(root, d),
-                     "rating_readers": (r or {}).get("rating_readers")})
+                     "rating_readers": (r or {}).get("rating_readers"), **_craft(root, cfg, d, r)})
     return rows
 
 

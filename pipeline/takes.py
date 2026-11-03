@@ -817,6 +817,8 @@ def revoice(root: Path, cfg: dict, day: str, st: dict, log=print) -> str:
     eng = audio.engine_from(cfg)
     title = audio.parse_briefing((bdir / f"{day}.md").read_text("utf-8"))["title"]
     mp3 = bdir / f"{day}.mp3"
-    minutes = audio.render_mp3(eng, parts, mp3, title, (cfg.get("audio") or {}).get("bitrate", "64k"))
+    from . import sonic
+    minutes = audio.render_mp3(eng, parts, mp3, title, (cfg.get("audio") or {}).get("bitrate", "64k"),
+                               brand=sonic.for_audio(root))
     delivered = audio.deliver(cfg, mp3, type("L", (), {"info": staticmethod(log), "warning": staticmethod(log)})())
     return f"audio re-rendered with {len(st['published'])} take(s): {minutes:.1f} min ({delivered})"
