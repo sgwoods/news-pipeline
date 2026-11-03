@@ -55,12 +55,24 @@ case "$cmd" in
   dive)      run $PY run.py --dive "${1:?usage: ./np dive DAY STORY}" "${2:?usage: ./np dive DAY STORY (number or key)}" ;;
   tests)     NP_ENV=production NP_TESTING=1 run $PY -m unittest discover -s tests ;;   # production behaviour, never the live machine
   scheduled) # launchd ticks every half hour; run only when this Mac's local clock says a scheduled time just passed
-             kind="${1:?usage: ./np scheduled daily|preflight|advance}"
+             kind="${1:?usage: ./np scheduled daily|preflight|advance|overnight|rehearsal}"
              $PY run.py --due "$kind" >/dev/null 2>&1 || exit 0
              cmd="$kind"; out="logs/cmd-${kind}-${ts}.txt"
              if [ "$kind" = daily ]; then
                CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"
                run $CAF $PY run.py --daily
+             elif [ "$kind" = overnight ]; then
+               slot=$($PY run.py --due overnight --print-slot 2>/dev/null)
+               CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"
+               # keep the Mac awake through the night's runs until the 05:00 edition is out (11-03)
+               if [ -n "$CAF" ] && ! pgrep -f "caffeinate -i -s -t" >/dev/null 2>&1; then
+                 left=$(( $(date -j -f "%H:%M" "05:45" +%s 2>/dev/null || echo 0) - $(date +%s) ))
+                 [ "$left" -lt 0 ] && left=$(( left + 86400 ))
+                 [ "$left" -gt 0 ] && [ "$left" -lt 30000 ] && (nohup caffeinate -i -s -t "$left" >/dev/null 2>&1 &)
+               fi
+               run $CAF $PY run.py --overnight "$slot"
+             elif [ "$kind" = rehearsal ]; then
+               run $PY run.py --rehearse-queue
              elif [ "$kind" = advance ]; then
                CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"
                run $CAF $PY run.py --advance

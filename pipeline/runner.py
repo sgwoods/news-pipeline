@@ -94,6 +94,14 @@ RECIPES = {
                           ("dev", ["staging", "compare"]), APPROVE,
                           ("local", ["release", "{version}", "{note}"]), ("local", ["verify"]),
                           ("local?", ["follow-through", "{note}"])]},   # public export + mail script, same Approve
+    # rehearse (11-03): every night at 00:30 the dev code rebuilds the latest edition and is compared with production;
+    # a pass is recorded with the dev code's fingerprint, and a ship of that same code skips its 15-minute soak.
+    "rehearse": {"tier": "auto", "args": {},
+                 "steps": [("dev", ["staging", "sync"]), ("dev", ["tests"]), ("dev", ["staging", "run", "--force", "--deepdive"]),
+                           ("dev", ["staging", "compare"]), ("local", ["rehearsal-record"])]},
+    # wake-schedule (11-03): the Mac wakes at 23:25 for the night's runs; pmset needs an administrator password,
+    # which macOS asks for in its own dialog (the pipeline never sees it)
+    "wake-schedule": {"tier": "chat", "args": {}, "steps": [("local", ["wake-schedule"])]},
     "release": {"tier": "mac", "args": {"version": "version", "note": "reviewed"},
                 "steps": [APPROVE, ("local", ["release", "{version}", "{note}"]), ("local", ["verify"])]},
     "rollback": {"tier": "mac", "args": {"note": "reviewed"},
@@ -452,6 +460,16 @@ class Runner:
         self.phone = phone if (phone and key) else None    # Phone: approve from the phone (needs the key too)
         self.slot = slot                                  # dt.time: the daily release slot; None = no lane rules
 
+    def rehearsed(self) -> bool:
+        """Last night's rehearsal passed, less than 20 hours ago, with the dev code exactly as it is now."""
+        try:
+            r = json.loads((self.root / REHEARSAL).read_text("utf-8"))
+            from .release import SENSITIVE, fingerprint
+            age = self.now() - dt.datetime.fromisoformat(r["at"])
+            return bool(r.get("ok")) and age < dt.timedelta(hours=20) and r.get("fp") == fingerprint(SENSITIVE, Path(self.dev))
+        except Exception:  # noqa: BLE001 - no record, an old record or no dev checkout: the full soak runs
+            return False
+
     def _edition_out(self) -> bool:
         """The morning is done: today's edition went out and no run is busy (v0.2.13: no waiting for 08:30)."""
         return self.now().time() >= EARLIEST and not self.busy() and bool(self.sent_today())
@@ -493,6 +511,8 @@ class Runner:
             return "the morning run's window or a run in progress"
         if job["recipe"] in IN_RELEASE_WINDOW and not self._release_open():
             return "releases go out 08:30-20:00 (earlier once the morning edition is out)"
+        if job["recipe"] == "rehearse" and (MORNING[0] <= t < MORNING[1] or self.busy()):
+            return "a rehearsal never competes with the morning run"
         if job["recipe"] == "ship" and t < SHIP_AFTER_EDITION and not self.sent_today():
             # 2026-11-03: 0.2.51 started at 08:30 while the edition was held for a GitHub Pages blip; the edition
             # goes out first, so a release never competes with (or changes the code under) the morning send
@@ -695,7 +715,13 @@ class Runner:
         job.setdefault("started", self.now().isoformat(timespec="seconds"))
         cut = steps.index(APPROVE) if APPROVE in steps else len(steps)
         if job.get("phase") != "approval":
-            code = self._run_steps(job, steps[:cut], 0, log)
+            pre = steps[:cut]
+            if job["recipe"] == "ship" and self.rehearsed():       # last night's rehearsal covered this exact code
+                pre = [st for st in pre if st[1][:2] not in (["staging", "run"], ["staging", "compare"])]
+                with log.open("a", encoding="utf-8") as fh:
+                    fh.write("soak skipped: last night's rehearsal passed with this exact dev code\n")
+                job["soak"] = "rehearsed"
+            code = self._run_steps(job, pre, 0, log)
             if code:
                 job["log"] = str(log.relative_to(self.root))
                 job["tail"] = _tail(log)
@@ -803,6 +829,18 @@ class Runner:
 
 
 WATCH = "data/state/protected-watch.json"
+REHEARSAL = "data/state/rehearsal.json"
+
+
+def record_rehearsal(root: Path, dev: Path, now: dt.datetime | None = None) -> dict:
+    """The rehearse job's last step: it only runs when every step before it passed."""
+    from .release import SENSITIVE, fingerprint
+    rec = {"at": (now or dt.datetime.now()).isoformat(timespec="seconds"), "ok": True,
+           "fp": fingerprint(SENSITIVE, Path(dev))}
+    p = Path(root) / REHEARSAL
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(rec) + "\n", "utf-8")
+    return rec
 
 
 def _watch_protected(root: Path, now: dt.datetime, notify=None) -> str:

@@ -4,7 +4,9 @@
 | Piece | How it runs | Managed by |
 |---|---|---|
 | Daily run (fetch → briefing → fact check → deep dive → audio → publish → email) | launchd agent `com.sgwoods.news-pipeline`, at `schedule.times` (05:00, retries 06:30, 07:30) | `./np service … daily` |
-| Evening preflight (is the release approval current? notifies if not) | launchd agent `com.sgwoods.news-pipeline.preflight`, at `schedule.preflight` (20:30) | `./np service … preflight` |
+| Evening preflight (is the release approval current? notifies if not; the reminder comes again at 23:00) | launchd agent `com.sgwoods.news-pipeline.preflight`, at `schedule.preflight` (21:00, 23:00) | `./np service … preflight` |
+| Overnight analysis (fetch and judge new items, no edition; the last slot also checks the deep-dive draft) | launchd agent `com.sgwoods.news-pipeline.overnight`, at `schedule.overnight` (23:30, 01:30, 03:30); keeps the Mac awake until 05:45 | `./np service … overnight` |
+| Nightly rehearsal (dev code rebuilds the latest edition and is compared; a pass lets the next ship of that code skip its soak) | launchd agent `com.sgwoods.news-pipeline.rehearsal` queues a `rehearse` job at `schedule.rehearsal` (00:30) | `./np service … rehearsal` |
 | Dashboard (http://127.0.0.1:8775, ports 8770–8779; README "Local ports") | launchd agent `com.sgwoods.news-pipeline.dashboard`, always on, restarts on crash | `./np service … dashboard` |
 | Advance deep dive (tomorrow's draft into Drive) | launchd agent `com.sgwoods.news-pipeline.advance`, at `schedule.advance` (15:30) | `./np service … advance` |
 | Run queue (jobs Claude queues; approvals) + Drive takes sync every 20 min | launchd agent `com.sgwoods.news-pipeline.runner`, every minute | `./np runner status` |

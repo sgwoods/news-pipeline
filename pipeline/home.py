@@ -121,6 +121,23 @@ def edition(root: Path, cfg: dict, today: str) -> dict:
     e["run"] = {"status": last.get("status"), "id": last.get("run_id")} if last else None
     dd = _safe(lambda: __import__("pipeline.deepdive", fromlist=["x"]).latest(root, today), None)
     e["deepdive"] = {"title": dd.get("title"), "status": dd.get("status")} if dd else None
+    # one edition flow (11-03): built -> takes -> site -> email -> Slack, and the one thing to press when it's stuck
+    waiting = _safe(lambda: __import__("pipeline.takes", fromlist=["x"]).waiting(root, today), False)
+    steps = [("Built", e["built"]), ("Takes", e["built"] and not waiting), ("Site", bool(e["site"])),
+             ("Email", bool(e["email"])), ("Slack", bool(e["slack"]))]
+    e["flow"] = [{"name": n, "done": bool(d)} for n, d in steps]
+    nxt = next((n for n, d in steps if not d), "")
+    e["next"] = ({"text": "Waiting for your takes (or the cutoff)", "recipe": "takes-done", "label": "Release it now"}
+                 if nxt == "Takes" else
+                 {"text": "Built but not published and emailed", "recipe": "send-held", "label": "Send it now"}
+                 if nxt in ("Site", "Email") and e["built"] else None)
+    ov = [r for r in runs if r.get("kind") == "overnight" and str(r.get("started", "")) >= f"{(dt.date.fromisoformat(today) - dt.timedelta(days=1)).isoformat()}T23"]
+    e["overnight"] = {"runs": len(ov), "items": sum(((r.get("stages") or {}).get("filter") or {}).get("items_in", 0) or 0 for r in ov)}
+    try:
+        r = json.loads((root / "data" / "state" / "rehearsal.json").read_text("utf-8"))
+        e["rehearsal"] = r.get("at", "")[:16].replace("T", " ")
+    except (OSError, ValueError):
+        e["rehearsal"] = ""
     return e
 
 

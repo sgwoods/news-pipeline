@@ -1331,7 +1331,9 @@ def cmd_runner(cfg: dict, argv: list) -> int:
     from pipeline import devenv, runner, service
     from pipeline.releaser import run_in_progress
     sub, rest = (argv or ["status"])[0], (argv or [])[1:]
-    local = {"verify": lambda a: _runner_verify(cfg),
+    local = {"rehearsal-record": lambda a: (print("rehearsal passed:", runner.record_rehearsal(ROOT, devenv.dev_path(ROOT, cfg))) or 0),
+             "wake-schedule": lambda a: _wake_schedule(),
+             "verify": lambda a: _runner_verify(cfg),
              "release": lambda a: cmd_release(cfg, a),
              "rollback": lambda a: cmd_release(cfg, a, rollback=True),
              "approve": lambda a: cmd_release_check(cfg, ["approve", *a]),
@@ -2346,7 +2348,7 @@ def llm_stage_names(acfg: dict, rebrief: bool = False) -> list:
 
 
 def run_llm_stages(run: Run, cfg: dict, archive: Archive, reprocess_day=None, limit=None, rebrief_day=None,
-                   experiment=None) -> str:
+                   experiment=None, analyze_only: bool = False) -> str:
     """filter → summarize → critique → write. Returns 'ok', 'partial' or 'error'."""
     paths = cfg["paths"]
     acfg = cfg.get("analysis", {})
@@ -2458,6 +2460,11 @@ def run_llm_stages(run: Run, cfg: dict, archive: Archive, reprocess_day=None, li
     recs = stages.build_records(items, decisions, summaries, critiques, meta)
     if recs:
         stages.append_records(summaries_dir, run.day, recs)
+    if analyze_only:                             # overnight (2026-11-03): items are read and judged as they arrive;
+        for s in ("cluster", "editorial", "write"):          # the 05:00 run only writes the edition
+            run.skip(s, "overnight: analysis only")
+        return "partial" if any(run.record["stages"].get(s, {}).get("status") in ("partial", "error")
+                                for s in ("filter", "rank", "critique")) else "ok"
 
     latest = stages.latest_summaries(summaries_dir)
     this_run = {r["id"] for r in recs if r.get("keep")}
@@ -2519,7 +2526,7 @@ def run_llm_stages(run: Run, cfg: dict, archive: Archive, reprocess_day=None, li
 
 
 def cmd_run(cfg: dict, lookback_hours=None, commit=True, no_llm=False, stages_only=False,
-            reprocess_day=None, limit=None, rebrief_day=None, experiment=None) -> int:
+            reprocess_day=None, limit=None, rebrief_day=None, experiment=None, analyze_only: bool = False) -> int:
     paths = cfg["paths"]
     src_file = ROOT / paths["sources"]
     if not src_file.exists() and not (stages_only or reprocess_day or rebrief_day):
@@ -2596,7 +2603,9 @@ def cmd_run(cfg: dict, lookback_hours=None, commit=True, no_llm=False, stages_on
             for s in ("filter", "rank", "critique", "cluster", "editorial", "write", "audio"):
                 run.skip(s, "--no-llm")
         else:
-            s2 = run_llm_stages(run, cfg, archive, reprocess_day, limit, rebrief_day, experiment)
+            if analyze_only:
+                run.record["kind"] = "overnight"
+            s2 = run_llm_stages(run, cfg, archive, reprocess_day, limit, rebrief_day, experiment, analyze_only)
             if s2 == "error":
                 status = "partial" if run.record["stages"]["fetch"].get("status") in ("ok", "partial") else "error"
             elif s2 == "partial":
@@ -2880,6 +2889,58 @@ def cmd_review(cfg: dict, argv: list) -> int:
     if cfg.get("archive", {}).get("git_commit", True):
         print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"weekly quality review {day}",
                                                             paths=(str(out.relative_to(ROOT)),)))
+    return 0
+
+
+def _wake_schedule() -> int:
+    """Wake (or power on) this Mac at 23:25 every day for the overnight runs. pmset needs an administrator: macOS asks
+    for the password in its own dialog; the pipeline never sees it. The overnight job then keeps it awake to 05:45."""
+    import subprocess
+    if sys.platform != "darwin":
+        print("wake schedule: macOS only")
+        return 1
+    script = 'do shell script "pmset repeat wakeorpoweron MTWRFSU 23:25:00" with administrator privileges'
+    r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=300)
+    if r.returncode:
+        print("wake schedule not set:", (r.stderr or r.stdout).strip()[:200])
+        return r.returncode
+    print(subprocess.run(["pmset", "-g", "sched"], capture_output=True, text=True).stdout.strip())
+    return 0
+
+
+def cmd_overnight(cfg: dict, slot: str = "") -> int:
+    """./np overnight (schedule.overnight, 23:30 / 01:30 / 03:30 by default; Steven, 2026-11-03): fetch and judge the
+    night's items as they arrive (filter, rank, critical pass), so the 05:00 run only reads the last hour and writes.
+    The last slot also checks the day's deep-dive draft sentence by sentence, while there is time to fix it."""
+    from pipeline import schedule
+    code = cmd_run(cfg, analyze_only=True)
+    last = (schedule.times(cfg, "overnight") or [""])[-1]
+    if slot and slot == last:
+        from pipeline import deepdive
+        day = dt.date.today().isoformat()
+        if (ROOT / deepdive.DIR / f"{day}.parts.json").exists():
+            try:
+                print(f"Overnight: checking today's deep-dive draft ({day})")
+                _audit_deepdive_dry(cfg, day)
+            except Exception as e:  # noqa: BLE001 - a check, never a failure
+                print(f"deep-dive check skipped: {e}")
+    return code
+
+
+def cmd_rehearse_queue(cfg: dict) -> int:
+    """./np scheduled rehearsal (schedule.rehearsal, 00:30): queue tonight's rehearsal of the dev code (the run queue
+    does it, one job at a time): rebuild the latest edition with dev, compare it with production, and record a pass
+    so the next ship can skip that 15-minute soak (pipeline/runner.py)."""
+    from pipeline import runner
+    if not devenv.dev_path(ROOT, cfg).exists():
+        print("no dev checkout: nothing to rehearse")
+        return 0
+    import json
+    if any(json.loads(p.read_text("utf-8")).get("recipe") == "rehearse"
+           for p in list(runner.qdir(ROOT, "pending").glob("*.json"))):
+        print("a rehearsal is already queued")
+        return 0
+    print("queued:", runner.enqueue(ROOT, "rehearse", {}, queued_by="schedule (nightly rehearsal)").name)
     return 0
 
 
@@ -3223,9 +3284,13 @@ def main() -> int:
     ap.add_argument("--watchlist", nargs="*", metavar="ARG", help="list | fetch | weekly | backfill [DAYS] | add NAME | remove NAME | test")
     ap.add_argument("--deepdive", nargs="*", metavar="ARG", help='[DAY] [--topic "..."] [--force] [--no-audio]: topical deep-dive episode')
     ap.add_argument("--review", nargs="*", metavar="ARG", help="weekly [DAY]: the weekly quality review")
+    ap.add_argument("--print-slot", action="store_true", help="with --due: print the scheduled time that matched")
     ap.add_argument("--due", metavar="KIND", help="daily|preflight|advance: exit 0 if a scheduled time just passed (local clock)")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
     ap.add_argument("--advance", action="store_true", help="draft tomorrow's deep dive into Drive (schedule.advance)")
+    ap.add_argument("--overnight", nargs="?", const="", default=None, metavar="SLOT",
+                    help="overnight analysis: fetch and judge new items, no edition (schedule.overnight)")
+    ap.add_argument("--rehearse-queue", action="store_true", help="queue tonight's rehearsal of the dev code")
     ap.add_argument("--runner", nargs="*", metavar="ARG", help="status | tick | approve ID | reject ID | install | remove")
     ap.add_argument("--listen", nargs="*", metavar="ARG", help="[DAY]: transcribe the published episode and check it")
     ap.add_argument("--drive", nargs="*", metavar="ARG", help="save [DAY] [draft]: the edition and deep dive as Google Docs")
@@ -3298,7 +3363,10 @@ def main() -> int:
         return cmd_doctor(cfg)
     if args.due:                                 # ./np scheduled: quiet, fast; launchd ticks every half hour
         from pipeline.schedule import due
-        return 0 if due(cfg, args.due) else 1
+        slot = due(cfg, args.due)
+        if slot and args.print_slot:
+            print(slot)
+        return 0 if slot else 1
     if args.daily:
         return cmd_daily(cfg)
     if args.audio is not None:
@@ -3351,6 +3419,10 @@ def main() -> int:
         return cmd_listen(cfg, args.listen)
     if args.runner is not None:
         return cmd_runner(cfg, args.runner)
+    if args.overnight is not None:
+        return cmd_overnight(cfg, args.overnight)
+    if args.rehearse_queue:
+        return cmd_rehearse_queue(cfg)
     if args.advance:
         return cmd_advance(cfg)
     if args.preflight:

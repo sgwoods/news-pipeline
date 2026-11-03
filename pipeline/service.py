@@ -19,7 +19,8 @@ from pathlib import Path
 
 LABELS = {"daily": "com.sgwoods.news-pipeline", "dashboard": "com.sgwoods.news-pipeline.dashboard",
           "preflight": "com.sgwoods.news-pipeline.preflight", "runner": "com.sgwoods.news-pipeline.runner",
-          "advance": "com.sgwoods.news-pipeline.advance"}
+          "advance": "com.sgwoods.news-pipeline.advance", "overnight": "com.sgwoods.news-pipeline.overnight",
+          "rehearsal": "com.sgwoods.news-pipeline.rehearsal"}
 
 
 def _sh(args, timeout=20):
@@ -58,6 +59,12 @@ def build_plist(kind: str, root: Path, cfg: dict) -> dict:
     elif kind == "preflight":
         from .schedule import TICK_MINUTES
         base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "scheduled", "preflight"],
+                     "StartCalendarInterval": [{"Minute": m} for m in TICK_MINUTES],
+                     "StandardOutPath": str(root / "logs" / "launchd.out.log"),
+                     "StandardErrorPath": str(root / "logs" / "launchd.err.log"), "RunAtLoad": False})
+    elif kind in ("overnight", "rehearsal"):              # the night's analysis runs and the dev rehearsal (11-03)
+        from .schedule import TICK_MINUTES
+        base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "scheduled", kind],
                      "StartCalendarInterval": [{"Minute": m} for m in TICK_MINUTES],
                      "StandardOutPath": str(root / "logs" / "launchd.out.log"),
                      "StandardErrorPath": str(root / "logs" / "launchd.err.log"), "RunAtLoad": False})
@@ -188,7 +195,7 @@ def claude_status() -> dict:
 
 def all_status(root: Path, cfg: dict) -> dict:
     return {"daily": status("daily"), "dashboard": status("dashboard"), "preflight": status("preflight"),
-            "advance": status("advance"),
+            "advance": status("advance"), "overnight": status("overnight"), "rehearsal": status("rehearsal"),
             "ollama": ollama_status(cfg),
             "claude": claude_status(), "ffmpeg": bool(shutil.which("ffmpeg")), "gh": bool(shutil.which("gh")),
             "launchctl": bool(shutil.which("launchctl"))}

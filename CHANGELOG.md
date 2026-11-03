@@ -5,6 +5,21 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.53-beta · 2026-11-03
+- The night does the work (Steven, 2026-11-03):
+  - Overnight analysis at 23:30, 01:30 and 03:30 (`./np overnight`, schedule.overnight): new items are fetched,
+    filtered, ranked and given the critical pass as they arrive; the 05:00 run only reads the last hour and writes.
+    A failure at 01:30 is simply retried at 03:30. The 03:30 slot also checks the day's deep-dive draft sentence by
+    sentence. The Mac is kept awake (caffeinate) from the first overnight run until 05:45.
+  - Nightly rehearsal at 00:30 (a `rehearse` run-queue job): the dev code rebuilds the latest edition and is compared
+    with production; a pass is recorded with the dev code's fingerprint, and a ship of exactly that code the next
+    day skips its 15-minute soak. A rehearsal never runs during the morning window or alongside a run.
+  - Approvals are settled the evening before: the preflight runs at 21:00 and again at 23:00.
+  - `wake-schedule` run-queue job: wakes the Mac at 23:25 daily (pmset; macOS asks for the administrator password in
+    its own dialog).
+  - The home page shows one edition flow (Built → Takes → Site → Email → Slack) with the one button that unsticks it,
+    plus the night's analysis runs and the last rehearsal.
+
 ## v0.2.52-beta · 2026-11-03
 - Craft metrics (Steven, 2026-11-03; `pipeline/craft.py`): pace (spoken words a minute, target 145-165), paragraph
   length, long sentences (over 35 words), repeated 4-word phrases and stock filler, measured the same way for our

@@ -32,6 +32,9 @@ ul.top{margin:6px 0 0;padding-left:18px}ul.top li{margin:2px 0}
   <span class="st {{ 'ok' if ed.slack else 'no' }}">Slack {{ ed.slack or 'not yet' }}</span>
   <span class="st {{ 'ok' if ed.takes else 'no' }}">Your takes {{ ed.takes }}</span>
   {% if ed.deepdive %}<span class="st {{ 'ok' if ed.deepdive.status == 'published' else 'warn' }}">Deep dive {{ ed.deepdive.status }}</span>{% endif %}
+  {% if ed.flow %}<div class="small" style="margin-top:6px">{% for f in ed.flow %}<span class="{{ 's-ok' if f.done else 'muted' }}">{{ '✓' if f.done else '○' }} {{ f.name }}</span>{{ ' → ' if not loop.last }}{% endfor %}
+  {% if ed.next %} · {{ ed.next.text }} <form class="inline" method="post" action="/api/queue/{{ ed.next.recipe }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="mini">{{ ed.next.label }}</button></form>{% endif %}</div>{% endif %}
+  {% if ed.overnight and ed.overnight.runs %}<div class="small muted">Overnight: {{ ed.overnight.runs }} analysis run{{ 's' if ed.overnight.runs > 1 }}, {{ ed.overnight.items }} items judged before 05:00{% if ed.rehearsal %} · dev rehearsal passed {{ ed.rehearsal }}{% endif %}</div>{% elif ed.rehearsal %}<div class="small muted">Dev rehearsal passed {{ ed.rehearsal }}</div>{% endif %}
   {% if ed.corrections %}<span class="st warn">{{ ed.corrections|length }} correction{{ 's' if ed.corrections|length > 1 }}</span>{% endif %}
  </div>
  {% if ed.top %}<ul class="top">{% for t in ed.top %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}

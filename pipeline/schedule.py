@@ -21,8 +21,13 @@ def times(cfg: dict, kind: str) -> list:
         if (cfg.get("takes") or {}).get("enabled"):      # the edition waits for takes: retry after the cutoff too
             base += [str(t) for t in s.get("after_takes", ["09:30", "10:30", "12:00"]) if str(t) not in base]
         return base
-    if kind == "preflight":
-        return [str(s.get("preflight", "20:30"))]
+    if kind == "preflight":                              # the evening check, and a reminder before bed (11-03)
+        v = s.get("preflight", ["21:00", "23:00"])
+        return [str(t) for t in (v if isinstance(v, list) else [v])]
+    if kind == "overnight":                              # read and judge items as they arrive (11-03)
+        return [str(t) for t in s.get("overnight", ["23:30", "01:30", "03:30"])]
+    if kind == "rehearsal":                              # rehearse the dev code so a ship can skip its soak (11-03)
+        return [str(t) for t in s.get("rehearsal", ["00:30"])]
     if kind == "advance":                                # tomorrow's deep dive, drafted for the commute home (10-29)
         return [str(s.get("advance", "15:30"))]
     return []
@@ -41,4 +46,5 @@ def due(cfg: dict, kind: str, now: dt.datetime | None = None) -> str:
 
 def check(cfg: dict) -> list:
     """Configured times the half-hour tick can't hit (must be on :00 or :30)."""
-    return [t for k in ("daily", "preflight", "advance") for t in times(cfg, k) if int(t.split(":")[1]) not in TICK_MINUTES]
+    return [t for k in ("daily", "preflight", "advance", "overnight", "rehearsal") for t in times(cfg, k)
+            if int(t.split(":")[1]) not in TICK_MINUTES]
