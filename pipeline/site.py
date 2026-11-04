@@ -749,6 +749,11 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
                 n_audio += 1
     except Exception:  # noqa: BLE001 - deep dives never break the site
         pass
+    try:                                   # special editions: their own pages, in no feed (pipeline/special.py)
+        from .special import site_pages
+        site_pages(root, cfg, out, base_url, _page, _md_to_html)
+    except Exception as e:  # noqa: BLE001 - a special never breaks the site
+        print(f"special pages skipped: {e}"[:200])
     podcast_url = ""
     if episodes:
         podcast_url = "" if _is_staging() else build_podcast(root, cfg, out, episodes, base_url)

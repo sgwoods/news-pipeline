@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% block title %}{{ c.name }}{% endblock %}{% block body %}
+<h1>{{ c.name }} <span class="muted small">started {{ c.created }}{% if c.goal %} · goal {{ c.goal }} people{% endif %}</span></h1>
+{% if msg %}<p class="small {{ 's-error' if msg.startswith('Not') else 's-ok' }}">{{ msg }}</p>{% endif %}
+{% if err %}<p class="small s-partial">{{ err }}</p>{% endif %}
+<div class="grid">
+{% for k in ['invited', 'signed up', 'subscribed', 'abandoned', 'declined'] %}<div class="card"><div class="k">{{ k|capitalize }}</div><div class="v">{{ c.funnel[k] }}</div></div>{% endfor %}
+<div class="card"><div class="k">Replied</div><div class="v">{{ c.funnel.replied }}</div></div>
+</div>
+<h2>People</h2>
+<table><tr><th>Name</th><th>Email</th><th>Status</th><th>Invite sent</th><th>Signed up</th><th>Subscribed</th><th>Replies</th><th></th></tr>
+{% for p in c.rows %}<tr><td>{{ p.name or '—' }}{% if p.note %}<div class="muted small">{{ p.note }}</div>{% endif %}</td><td class="mono small">{{ p.email }}</td>
+<td><span class="{{ 's-ok' if p.status == 'subscribed' else ('s-error' if p.status in ('abandoned', 'declined') else 's-partial' if p.status == 'signed up' else 'muted') }}">{{ p.status }}</span></td>
+<td class="small">{{ p.invited or '—' }}</td><td class="small">{{ p.signed_up_at or '—' }}</td><td class="small">{{ p.subscribed_at or '—' }}</td>
+<td class="small">{{ p.replies }}{% if p.last_reply %} · {{ p.last_reply }}{% endif %}</td>
+<td class="small" style="white-space:nowrap">{% if not p.invited %}<form class="inline" method="post" action="/api/campaigns/{{ c.id }}/invited"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="email" value="{{ p.email }}"><button class="mini">invite sent</button></form>{% endif %}
+<form class="inline" method="post" action="/api/campaigns/{{ c.id }}/{{ 'undecline' if p.declined else 'declined' }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="email" value="{{ p.email }}"><button class="mini">{{ 'undo decline' if p.declined else 'declined' }}</button></form></td></tr>
+{% else %}<tr><td colspan="8" class="muted">Nobody yet: add people below, or give Claude the names and addresses in the chat.</td></tr>{% endfor %}</table>
+<h2>Add someone</h2>
+<form method="post" action="/api/campaigns/{{ c.id }}/add" class="small"><input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="text" name="name" placeholder="Name" maxlength="80" style="width:160px"> <input type="email" name="email" required placeholder="name@example.com" maxlength="200" style="width:240px">
+<input type="text" name="note" placeholder="note (optional)" maxlength="200" style="width:200px"> <button>Add</button></form>
+<h2>The invite</h2>
+<p class="small muted">Sent from your own Gmail (Claude can make one draft per person for you to review and send). {first} and {signup} are filled in for each person. Example:</p>
+<div class="card"><div class="small"><b>Subject:</b> {{ sample.subject }}</div><pre style="white-space:pre-wrap;font-family:inherit;margin:8px 0 0">{{ sample.body }}</pre></div>
+{% endblock %}

@@ -27,6 +27,9 @@ from .archive import append_jsonl, read_jsonl
 DIR = "briefings/deepdives"
 LOG = "data/deepdives.jsonl"
 SECTIONS = ["why_today", "plainly", "evidence", "readings", "so_what", "watch"]
+EDITION = "deepdive"    # "special" while pipeline/special.py makes a special edition (its own DIR, LOG and check file)
+SPECIAL_OUTRO = ("That's this special edition of the AI Briefing. Every source is linked on its page on the AI Briefing "
+                 "web site. The daily briefing is back tomorrow morning.")
 OUTRO = ("That's the deep dive, and today's AI Briefing. Every source is linked in the show notes, and the AI Briefing "
          "web page has the written edition, this deep dive and every past episode. The daily briefing is back tomorrow.")
 
@@ -104,9 +107,17 @@ def recent(root: Path, day: str, days: int) -> list:
     return [r for r in records(root) if cut <= r.get("day", "") <= day and r.get("status") == "published"]
 
 
+def outro() -> str:
+    return SPECIAL_OUTRO if EDITION == "special" else OUTRO
+
+
 def opener(day: str, title: str, acfg: dict | None = None) -> str:
     acfg = acfg or {}
     d = dt.date.fromisoformat(day)
+    if EDITION == "special":                    # stands alone: no hand-off from the briefing host
+        host = acfg.get("deepdive_host") or ""
+        return (f"This is an AI Briefing special edition for {d.strftime('%A, %B')} {d.day}: {title.rstrip('.')}."
+                + (f" I'm {host}." if host else "") + " Like the daily briefing, it is written and read by AI, from public sources.")
     host, prev = acfg.get("deepdive_host") or "", acfg.get("host_name") or ""
     thanks = f"Thanks, {prev}. " if prev and host else ""
     me = f" I'm {host}." if host else ""
@@ -718,7 +729,7 @@ def _week_count(root: Path, day: str) -> int:
 
 def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool = False,
         llm_pick=None, llm_write=None, tts=True, draft: bool = False, notes: str = "", previous: str = "",
-        llm_check=None, judge=None, finder=None) -> dict:
+        llm_check=None, judge=None, finder=None, qid: str = "") -> dict:
     """Write (and voice) DAY's deep dive: the scheduled queue item, or plan one now. draft: written the day before
     for Steven's review (recorded as such). notes/previous: Steven's "Notes for the editor" and the draft they are
     about: the writer revises the draft following the notes (v0.2.31)."""
@@ -732,6 +743,8 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
         if not item:                             # the topic is already in the queue (e.g. the dive being rebuilt): reuse it
             item = next((q for q in load_queue(root) if _similar(q.get("topic", ""), topic)), None)
         item = set_status(root, item["id"], "scheduled", for_day=day) if item else None
+    elif qid:                                    # a named queue item (special editions)
+        item = next((q for q in load_queue(root) if q.get("id") == qid), None)
     else:
         item = scheduled_for(root, day)
         if not item:
@@ -780,7 +793,7 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     max_words = int(float(c.get("max_minutes", 13)) * wpm)       # a touch longer when the topic needs the detail
     # a manual topic on a flagship day is a one-off unless it rebuilds that day's flagship (2026-10-31: the Saturday
     # rebuild came out in one voice)
-    flag = is_flagship(cfg, day) and (not topic or any(r.get("day") == day and r.get("format") == "flagship"
+    flag = EDITION != "special" and is_flagship(cfg, day) and (not topic or any(r.get("day") == day and r.get("format") == "flagship"
                                                        for r in records(root)))
     fc = fcfg(cfg)
     if flag:                                     # Saturday: the weekly two-voice flagship (Steven, 2026-10-27)
@@ -873,7 +886,7 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     if tk:
         rec["take"] = True
     first = flagship_opener(day, title, cfg) if flag else opener(day, title, cfg.get("audio") or {})
-    parts = [("Opener", first)] + sections + ([tk] if tk else []) + [("Outro", OUTRO)]
+    parts = [("Opener", first)] + sections + ([tk] if tk else []) + [("Outro", outro())]
     if flag:
         rec["format"] = "flagship"
     from .profiles import profile
@@ -883,7 +896,8 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     from .links import scrub_output
     notes_md, _ = scrub_output(
         f"# Deep dive: {title}\n\n*AI Briefing · {day} · "
-        + ("the weekly flagship, two voices · " if flag else "") + "follows today's briefing · written and read by AI from public sources*\n\n"
+        + ("the weekly flagship, two voices · " if flag else "")
+        + ("special edition" if EDITION == "special" else "follows today's briefing") + " · written and read by AI from public sources*\n\n"
         f"{summary}\n\n" + (f"*Suggested by {item.get('suggested_by')}.*\n\n" if item.get("suggested_by") else "")
         + (f"**Why today.** {why_line}\n\n" if why_line else "") + f"## Sources\n\n{src_md}\n", cfg)
     (d / f"{day}.md").write_text(notes_md, "utf-8")
@@ -923,7 +937,7 @@ def _render(root: Path, cfg: dict, day: str, title: str, parts: list) -> float:
     from . import sonic
     minutes = round(audio.render_mp3(eng, said, d / f"{day}.mp3", f"Deep dive: {title}",
                                      (cfg.get("audio") or {}).get("bitrate", "64k"), brand=sonic.for_audio(root)), 1)
-    rebuilt(root, f"deepdive:{day}")
+    rebuilt(root, f"{EDITION}:{day}")
     return minutes
 
 
@@ -949,7 +963,8 @@ def _fact_check(root: Path, cfg: dict, day: str, sections: list, corpus: list, s
                 finder = factsearch.Finder(netguard.client(follow_redirects=True, timeout=12,
                                                            headers={"User-Agent": ua}), [], None)
         new, res, pages = audit.check_sections(root, day, sections, corpus, llm_check, system, log=log, judge=judge,
-                                               finder=finder, ok_sentence=lambda t: not (banned(t) or spelled_figures(t)))
+                                               finder=finder, ok_sentence=lambda t: not (banned(t) or spelled_figures(t)),
+                                               name=EDITION)
     except Exception as e:  # noqa: BLE001
         log(f"deep-dive fact check skipped: {type(e).__name__}: {e}"[:200])
         return sections, srcs, []
@@ -1077,7 +1092,7 @@ def revoice(root: Path, cfg: dict, day: str, log=print) -> dict | None:
     two = any(n.endswith("~sceptic") for n, _ in parts)
     parts = [("Opener", flagship_opener(day, data["title"], cfg) if two else opener(day, data["title"], cfg.get("audio") or {}))
              if n == "Opener" else
-             ("Outro", OUTRO) if n == "Outro" else (n, t) for n, t in parts]
+             ("Outro", outro()) if n == "Outro" else (n, t) for n, t in parts]
     data["parts"] = parts
     p.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
     out = {**rec, "at": dt.datetime.now().isoformat(timespec="seconds"), "status": "published",

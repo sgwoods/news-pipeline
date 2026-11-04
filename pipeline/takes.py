@@ -335,36 +335,25 @@ def build_email(root: Path, cfg: dict, day: str, review: bool = True, drive: str
     if drive:                                    # the same held edition as a Google Doc (Briefings folder)
         H.append(f'<p {P}><a href="{esc(drive, quote=True)}">Read it in Google Docs</a> (the Briefings folder in Drive).</p>')
         L += [f"Read it in Google Docs: {drive}", ""]
-    try:                                         # what the pre-send fact check changed or couldn't settle (v0.2.33)
-        from .audit import load_deepdive_check, load_presend
-        pc = load_presend(root, day)
-        ddc = load_deepdive_check(root, day)
+    try:                                         # fact checks: listed at the bottom with options (2026-11-04)
+        from .factopts import items as _fitems, section as _fsection
+        fl, fh = _fsection(_fitems(root, day))
     except Exception:  # noqa: BLE001
-        pc, ddc = {}, {}
-    if ddc.get("held"):                          # the deep dive's open items show here too
-        pc = {**pc, "held": (pc.get("held") or []) + [{**h, "claim": "Deep dive: " + h["claim"]} for h in ddc["held"]]}
-        pc.setdefault("checked", 0)
-    if pc:
-        head = (f"Fact check before sending: {pc.get('checked', 0)} claims checked against their sources, "
-                f"{len(pc.get('fixes') or [])} line(s) rewritten" + (f", {len(pc['held'])} for you to look at" if pc.get("held") else "") + ".")
-        H.append(f'<p {P}><b>{esc(head)}</b></p>')
-        L += [head]
-        for f in (pc.get("fixes") or [])[:8]:
-            src = "".join(f" New source: {a['outlet']}." for a in f.get("added_source") or [])
-            H.append(f'<p style="margin:0 0 6px;font-size:13px;color:#374151">Changed: {esc(f["why"][:200])}{esc(src)}<br>'
-                     f'<span style="color:#6b7280">Now: {esc(f["after"][:300])}</span></p>')
-            L += [f"Changed: {f['why'][:200]}{src}", f"  Now: {f['after'][:300]}"]
-        for h in (pc.get("held") or [])[:8]:
-            H.append(f'<p style="margin:0 0 6px;font-size:13px;color:#92400e">Check: {esc(h["claim"][:200])} '
-                     f'({esc(h.get("why", "")[:160])})</p>')
-            L += [f"Check: {h['claim'][:200]} ({h.get('why', '')[:160]})"]
-        L.append("")
+        fl, fh = [], ""
+    if fl:
+        n = sum(1 for x in fl if re.match(r"^F\d+ · ", x))
+        H.append(f'<p {P}><b>{n} fact check{"s" if n != 1 else ""} at the bottom:</b> pick A, B or C in your reply, or '
+                 f'leave them and my recommendation applies.</p>')
+        L += [f"{n} fact check(s) at the bottom: pick A, B or C in your reply, or my recommendation applies.", ""]
     for slot, label, body, text in _sections(root, cfg, day):
         H.append(f'<div {CARD}><div {HEAD}>{esc(slot)} · {esc(label)}</div>{body}{btn(slot)}</div>')
         L += text + [""]
+    if fh:
+        H.append(fh)
+        L += fl
     H.append('<p style="color:#6b7280;font-size:13px">Or reply to this email with one take per line: "1: ...", '
-             '"T: ...", "0: ...", then "done".</p></div>')
-    L += ["Reply with one take per line, e.g.:", "1: The margin story matters more than the headline.", "done"]
+             '"T: ...", "0: ...", any fact-check choices ("F1: B"), then "done".</p></div>')
+    L += ["Reply with one take per line, e.g.:", "1: The margin story matters more than the headline.", "F1: B", "done"]
     return {"subject": subject(day), "text": "\n".join(L), "html": "".join(H)}
 
 
@@ -448,9 +437,16 @@ def tidy(text: str) -> str:
 
 
 def parse(text: str) -> dict:
-    """A reply -> {"takes": {slot: text}, "done": bool, "skip": bool}. Continuation lines join the take above."""
-    takes, cur, done, skip = {}, None, False, False
+    """A reply -> {"takes": {slot: text}, "done": bool, "skip": bool, "facts": {"F1": "B"}}. Continuation lines join
+    the take above; fact-check choices ("F1: B") are kept apart (pipeline/factopts.py)."""
+    from .factopts import _CHOICE
+    takes, cur, done, skip, facts = {}, None, False, False, {}
     for ln in (text or "").replace("\r\n", "\n").split("\n"):
+        fm = _CHOICE.match(ln)
+        if fm:                                   # a fact-check choice ("F1: B"), never part of a take
+            facts[f"F{int(fm.group(1))}"] = fm.group(2).upper()
+            cur = None
+            continue
         if _DONE.match(ln):
             done = True
             cur = None
@@ -476,7 +472,7 @@ def parse(text: str) -> dict:
             takes[cur] = (takes[cur] + " " + ln.strip()).strip()
         elif not ln.strip() and not (cur and not takes.get(cur)):
             cur = None                           # a blank line ends a take (but not between a header and its text)
-    return {"takes": {k: tidy(v) for k, v in takes.items() if tidy(v)}, "done": done, "skip": skip}
+    return {"takes": {k: tidy(v) for k, v in takes.items() if tidy(v)}, "done": done, "skip": skip, "facts": facts}
 
 
 def fetch_replies(root: Path, cfg: dict, day: str, log=print) -> list:
@@ -687,6 +683,10 @@ def collect(root: Path, cfg: dict, day: str, replies: list | None = None, log=pr
             notes.save(root, day, s["key"], text, title=s["title"])
         published.append({"slot": k, "key": s["key"], "title": s["title"], "text": text, "from": origin[k],
                           **({"original": original, "edits": edits} if edits else {})})
+    facts = {}
+    for r in replies or []:                      # fact-check choices: the latest reply wins per item
+        facts.update(r.get("facts") or {})
+    st["fact_choices"] = facts
     st.update({"published": published, "held": held, "unknown": unknown,
                "collected_at": dt.datetime.now().isoformat(timespec="seconds")})
     _save_state(root, day, st)

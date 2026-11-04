@@ -96,14 +96,24 @@ def check_links(urls: list, cfg: dict) -> dict:
     from .netguard import client as guarded_client
     with guarded_client(follow_redirects=True, timeout=15, headers={"User-Agent": f.get("user_agent", "news-pipeline/0.1")}) as c:
         for u in urls:
-            try:
-                r = c.head(u)
-                if r.status_code in (403, 405):
-                    r = c.get(u)
-                out[u] = r.status_code < 400
-            except Exception:  # noqa: BLE001
-                out[u] = False
+            out[u] = _live_once(c, u) or _live_once(c, u, wait=2.0)    # 11-04 trial: 10 of 24 "dead" were fine on a retry
+            if not out[u]:
+                from .headless import fetch as headless_fetch     # a bot check or a JavaScript page (5 of 24)
+                out[u] = bool(headless_fetch(u, cfg))
     return out
+
+
+def _live_once(c, u: str, wait: float = 0.0) -> bool:
+    import time
+    if wait:
+        time.sleep(wait)
+    try:
+        r = c.head(u)
+        if r.status_code in (403, 405, 404, 400, 429) or r.status_code >= 500:   # many servers refuse HEAD only
+            r = c.get(u)
+        return r.status_code < 400
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def build_prompt(story: dict, recs: list, texts: dict, rel: list) -> str:

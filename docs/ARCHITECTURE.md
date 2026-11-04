@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.54-beta (2026-11-04)
+- **Release:** v0.2.55-beta (2026-11-04)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 83 in `pipeline/`
+- **Modules:** 88 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -122,6 +122,11 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
 - **Craft** (`craft.py`): pace, paragraphs, long sentences, repeated phrases and filler, measured for our editions and the benchmark newsletters; the daily craft checks and the Quality page table.
 - **Tighten** (`tighten.py`): splits long sentences and varies over-used phrases after writing; every rewrite is checked by code to keep numbers, citations, quotations and names.
 - **Sonic** (`sonic.py`): the audio branding (sound logo, stings, close), synthesised locally; the style is chosen on the dashboard.
+- **Intros** (`intros.py`): "Who they are" lines: an intro the first time a company is named, a short reminder when it returns after two weeks, built on earlier lines kept in data/state/companies.json.
+- **Fact-check options** (`factopts.py`): the checks' findings at the bottom of the takes email as F1, F2 ... with A/B/C options and a recommendation, applied before publishing.
+- **Special editions** (`special.py`): an occasional deep dive sent on its own the day news breaks: its own files (briefings/specials/), checks and review email to Steven, a page at <site>/DAY/special/ (in no feed), one email to subscribers after the page is live. At most one a day and four in 30 days.
+- **Headless last try** (`headless.py`): a page the plain fetch couldn't read (a bot check, a page that needs JavaScript) is opened once in the Mac's Chrome, headless, with a throwaway profile, only where robots.txt allows, public hosts only, capped per run.
+- **Campaigns** (`campaigns.py`): invite lists and their outcome (signed up, subscribed, abandoned, replies) for the dashboard's Campaigns page.
 - **Secrets** (`vault.py`): macOS Keychain first, then `.env` (gitignored, mode 600).
 
 Smaller pieces:
@@ -338,6 +343,7 @@ _Generated from each module's own description at build time._
 | `audit.py` | The daily accuracy audit (critic 2026-10-24, #10D; Steven 2026-10-27). |
 | `bluesky.py` | Bluesky lists and Steven's own posts as sources, via the public AT Protocol API (no key, no login). |
 | `brand.py` | The AI Briefing brand (Steven, 2026-10-31) |
+| `campaigns.py` | Campaigns (Steven, 2026-11-04) |
 | `card.py` | The daily card |
 | `chart.py` | One chart a day (quality review, 2026-10-31 |
 | `clasp.py` | Deploy the mail script (scripts/apps-script/Code.gs) with Google's clasp CLI instead of copy and paste. |
@@ -355,12 +361,15 @@ _Generated from each module's own description at build time._
 | `env.py` | Production or staging. |
 | `episodes.py` | Which days are published |
 | `factcheck.py` | Claim-to-source trace for the written edition (fact review 2026-10-18, P1-1). |
+| `factopts.py` | Fact checks inside the takes email (Steven, 2026-11-04) |
 | `factsearch.py` | Look for a figure before the fact check cuts it (Steven, 2026-10-18 |
 | `feedback.py` | Reader feedback |
 | `fetch.py` | Fetch new items from every verified source. |
+| `headless.py` | A local headless browser as the last try for a page the plain fetch couldn't read (Steven, 2026-11-04). |
 | `home.py` | The dashboard's home screen (Steven, 2026-11-01 |
 | `houseviews.py` | Read-only parser for house_views.md, and the positions ledger (Steven, 2026-10-27). |
 | `hub.py` | AI Briefing on Steven's public project hub (sgwoods.github.io/public) |
+| `intros.py` | Who they are (Steven, 2026-11-04) |
 | `jev.py` | Jev (TypeSafe's System One model) as a shadow filter (Steven, 2026-10-29/30). |
 | `linkedin.py` | Steven's own LinkedIn posts, from LinkedIn's data export (and from Slack, when he shares one there). |
 | `links.py` | Make every citation point at the real article (runs in the write stage; never fails the briefing). |
@@ -400,6 +409,7 @@ _Generated from each module's own description at build time._
 | `slacksource.py` | Links Steven shares in an internal Slack channel, as a source (read-only, Slack Web API, free). |
 | `sonic.py` | Audio branding (Steven, 2026-11-03) |
 | `sources.py` | Resolve and verify RSS/Atom feeds for every tracked person. |
+| `special.py` | Special editions (Steven, 2026-11-04) |
 | `speech.py` | The speech layer |
 | `stages.py` | LLM stages |
 | `suggest.py` | Source suggestions |

@@ -113,7 +113,16 @@ RECIPES = {
     "phone-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["phone-setup"])]},   # the passphrase
     "ntfy-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["ntfy-setup"])]},     # phone notifications
     "ntfy-test": {"tier": "auto", "args": {}, "steps": [("prod", ["ntfy", "test"])]},
-    "advance": {"tier": "auto", "args": {}, "steps": [("prod", ["advance"])]},   # draft tomorrow's deep dive now
+    "advance": {"tier": "auto", "args": {}, "steps": [("prod", ["advance"])]},
+    # special editions (pipeline/special.py): Steven asks in chat; release needs his yes (chat or the dashboard button)
+    "special-draft": {"tier": "chat", "args": {"qid": "text"}, "steps": [("prod", ["special", "draft", "{qid}"])]},
+    "special-revise": {"tier": "chat", "args": {"day": "day", "note": "text"},
+                       "steps": [("prod", ["special", "revise", "{day}", "{note}"])]},
+    "special-decide": {"tier": "chat", "args": {"day": "day", "choices": "text"},
+                       "steps": [("prod", ["special", "decide", "{day}", "{choices}"])]},
+    "special-release": {"tier": "chat", "args": {"day": "day"},
+                        "steps": [("prod", ["special", "release", "{day}"]), ("prod", ["publish"]), ("local", ["verify"]),
+                                  ("prod", ["special", "email", "{day}"])]},   # draft tomorrow's deep dive now
     "service-install": {"tier": "chat", "args": {"kind": "text"}, "steps": [("prod", ["service", "install", "{kind}"])]},
     "slack-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["slack-setup"])]},   # the bot token
     "jev-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["jev-setup"])]},       # the TypeSafe key
@@ -134,7 +143,8 @@ RECIPES = {
     "mailer-setup": {"tier": "chat", "args": {"script": "text"}, "steps": [("prod", ["mailer", "setup", "{script}"])]},
 }
 CHANGES_PRODUCTION = {"setup", "correct", "publish", "remaster", "deepdive-rebuild", "restore", "ship", "release", "rollback", "approve", "install-hooks",
-                      "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive", "slack-archive", "slack-promo", "service-install"}
+                      "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive", "slack-archive", "slack-promo", "service-install",
+                      "special-draft", "special-revise", "special-release"}
 IN_RELEASE_WINDOW = {"ship", "release"}
 # Steven, 2026-10-31: "pull approvals forward to the beginning of a task". A ship or release carrying his yes from
 # chat (asked when the task starts, answerable in the Claude iOS app) needs no tap: it runs on its own once tests and
@@ -283,7 +293,37 @@ def _write(p: Path, data: dict):
     tmp.replace(p)
 
 
+RUNNING = "data/queue/running.json"     # the job the queue is running right now, and its step (dashboard, 11-04)
+STEP_WORDS = {"staging sync": "bringing the dev copy up to date", "tests": "running the tests",
+              "staging run": "rebuilding today's edition with the new code", "staging compare": "comparing it with production",
+              "release": "putting the new version into production", "verify": "checking the live site",
+              "follow-through": "publishing the code and restarting the dashboard", "approve": "waiting for approval",
+              "rehearsal-record": "recording the rehearsal"}
+
+
+def _running(root: Path, job: dict | None, i: int = 0, total: int = 0, what: str = "") -> None:
+    p = Path(root) / RUNNING
+    if job is None:
+        with contextlib.suppress(OSError):
+            p.unlink()
+        return
+    words = next((v for k, v in STEP_WORDS.items() if what.startswith(k)), what)
+    rec = {"id": job["id"], "recipe": job["recipe"], "version": (job.get("args") or {}).get("version", ""),
+           "step": i + 1, "total": total, "what": words[:120], "started": job.get("started", ""),
+           "step_started": dt.datetime.now().isoformat(timespec="seconds")}
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(rec) + "\n", "utf-8")
+
+
+def running(root: Path) -> dict | None:
+    try:
+        return json.loads((Path(root) / RUNNING).read_text("utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 def _finish(root: Path, src: Path, job: dict, status: str, detail: str = "", notify=None):
+    _running(root, None)
     job.update({"status": status, "detail": detail[:500], "ended": dt.datetime.now().isoformat(timespec="seconds")})
     _write(qdir(root, "done") / f"{job['id']}.json", job)
     if src.exists() and src.parent.name != "done":
@@ -638,6 +678,10 @@ class Runner:
     def _step(self, job: dict, i: int, step, log: Path) -> int:
         where, argv = step
         argv = argv_for(argv, job["args"])
+        try:
+            _running(self.root, job, i, len(RECIPES[job["recipe"]]["steps"]), " ".join(argv))
+        except Exception:  # noqa: BLE001 - the dashboard line never stops a job
+            pass
         if where in ("local", "local?"):
             fn = self.local.get(argv[0])
             if fn is None and where == "local?":         # optional: a checkout without it skips the step

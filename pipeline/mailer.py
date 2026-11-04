@@ -188,6 +188,7 @@ def parse(md: str) -> dict:
         who = re.sub(r"\s*·\s*\[source\]\(.*", "", lines[1] if len(lines) > 1 else "").replace("**", "").strip()
         src = re.search(r"\[source\]\((https?://[^)]+)\)", block)
         what = re.search(r"- \*\*What happened:\*\* (.+)", block)
+        intro = re.search(r"- \*\*Who they are:\*\* (.+)", block)       # first mention of a company (11-04)
         crit = re.search(r"- \*\*(?:Critical pass|Evidence check):\*\* (.+)", block)
         ed = re.search(r"- \*\*(Editor's view|Our read):\*\* (.+)", block)
         ol = re.search(r"- \*\*(The (?:AGI-forward|AI-realist|sceptic's|market|policy) view):\*\* (.+)", block)
@@ -195,7 +196,7 @@ def parse(md: str) -> dict:
         es = re.search(r"- \*\*For early-stage:\*\* (.+)", block)
         dd = re.search(r"- \*\*Today's deep dive:\*\* (.+)", block)
         must.append({"headline": head, "who": who, "url": src.group(1) if src else "",
-                     "what": what.group(1) if what else "", "crit": crit.group(1) if crit else "",
+                     "what": ((f"*{intro.group(1).strip()}* " if intro else "") + (what.group(1) if what else "")), "crit": crit.group(1) if crit else "",
                      "editor": ed.group(2) if ed else "", "editor_label": ed.group(1) if ed else "",
                      "other": ol.group(2) if ol else "", "other_label": ol.group(1) if ol else "", "developing": dev.group(1) if dev else "",
                      "early": es.group(1) if es else "", "deep": dd.group(1) if dd else ""})

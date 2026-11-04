@@ -17,11 +17,16 @@ ul.top{margin:6px 0 0;padding-left:18px}ul.top li{margin:2px 0}
 </style>
 <div class="hm">
 <div style="display:grid;gap:16px">
- <section class="blk"><h2>Needs you</h2>
+ {% set act = needs|selectattr("level", "equalto", "act")|list %}{% set look = needs|selectattr("level", "equalto", "look")|list %}{% set queued = needs|selectattr("level", "equalto", "queued")|list %}
+ <section class="blk" style="border-left:6px solid {{ 'var(--err)' if act else 'var(--ok)' }}">
+ <h2 style="margin-top:0">{% if act %}Waiting on you: {{ act|length }} decision{{ 's' if act|length > 1 }}{% else %}Nothing is waiting on you{% endif %}</h2>
  {% if request.args.get('msg') %}<p class="small {{ 's-error' if request.args.get('msg').startswith('Not') else 's-ok' }}">{{ request.args.get('msg') }}</p>{% endif %}
- {% if needs %}{% for n in needs %}<div class="need"><span class="dot {{ n.level }}"></span><div><a href="{{ n.href }}">{{ n.text }}</a>
+ {% for n in act %}<div class="need"><span class="dot act"></span><div><a href="{{ n.href }}">{{ n.text }}</a>
 {% if n.button %}<form class="inline" method="post" action="/api/queue/{{ n.button.recipe }}" style="margin-left:8px"><input type="hidden" name="csrf" value="{{ csrf }}">{% if n.button.note %}<input type="text" name="note" placeholder="reviewed: what you checked" maxlength="200" style="width:220px"> {% endif %}<button class="mini">{{ n.button.label }}</button></form>{% endif %}</div></div>{% endfor %}
- {% else %}<div class="calm">Nothing needs you right now.</div>{% endif %}
+ {% if running %}<div class="need"><span class="dot run" style="background:var(--accent)"></span><div><b>Running now:</b> {{ running.name }} · step {{ running.step }} of {{ running.total }}, {{ running.what }}{% if running.since %} · started {{ running.since }}{% endif %}. <span class="muted small">Nothing for you to do.</span></div></div>{% endif %}
+ {% for n in queued %}<div class="need"><span class="dot look"></span><div><a href="{{ n.href }}">{{ n.text }}</a> <span class="muted small">Nothing for you to do.</span></div></div>{% endfor %}
+ {% for n in look %}<div class="need"><span class="dot look"></span><div><a href="{{ n.href }}">{{ n.text }}</a> <span class="muted small">(worth a look, not a decision)</span></div></div>{% endfor %}
+ {% if not act and not running and not queued and not look %}<div class="calm">Everything is quiet.</div>{% endif %}
  </section>
  <section class="blk"><h2>Today · {{ ed.day }}</h2>
  {% if ed.built %}<div class="title"><a href="/briefings/{{ ed.day }}">{{ ed.title }}</a></div>

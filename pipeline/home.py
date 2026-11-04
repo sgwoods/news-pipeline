@@ -33,6 +33,23 @@ def _safe(fn, default):
         return default
 
 
+def _job_name(j: dict) -> str:
+    v = (j.get("args") or {}).get("version") or j.get("version")
+    return {"ship": f"release {v}" if v else "a release", "send-held": "sending today's held edition",
+            "takes-done": "releasing the edition", "approve": "an approval", "rehearse": "tonight's rehearsal",
+            "service-install": "a service install", "special-draft": "drafting a special edition",
+            "special-revise": "revising the special edition", "special-release": "sending the special edition"}.get(j.get("recipe"), j.get("recipe", "a job"))
+
+
+def now_running(root: Path) -> dict | None:
+    """What the run queue is doing right now, in words (the home page's "Running now" line)."""
+    from pipeline import runner
+    cur = runner.running(root)
+    if not cur:
+        return None
+    return {**cur, "name": _job_name(cur), "since": (cur.get("started") or cur.get("step_started") or "")[11:16]}
+
+
 def needs(root: Path, cfg: dict, today: str, now: dt.datetime | None = None) -> list:
     """[{level: 'act'|'look', text, href}] most urgent first."""
     now = now or dt.datetime.now()
@@ -51,14 +68,17 @@ def needs(root: Path, cfg: dict, today: str, now: dt.datetime | None = None) -> 
 
     def queue():
         from pipeline import runner
+        cur = runner.running(root) or {}
         for p in sorted(runner.qdir(root, "waiting").glob("*.json")):
             j = json.loads(p.read_text("utf-8"))
             out.append({"level": "act", "href": "/control", "text": f"Approval waiting: {j.get('recipe')} ({j.get('id')})"})
         for p in sorted(runner.qdir(root, "pending").glob("*.json")):
             j = json.loads(p.read_text("utf-8"))
+            if j.get("id") == cur.get("id"):
+                continue                          # running now: shown in the "Running now" line instead
             if j.get("deferred"):
-                out.append({"level": "look", "href": "/control",
-                            "text": f"Queued, waiting: {j.get('recipe')} ({j['deferred'][:80]})"})
+                out.append({"level": "queued", "href": "/control",
+                            "text": f"Queued: {_job_name(j)}, {j['deferred'][:90]}"})
     _safe(queue, None)
 
     def sent():
@@ -73,6 +93,18 @@ def needs(root: Path, cfg: dict, today: str, now: dt.datetime | None = None) -> 
                            else {"recipe": "send-held", "label": "Send it now"}})
     _safe(sent, None)
 
+    def special():
+        from pipeline import special as sp
+        for r in sp.status(root)[:3]:
+            if r["day"] == today and r["status"] == "written":
+                out.insert(0, {"level": "act", "href": "/control",
+                               "text": f"Special edition drafted, waiting for your OK: {r['title'][:80]}"
+                                       + (f" ({r['facts']} fact check(s) in the review email)" if r["facts"] else ""),
+                               "button": {"recipe": "special-release", "label": "Release it"}})
+            elif r["day"] == today and r["status"] == "published" and not r["emailed"]:
+                out.append({"level": "look", "href": "/control", "text": "Special edition recorded, email not sent yet"})
+    _safe(special, None)
+
     def takes():
         st = json.loads((root / "data" / "takes" / f"{today}.json").read_text("utf-8"))
         for h in st.get("held") or []:
@@ -81,7 +113,9 @@ def needs(root: Path, cfg: dict, today: str, now: dt.datetime | None = None) -> 
     _safe(takes, None)
 
     def checks():
-        from pipeline import audit
+        from pipeline import audit, mailer
+        if today in mailer.sent_days(root):       # sent: today's choices are made (fact checks are in the takes email)
+            return
         tm = (dt.date.fromisoformat(today) + dt.timedelta(days=1)).isoformat()
         for day, label in ((tm, "tomorrow's deep dive"), (today, "today's deep dive")):
             n = len(audit.load_deepdive_check(root, day).get("held") or [])

@@ -224,7 +224,8 @@ def create_app(root: Path = ROOT) -> Flask:
         best = sorted(((n, pts) for n, pts in field.items() if n != critic.OURS and pts),
                       key=lambda kv: -kv[1][-1][1])[:3]
         spark = trends.svg_lines({**ours, **dict(best)}, "Weekly critic score: us and the top three", height=220)
-        return render_template("home.html", needs=h.needs(root, cfg_now, today), ed=h.edition(root, cfg_now, today),
+        return render_template("home.html", needs=h.needs(root, cfg_now, today), running=h.now_running(root),
+                               ed=h.edition(root, cfg_now, today),
                                tm=h.tomorrow(root, today), hl=h.health(root), spark=spark, today=today)
 
     @app.route("/status")
@@ -433,7 +434,8 @@ def create_app(root: Path = ROOT) -> Flask:
     # dashboard and notifications, not from commands pasted into Terminal). The click is his approval; jobs the
     # run queue gates on the Mac (approve) still ask in its dialog or on his phone.
     DASH_JOBS = {"send-held": "Send today's held edition", "takes-done": "Release the edition now (takes done)",
-                 "approve": "Approve the protected-file changes", "service-install": "Restart the dashboard service"}
+                 "approve": "Approve the protected-file changes", "service-install": "Restart the dashboard service",
+                 "special-release": "Release today's special edition"}
 
     @app.route("/api/queue/<recipe>", methods=["POST"])
     def queue_job(recipe):
@@ -447,12 +449,68 @@ def create_app(root: Path = ROOT) -> Flask:
             args = {"note": note if note.lower().startswith("reviewed") else "reviewed: " + (note or "changes listed on the dashboard")}
         elif recipe == "service-install":
             args = {"kind": "dashboard"}
+        elif recipe == "special-release":
+            args = {"day": dt.date.today().isoformat()}
         stamp = f"Steven, {dt.date.today().isoformat()}, dashboard button: {DASH_JOBS[recipe]}"
         try:
             p = runner.enqueue(root, recipe, args, chat_approval=stamp if recipe != "approve" else "", queued_by="Steven (dashboard)")
         except Exception as e:  # noqa: BLE001
             return redirect(url_for("home", msg=f"Not queued: {e}"[:200]))
         return redirect(url_for("home", msg=f"Queued: {DASH_JOBS[recipe]} ({p.stem}). It runs within a minute."))
+
+    # ---------- campaigns (2026-11-04): invites, sign-ups, conversions, replies ----------
+    def _campaign_inputs():
+        from pipeline import feedback as fb, mailer
+        try:
+            subs = (mailer.subscribers(cfg) or {}).get("subscribers") or []
+            err = ""
+        except Exception as e:  # noqa: BLE001 - the page still shows the invites
+            subs, err = [], f"subscriber list not read: {type(e).__name__}"
+        return subs, fb.load(root)["items"], err
+
+    @app.route("/campaigns")
+    def campaigns_page():
+        from pipeline import campaigns as cm
+        subs, fbi, err = _campaign_inputs()
+        reps = []
+        for cid in cm.all_ids(root):
+            try:
+                reps.append(cm.report(root, cid, subs, fbi))
+            except Exception:  # noqa: BLE001
+                continue
+        return render_template("campaigns.html", reps=reps, err=err, statuses=cm.STATUSES)
+
+    @app.route("/campaigns/<cid>")
+    def campaign_page(cid):
+        from pipeline import campaigns as cm
+        if cid not in cm.all_ids(root):
+            abort(404)
+        subs, fbi, err = _campaign_inputs()
+        rep = cm.report(root, cid, subs, fbi)
+        sample = cm.invite_text(rep, {"email": "friend@example.com", "name": "Alex"})
+        return render_template("campaign.html", c=rep, err=err, sample=sample, statuses=cm.STATUSES,
+                               msg=request.args.get("msg", ""), today=dt.date.today().isoformat())
+
+    @app.route("/api/campaigns/<cid>/<op>", methods=["POST"])
+    def campaign_op(cid, op):
+        _check_post()
+        from pipeline import campaigns as cm
+        if cid not in cm.all_ids(root) or op not in ("add", "invited", "declined", "undecline"):
+            abort(404)
+        email = request.form.get("email", "")
+        try:
+            if op == "add":
+                cm.add_person(root, cid, email, request.form.get("name", ""), request.form.get("note", ""))
+                msg = f"Added {email.strip().lower()}"
+            elif op == "invited":
+                cm.mark(root, cid, email, "invited", request.form.get("date") or dt.date.today().isoformat())
+                msg = f"Marked invited: {email}"
+            else:
+                cm.mark(root, cid, email, "declined", op == "declined")
+                msg = f"{'Declined' if op == 'declined' else 'Back on the list'}: {email}"
+        except ValueError as e:
+            msg = f"Not done: {e}"
+        return redirect(url_for("campaign_page", cid=cid, msg=msg))
 
     # ---------- audio branding (2026-11-03): hear the three styles, pick one (data/state/audio-brand.json) ----------
     @app.route("/audio-brand")

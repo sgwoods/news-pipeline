@@ -263,9 +263,12 @@ def page_text(url: str, cfg: dict, chars: int = 8000) -> str:
         from .netguard import client as guarded_client
         with guarded_client(timeout=20, follow_redirects=True, headers={"User-Agent": f.get("user_agent", "news-pipeline/0.1")}) as c:
             r = c.get(url)
-        if r.status_code != 200 or "html" not in r.headers.get("content-type", ""):
-            return ""
-        return html_to_text(r.text)[:chars]
+        text = html_to_text(r.text) if r.status_code == 200 and "html" in r.headers.get("content-type", "") else ""
+        if len(text) < 1500:                       # blocked, or a page that needs JavaScript: the headless last try
+            from .headless import fetch as headless_fetch
+            html = headless_fetch(url, cfg)
+            text = html_to_text(html) if html else text
+        return text[:chars]
     except Exception:  # noqa: BLE001
         return ""
 

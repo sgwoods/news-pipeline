@@ -323,7 +323,8 @@ def presend(root: Path, day: str, llm, system: str, log=print, stamp=None, finde
             for u in [a["url"] for a in f.get("added_source") or []]:
                 md = re.sub(r" · \[[^\]]*\]\(" + re.escape(u) + r"\)", "", md, count=1)
             held.append({"claim": _plain(f["before"])[:300], "verdict": "rewrite not confirmed",
-                         "why": f"second check: {', '.join(f.get('recheck') or [])}; proposed: {_plain(f['after'])[:200]}"})
+                         "why": f"second check: {', '.join(f.get('recheck') or [])}; proposed: {_plain(f['after'])[:200]}",
+                         "before_md": f["before"], "proposed_md": f["after"], "recheck": f.get("recheck") or []})
         fixes = kept
     for c in cl:                                 # not found anywhere: for Steven, not cut (names, not figures)
         if checks.get(c["n"], {}).get("verdict") == "not found" and not c.get("found"):
@@ -456,7 +457,8 @@ def check_sections(root: Path, day: str, sections: list, corpus: list, llm, syst
                 continue
             text_of[f["turn"]] = text_of[f["turn"]].replace(f["after"], f["before"], 1)
             held.append({"claim": f["before"], "section": f["section"], "verdict": "rewrite not confirmed",
-                         "why": f"second check: {f['recheck']}; proposed: {f['after'][:200]}"})
+                         "why": f"second check: {f['recheck']}; proposed: {f['after'][:200]}",
+                         "proposed": f["after"], "recheck": [f["recheck"]]})
         fixes = kept
         pages = {x["url"]: x for c in bad for x in c.get("found") or []}
         for f in fixes:                          # a found page joins the Sources only when the fix checked out AND

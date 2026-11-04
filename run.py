@@ -738,6 +738,13 @@ def write_v2(run, cfg, backends, system, entries, day, dropped, meta, briefings_
                 st["chart"] = bool(c)
             except Exception as e:  # noqa: BLE001 - a chart never stops the edition
                 run.log.warning("chart skipped: %s", e)
+        if (cfg.get("analysis") or {}).get("who_they_are", True):
+            try:                                 # a line on what a never-covered company does (Steven, 2026-11-04)
+                from pipeline import intros
+                md, st["who_they_are"] = intros.apply(ROOT, day, md, sel, backends["critique"], run.log.info,
+                                                      int((cfg.get("analysis") or {}).get("who_they_are_days", 14)))
+            except Exception as e:  # noqa: BLE001 - never stops the edition
+                run.log.warning("who they are skipped: %s", e)
         if (cfg.get("analysis") or {}).get("tighten", True):
             try:                                 # long sentences split, over-used phrases varied; facts checked by code
                 from pipeline import tighten
@@ -2816,6 +2823,11 @@ def _takes_step(cfg: dict, today: str) -> dict:
         return {}
     import os
     try:
+        if (cfg.get("analysis") or {}).get("accuracy_audit", True):
+            try:                                  # 2026-11-04: the accuracy audit runs before the takes email, so its
+                _accuracy_audit(cfg, today, alert=False)    # findings are choices for Steven, not an alert after sending
+            except Exception as e:  # noqa: BLE001
+                print(f"accuracy audit skipped: {e}"[:160])
         from pipeline import drivedocs                # the held edition as a Google Doc too (to read anywhere)
         drive = drivedocs.save_day(ROOT, cfg, today, final=False, log=print)
         print(takes.send_email(ROOT, cfg, today, drive=drive.get("briefing", "")))
@@ -2824,6 +2836,16 @@ def _takes_step(cfg: dict, today: str) -> dict:
         st = takes.wait(ROOT, cfg, today, log=print)
         if st.get("held") or st.get("unknown"):
             print(takes.report_email(ROOT, cfg, today, st))
+        try:                                      # fact-check choices (Steven's, else the recommendation), applied
+            from pipeline import factopts         # before anything is published; audio re-recorded if it changed
+            fx = factopts.apply(ROOT, cfg, today, st.get("fact_choices") or {}, log=print)
+            if fx["deepdive_changed"]:
+                from pipeline import deepdive
+                deepdive.revoice(ROOT, cfg, today)
+            if fx["edition_changed"]:
+                cmd_audio(cfg, today)
+        except Exception as e:  # noqa: BLE001 - the edition still ships, as written
+            print(f"fact-check choices not applied: {e}"[:200])
         print(takes.revoice(ROOT, cfg, today, st, log=print))
         if cfg.get("archive", {}).get("git_commit", True):
             print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"takes {today}: {len(st.get('published', []))} published",
@@ -2954,6 +2976,48 @@ def cmd_rehearse_queue(cfg: dict) -> int:
         return 0
     print("queued:", runner.enqueue(ROOT, "rehearse", {}, queued_by="schedule (nightly rehearsal)").name)
     return 0
+
+
+def cmd_special(cfg: dict, argv: list) -> int:
+    """./np special ...: occasional special editions, on their own, outside the daily cycle (pipeline/special.py)."""
+    from pipeline import special
+    sub, rest = (argv[0] if argv else "status"), argv[1:]
+    commit = lambda msg: (cfg.get("archive", {}).get("git_commit", True) and print("git:", Archive(ROOT, cfg["paths"]).git_commit(
+        msg, paths=(special.DIR, special.LOG, special.EMAIL_LOG, "data/audit", "data/deepdive_queue.json"))))
+    try:
+        if sub == "status":
+            for r in special.status(ROOT):
+                print(f"{r['day']}  {r['status']:<9} {'emailed' if r['emailed'] else 'not emailed':<12} {r['facts']} check(s)  {r['title']}")
+            return 0
+        if sub == "draft" and rest:
+            r = special.draft(ROOT, cfg, rest[0], log=print)
+            print(f"Special edition drafted: {r.get('title')} · {r.get('words')} words; review email sent")
+            commit(f"special edition {r['day']}: drafted")
+            return 0
+        if sub == "revise" and len(rest) >= 2:
+            r = special.revise(ROOT, cfg, rest[0], " ".join(rest[1:]), log=print)
+            print(f"Special edition revised: {r.get('title')}; review email sent")
+            commit(f"special edition {rest[0]}: revised")
+            return 0
+        if sub == "decide" and len(rest) >= 2:
+            print("Fact-check choices:", special.decide(ROOT, rest[0], " ".join(rest[1:])))
+            return 0
+        if sub == "release" and rest:
+            r = special.release(ROOT, cfg, rest[0], log=print)
+            print(f"Special edition recorded: {r.get('title')} · {r.get('minutes')} min (publish adds its page)")
+            commit(f"special edition {rest[0]}: recorded")
+            return 0
+        if sub == "email" and rest:
+            to = rest[rest.index("--to") + 1] if "--to" in rest else ""
+            r = special.email(ROOT, cfg, rest[0], to=to, log=print)
+            print("Special edition email:", r)
+            commit(f"special edition {rest[0]}: emailed")
+            return 0 if r.get("ok") else 1
+    except special.SpecialError as e:
+        print(f"Special edition: {e}")
+        return 1
+    print('usage: ./np special draft QID | revise DAY "notes" | decide DAY "F1: B" | release DAY | email DAY [--to ADDR] | status')
+    return 2
 
 
 def cmd_advance(cfg: dict) -> int:
@@ -3101,8 +3165,9 @@ def cmd_daily(cfg: dict) -> int:
     if w.get("status") == "ok" and published and not gate_blocked and (cfg.get("audio") or {}).get("listen_check", True):
         _listen_check(cfg, today)                # hear what was published: the as-published transcript (v0.2.17)
     if w.get("status") == "ok" and published and not gate_blocked:
-        if (cfg.get("analysis") or {}).get("accuracy_audit", True):
-            _accuracy_audit(cfg, today)          # about five claims re-checked against their sources (v0.2.22)
+        from pipeline.audit import DIR as _ADIR
+        if (cfg.get("analysis") or {}).get("accuracy_audit", True) and not (ROOT / _ADIR / f"{today}.json").exists():
+            _accuracy_audit(cfg, today)          # no takes step today: the audit runs after sending, as before
         from pipeline import houseviews
         if houseviews.weekly_due(dt.date.fromisoformat(today)):
             _score_positions(cfg, today)         # Sundays: score the calls whose check date has come
@@ -3299,6 +3364,8 @@ def main() -> int:
     ap.add_argument("--print-slot", action="store_true", help="with --due: print the scheduled time that matched")
     ap.add_argument("--due", metavar="KIND", help="daily|preflight|advance: exit 0 if a scheduled time just passed (local clock)")
     ap.add_argument("--preflight", action="store_true", help="evening check: is the release gate approval current?")
+    ap.add_argument("--special", nargs="*", metavar="ARG",
+                    help='draft QID | revise DAY "notes" | decide DAY "F1: B" | release DAY | email DAY [--to ADDR] | status')
     ap.add_argument("--advance", action="store_true", help="draft tomorrow's deep dive into Drive (schedule.advance)")
     ap.add_argument("--overnight", nargs="?", const="", default=None, metavar="SLOT",
                     help="overnight analysis: fetch and judge new items, no edition (schedule.overnight)")
@@ -3435,6 +3502,8 @@ def main() -> int:
         return cmd_overnight(cfg, args.overnight)
     if args.rehearse_queue:
         return cmd_rehearse_queue(cfg)
+    if args.special is not None:
+        return cmd_special(cfg, args.special)
     if args.advance:
         return cmd_advance(cfg)
     if args.preflight:

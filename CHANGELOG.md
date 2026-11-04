@@ -5,6 +5,37 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.55-beta · 2026-11-04
+- "Who they are" (Steven, 2026-11-04; `pipeline/intros.py`): the first time the briefing names a company, one or two
+  sentences on what it does and how it differs from or complements the well-known players; a company back after
+  two weeks (`analysis.who_they_are_days`) gets a one-sentence reminder that builds on our earlier lines (kept in
+  data/state/companies.json) and changes only where the company has. Recent and household names get nothing. Every
+  number must be in the story's sources. Must read: a "Who they are" field; other sections: italics after the headline.
+- Fact checks in the takes email (`pipeline/factopts.py`): the pre-send check, the deep-dive check and the accuracy
+  audit (now run before the takes email, not after sending) are listed at the bottom as F1, F2 ... each with A/B/C
+  options and a recommendation. Steven answers in the same reply ("F1: B"); unanswered items get the recommendation.
+  Choices are applied to the edition and the deep dive before publishing, and the podcast is re-recorded if it changed.
+- The home page says plainly whether anything is waiting on Steven (11-04): a green "Nothing is waiting on you" or a
+  red "Waiting on you: N decisions" heads the page; a release or other job in progress shows as "Running now" with
+  its step in words ("step 3 of 8, rebuilding today's edition with the new code") instead of "Queued, waiting";
+  queued jobs and items worth a look say "Nothing for you to do". Today's deep-dive fact-check items stop showing
+  once the edition is sent (they are choices in the takes email now).
+- Campaigns (`pipeline/campaigns.py`, dashboard Audience → Campaigns): invite lists with each person's status worked
+  out from the subscriber list (invited, signed up, subscribed, abandoned, declined) and their replies, the funnel and
+  conversion. The friends trial (Nov 2026) is set up with its invite; people are added from the dashboard.
+- Special editions (Steven, 2026-11-04; `pipeline/special.py`, `./np special`): an occasional extra deep dive that goes
+  out on its own the day news breaks, dated that day; the daily deep dive is untouched. Draft (written and checked,
+  not voiced) → a review email to Steven with the article and its fact checks as F1, F2 ... (A/B/C, a recommendation)
+  → his notes or choices → Release (chat, or the button on the dashboard home page): recorded, its page at
+  <site>/DAY/special/ (in no podcast feed), then one email to every active subscriber once the page is live
+  (07:00-21:00). It opens "This is an AI Briefing special edition for ..." with no hand-off. At most one a day and
+  four in 30 days. Run-queue recipes: special-draft, special-revise, special-decide, special-release.
+- Fewer good sources dropped as dead (11-04 trial over 24 dropped links): a link check retries once (10 of 24 were
+  fine on a retry) and GETs where a server refuses HEAD; a page the plain fetch can't read gets one try in the Mac's
+  Chrome, headless (`pipeline/headless.py`; 5 of 24: bot checks, Bluesky posts that need JavaScript), only where
+  robots.txt allows and only public hosts, with a throwaway profile and a cap per run. Pages behind real walls
+  (paywalls, Cloudflare; 9 of 24) stay out. Off with `fetch.headless: false`.
+
 ## v0.2.54-beta · 2026-11-04
 - Fix: the nightly rehearsal never queued (11-04 00:30: `cmd_rehearse_queue` lacked an import, NameError). A test now
   runs the real entry point.

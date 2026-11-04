@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Campaigns{% endblock %}{% block body %}
+<h1>Campaigns <span class="muted small">who was invited, who signed up, who stayed, who wrote back</span></h1>
+{% if err %}<p class="small s-partial">{{ err }} (statuses from sign-ups may be missing)</p>{% endif %}
+{% if not reps %}<p class="muted">No campaigns yet. Ask Claude in the chat to start one.</p>{% endif %}
+<table><tr><th>Campaign</th><th>Started</th><th>People</th><th>Invites sent</th><th>Signed up</th><th>Subscribed</th><th>Abandoned</th><th>Replied</th><th>Conversion</th></tr>
+{% for r in reps %}<tr><td><a href="/campaigns/{{ r.id }}"><b>{{ r.name }}</b></a></td><td class="small">{{ r.created }}</td>
+<td>{{ r.funnel.people }}{% if r.goal %}<span class="muted small"> / {{ r.goal }}</span>{% endif %}</td><td>{{ r.funnel.invited_sent }}</td>
+<td>{{ r.funnel['signed up'] }}</td><td class="s-ok">{{ r.funnel.subscribed }}</td><td>{{ r.funnel.abandoned }}</td><td>{{ r.funnel.replied }}</td>
+<td>{{ (r.funnel.conversion_pct ~ '%') if r.funnel.conversion_pct is not none else '—' }}</td></tr>{% endfor %}</table>
+<p class="muted small">Status comes from the subscriber list (matched by address) and from replies to the briefing. "Abandoned": unsubscribed, sign-up expired, or no sign-up {{ 10 }} days after the invite. Opens aren't tracked yet.</p>
+{% endblock %}
