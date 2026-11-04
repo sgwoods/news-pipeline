@@ -2347,6 +2347,18 @@ def llm_stage_names(acfg: dict, rebrief: bool = False) -> list:
     return names
 
 
+def _rebrief_ids(archive: Archive, briefings_log: Path, day: str) -> set:
+    """The items a rebuild of DAY works from: what that day's edition considered (briefings log), plus everything
+    first seen that day. 2026-11-04: since the overnight runs, many of a day's items are first seen the evening before,
+    so "first seen that day" alone rebuilt 11-04 with no Must read and the 0.2.54 soak stopped."""
+    ids = {row["id"] for row in stages.read_jsonl(archive.index_path) if row.get("first_seen") == day}
+    for b in stages.read_jsonl(briefings_log):
+        if b.get("day") == day and not b.get("experiment"):
+            ids.update(b.get("considered_ids") or [])
+            ids.update(b.get("item_ids") or [])
+    return ids
+
+
 def run_llm_stages(run: Run, cfg: dict, archive: Archive, reprocess_day=None, limit=None, rebrief_day=None,
                    experiment=None, analyze_only: bool = False) -> str:
     """filter → summarize → critique → write. Returns 'ok', 'partial' or 'error'."""
@@ -2469,7 +2481,7 @@ def run_llm_stages(run: Run, cfg: dict, archive: Archive, reprocess_day=None, li
     latest = stages.latest_summaries(summaries_dir)
     this_run = {r["id"] for r in recs if r.get("keep")}
     if rebrief_day:
-        day_ids = {row["id"] for row in stages.read_jsonl(archive.index_path) if row.get("first_seen") == rebrief_day}
+        day_ids = _rebrief_ids(archive, briefings_log, rebrief_day)
         entries = [latest[i] for i in day_ids if i in latest and latest[i].get("keep") and latest[i].get("claim")]
     elif reprocess_day:
         entries = [latest[i] for i in this_run]
@@ -2493,7 +2505,7 @@ def run_llm_stages(run: Run, cfg: dict, archive: Archive, reprocess_day=None, li
     day = rebrief_day or reprocess_day or run.day
     dropped = sum(1 for r in recs if not r.get("keep"))
     if rebrief_day:
-        day_ids = {row["id"] for row in stages.read_jsonl(archive.index_path) if row.get("first_seen") == rebrief_day}
+        day_ids = _rebrief_ids(archive, briefings_log, rebrief_day)
         dropped = sum(1 for i in day_ids if i in latest and not latest[i].get("keep"))
     v2 = acfg.get("briefing_format", "v2") == "v2"
     if not entries:
@@ -2931,7 +2943,7 @@ def cmd_rehearse_queue(cfg: dict) -> int:
     """./np scheduled rehearsal (schedule.rehearsal, 00:30): queue tonight's rehearsal of the dev code (the run queue
     does it, one job at a time): rebuild the latest edition with dev, compare it with production, and record a pass
     so the next ship can skip that 15-minute soak (pipeline/runner.py)."""
-    from pipeline import runner
+    from pipeline import devenv, runner
     if not devenv.dev_path(ROOT, cfg).exists():
         print("no dev checkout: nothing to rehearse")
         return 0

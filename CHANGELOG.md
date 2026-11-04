@@ -5,6 +5,13 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.54-beta · 2026-11-04
+- Fix: the nightly rehearsal never queued (11-04 00:30: `cmd_rehearse_queue` lacked an import, NameError). A test now
+  runs the real entry point.
+- Fix: rebuilding a day (staging soaks, rehearsals, rebriefs) now starts from the items that day's edition considered,
+  not only items first seen that day. Since the overnight runs, most of a day's items are first seen the evening
+  before: the 11-04 soak rebuilt the edition with no Must read (8 of its 11 cited items missing) and stopped the ship.
+
 ## v0.2.53-beta · 2026-11-03
 - The night does the work (Steven, 2026-11-03):
   - Overnight analysis at 23:30, 01:30 and 03:30 (`./np overnight`, schedule.overnight): new items are fetched,

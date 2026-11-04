@@ -68,6 +68,35 @@ class Rehearsal(unittest.TestCase):
         self.assertEqual(runner.RECIPES["rehearse"]["steps"][-1], ("local", ["rehearsal-record"]))
 
 
+class RehearseQueue(unittest.TestCase):
+    def test_queues_one_rehearsal(self):
+        """11-04: the first night's 00:30 rehearsal died on a missing import; this runs the real entry point."""
+        import run
+        calls = []
+        orig = runner.enqueue
+        runner.enqueue = lambda root, recipe, args=None, **k: calls.append(recipe) or Path("/tmp/x-rehearse.json")
+        try:
+            run.cmd_rehearse_queue({"dev": {"path": tempfile.mkdtemp()}})
+        finally:
+            runner.enqueue = orig
+        self.assertIn(calls, ([], ["rehearse"]))                 # queued, or skipped cleanly; never a crash
+
+
+class RebriefIds(unittest.TestCase):
+    def test_includes_what_the_day_considered(self):
+        """11-04: items first seen the evening before (overnight runs) must still be in a rebuild of the day."""
+        import run
+        root = Path(tempfile.mkdtemp())
+        idx = root / "index.jsonl"
+        idx.write_text(json.dumps({"id": "a", "first_seen": "2026-11-04"}) + "\n"
+                       + json.dumps({"id": "b", "first_seen": "2026-11-03"}) + "\n")
+        log = root / "briefings.jsonl"
+        log.write_text(json.dumps({"day": "2026-11-04", "item_ids": ["b"], "considered_ids": ["b", "c"]}) + "\n"
+                       + json.dumps({"day": "2026-11-04", "experiment": "x", "considered_ids": ["z"]}) + "\n")
+        arch = type("A", (), {"index_path": idx})()
+        self.assertEqual(run._rebrief_ids(arch, log, "2026-11-04"), {"a", "b", "c"})
+
+
 class HomeFlow(unittest.TestCase):
     def test_flow_and_next_step(self):
         from pipeline import home
