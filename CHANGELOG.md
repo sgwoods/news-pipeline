@@ -5,6 +5,20 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.57-beta · 2026-11-05
+- Special editions everywhere (Steven, 2026-11-05): besides their page, the email and the deep-dive feed, a special
+  is now a bonus episode in the daily podcast feed (podcast.xml), a card on the front page with the deep dives
+  (marked "special edition"), a link on that day's briefing page, an item in feed.xml, a post in the team Slack
+  channel (the last step of a release; `./np special slack DAY`, recipe special-slack), a "Special edition ·
+  yesterday" card in the next morning's email, and a Special editions section on the dashboard's Deep dives page
+  with its status and a Release button. Any topic in the deep-dive queue has "★ make it a special" to draft one.
+- Source health (Steven, 2026-11-05; `pipeline/sourcehealth.py`): the Sources page opens with every source we know
+  about in one table: status (failing, known but not ingested, quiet, ingesting), category (X, Bluesky, email
+  newsletter, RSS feed, web page, Slack, deep-dive citation) with the reason (HTTP 403 blocked, 404 moved, rate
+  limited, timeout, unreadable feed, no X mirror answered, never arrived, bot wall / paywall) and a priority order
+  for fixing them: failing first, then sources we follow closely, then the size of the gap.
+- New source: Steven's Bluesky list (did:plc:ahl7dzintpt7a2vpxsx63sbo/lists/3mzksmnapxf2o) in config bluesky.lists.
+
 ## v0.2.56-beta · 2026-11-04
 - Tighter pronunciation (Steven, 2026-11-04): OpenAI's letter-o models are said "four-oh" and "oh three" everywhere
   (GPT-4o, 4o, o3, o4-mini); chips and parts are spelled, then the number (GB300 "G B three hundred", MI300X, B200s,

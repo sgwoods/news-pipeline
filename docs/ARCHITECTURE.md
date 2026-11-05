@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.56-beta (2026-11-04)
+- **Release:** v0.2.57-beta (2026-11-05)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 88 in `pipeline/`
+- **Modules:** 89 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -124,8 +124,9 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
 - **Sonic** (`sonic.py`): the audio branding (sound logo, stings, close), synthesised locally; the style is chosen on the dashboard.
 - **Intros** (`intros.py`): "Who they are" lines: an intro the first time a company is named, a short reminder when it returns after two weeks, built on earlier lines kept in data/state/companies.json.
 - **Fact-check options** (`factopts.py`): the checks' findings at the bottom of the takes email as F1, F2 ... with A/B/C options and a recommendation, applied before publishing.
-- **Special editions** (`special.py`): an occasional deep dive sent on its own the day news breaks: its own files (briefings/specials/), checks and review email to Steven, a page at <site>/DAY/special/ (in no feed), one email to subscribers after the page is live. At most one a day and four in 30 days.
+- **Special editions** (`special.py`): an occasional deep dive sent on its own the day news breaks: its own files (briefings/specials/), checks and review email to Steven, a page at <site>/DAY/special/ (in no feed), one email to subscribers after the page is live; also both podcast feeds, the front page, that day's briefing page, feed.xml, a Slack post and a card in the next morning's email. At most one a day and four in 30 days.
 - **Headless last try** (`headless.py`): a page the plain fetch couldn't read (a bot check, a page that needs JavaScript) is opened once in the Mac's Chrome, headless, with a throwaway profile, only where robots.txt allows, public hosts only, capped per run.
+- **Source health** (`sourcehealth.py`): every known source (feeds, pages, X, Bluesky, email newsletters, Slack, and sites our deep dives keep citing but can't open) with a status (failing, known but not ingested, quiet, ingesting), an error category and a priority, at the top of the dashboard's Sources page.
 - **Campaigns** (`campaigns.py`): invite lists and their outcome (signed up, subscribed, abandoned, replies) for the dashboard's Campaigns page.
 - **Secrets** (`vault.py`): macOS Keychain first, then `.env` (gitignored, mode 600).
 
@@ -408,6 +409,7 @@ _Generated from each module's own description at build time._
 | `slackpost.py` | The morning post in the team channel (Steven, 2026-10-28) |
 | `slacksource.py` | Links Steven shares in an internal Slack channel, as a source (read-only, Slack Web API, free). |
 | `sonic.py` | Audio branding (Steven, 2026-11-03) |
+| `sourcehealth.py` | Source health (Steven, 2026-11-05) |
 | `sources.py` | Resolve and verify RSS/Atom feeds for every tracked person. |
 | `special.py` | Special editions (Steven, 2026-11-04) |
 | `speech.py` | The speech layer |

@@ -18,11 +18,19 @@
 <form method="post" action="/api/deep-dives/add" class="small" style="margin-bottom:14px"><input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="text" name="topic" placeholder="your own topic, e.g. what the third scaling law means for startups" maxlength="120" style="width:420px" required>
 <input type="text" name="angle" placeholder="angle (optional)" maxlength="500" style="width:260px"> <button>Add to Up next</button></form>
+{% macro special_btn(x) %}<form class="inline" method="post" action="/api/queue/special-draft" title="write and check it now as today's special edition; you review it before it goes out"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="qid" value="{{ x.id }}"><button class="mini">★ make it a special</button></form>{% endmacro %}
+<h2>Special editions <span class="muted small">occasional, on their own, the day news breaks · at most one a day, four in 30 days</span></h2>
+{% for s in specials %}<div class="card" style="margin-bottom:8px"><b>{{ s.title }}</b> <span class="small muted">{{ s.day }}</span>
+<span class="pill {{ 'flag' if s.status == 'written' }}">{{ 'draft, waiting for your OK' if s.status == 'written' else s.status }}</span>
+{% if s.emailed %}<span class="pill">emailed</span>{% endif %}{% if s.slacked %}<span class="pill">in Slack</span>{% endif %}
+{% if s.status == 'published' and s.url %} · <a href="{{ s.url }}" target="_blank" rel="noopener">its page</a>{% endif %}
+{% if s.status == 'written' and s.day == today %}<form class="inline" method="post" action="/api/queue/special-release"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="mini">Release it</button></form>{% endif %}
+{% if s.facts %}<span class="small muted"> · {{ s.facts }} fact check(s)</span>{% endif %}</div>{% else %}<p class="small muted">None yet. Use "★ make it a special" on a topic below.</p>{% endfor %}
 {% if g.scheduled %}<h2>Scheduled</h2>{% for x in g.scheduled %}{{ card(x, btn(x, 'queued', '↩ back to queue')) }}{% endfor %}{% endif %}
 <h2>Up next <span class="muted small">{{ g.queued|length }}</span></h2>
-{% for x in g.queued %}{{ card(x, posform(x, loop.index, g.queued|length) ~ btn(x, 'top', '⤒ next') ~ btn(x, 'up', '↑') ~ btn(x, 'down', '↓') ~ btn(x, 'bottom', '⤓') ~ btn(x, 'suggested', 'unqueue') ~ btn(x, 'dismissed', '✕ dismiss')) }}{% else %}<p class="small muted">Empty: Claude will pick the day's strongest suggestion.</p>{% endfor %}
+{% for x in g.queued %}{{ card(x, posform(x, loop.index, g.queued|length) ~ btn(x, 'top', '⤒ next') ~ btn(x, 'up', '↑') ~ btn(x, 'down', '↓') ~ btn(x, 'bottom', '⤓') ~ btn(x, 'suggested', 'unqueue') ~ btn(x, 'dismissed', '✕ dismiss') ~ special_btn(x)) }}{% else %}<p class="small muted">Empty: Claude will pick the day's strongest suggestion.</p>{% endfor %}
 <h2>Suggested <span class="muted small">{{ g.suggested|length }}</span></h2>
-{% for x in g.suggested %}{{ card(x, btn(x, 'top', '⤒ air next') ~ btn(x, 'queued', '＋ add to Up next') ~ btn(x, 'dismissed', '✕ dismiss')) }}{% else %}<p class="small muted">No suggestions yet: they arrive with each morning's run.</p>{% endfor %}
+{% for x in g.suggested %}{{ card(x, btn(x, 'top', '⤒ air next') ~ btn(x, 'queued', '＋ add to Up next') ~ btn(x, 'dismissed', '✕ dismiss') ~ special_btn(x)) }}{% else %}<p class="small muted">No suggestions yet: they arrive with each morning's run.</p>{% endfor %}
 {% if g.done %}<h2>Aired</h2>{% for x in g.done %}{{ card(x, '') }}{% endfor %}{% endif %}
 {% if g.dismissed %}<details><summary class="small muted">Dismissed ({{ g.dismissed|length }})</summary>{% for x in g.dismissed %}{{ card(x, btn(x, 'suggested', 'restore')) }}{% endfor %}</details>{% endif %}
 {% endblock %}

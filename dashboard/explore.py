@@ -354,7 +354,11 @@ def register(app, root, cfg, P, check_post, md_html, DAY_RE):
             "dismissed": sorted([x for x in items if x["status"] == "dismissed"], key=lambda x: x.get("status_at", ""), reverse=True)[:15],
         }
         c = deepdive.dcfg(live_cfg())
-        return render_template("deepdives.html", g=groups, recs=recs, cap=c["max_per_week"],
+        from pipeline import special
+        site = ((live_cfg().get("publish") or {}).get("site_url") or "").rstrip("/")
+        specials = [{**s, "url": f"{site}/{s['day']}/special/" if site else ""} for s in special.status(root)[:10]]
+        return render_template("deepdives.html", g=groups, recs=recs, cap=c["max_per_week"], specials=specials,
+                               today=dt.date.today().isoformat(),
                                week=deepdive._week_count(root, dt.date.today().isoformat()))
 
     @app.route("/api/deep-dives/<qid>/<op>", methods=["POST"])

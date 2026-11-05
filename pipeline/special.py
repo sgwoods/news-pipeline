@@ -11,6 +11,7 @@ files (briefings/specials/DAY.*), its own log (data/specials.jsonl) and its own 
     decide DAY "F1: B, F3: C"   apply his fact-check choices (unanswered items get the recommendation at release)
     release DAY       voice it; the site build adds its page at <site>/DAY/special/ (then: publish, verify, email)
     email DAY         one email to every active subscriber, once, after the page is live
+    slack DAY         one post in the team Slack channel, once
     status            the specials, newest first
 
 Where it goes (Steven, 2026-11-04): an email to subscribers, linking to its own page with the audio, and the deep-dive
@@ -387,6 +388,7 @@ def site_pages(root: Path, cfg: dict, out: Path, base_url: str, page, md_to_html
                     + f'<div id="listen"><audio controls preload="none" src="../../audio/special-{day}.mp3"></audio></div>'
                     + f'<section id="read" class="ddread">{md_to_html(written)}</section>' + md_to_html(src)
                     + '<p><a href="../../index.html">The daily AI Briefing</a></p>')
+            link_day_page(out, day, title)
             (out / day / "special").mkdir(parents=True, exist_ok=True)
             (out / day / "special" / "index.html").write_text(page(title, body, "../../", cfg, kind="deepdive"), "utf-8")
             made.append(day)
@@ -415,10 +417,67 @@ def feed_episodes(root: Path, base_url: str, md_to_html=None) -> list:
     return sorted(out, key=lambda e: e["day"], reverse=True)
 
 
+def landing_items(root: Path) -> list:
+    """Released specials as cards for the site's front page (with the deep dives, newest first)."""
+    out = []
+    for e in feed_episodes(root, ""):
+        out.append({"day": e["day"], "title": e["title"], "summary": e["summary"], "audio": True, "written": True,
+                    "href": f"{e['day']}/special/index.html", "special": True})
+    return out
+
+
+def link_day_page(out: Path, day: str, title: str) -> None:
+    """'Special edition today: ...' at the top of that day's briefing page, when there is one."""
+    p = out / day / "index.html"
+    if not p.exists():
+        return
+    html = p.read_text("utf-8")
+    if "special/index.html" in html:
+        return
+    link = (f'<p class="small"><b>Special edition today:</b> <a href="special/index.html">'
+            f'{htmllib.escape(title.removeprefix("Special edition: "))}</a></p>')
+    p.write_text(html.replace('<div id="brief">', link + '<div id="brief">', 1), "utf-8")
+
+
+SLACK_LOG = "data/specials-slack.jsonl"
+
+
+def slack(root: Path, cfg: dict, day: str, log=print, client=None) -> dict:
+    """One post in the team channel for DAY's released special (not in a thread: it stands on its own)."""
+    from . import slackpost
+    rec = latest(root, day) or {}
+    if rec.get("status") != "published":
+        raise SpecialError(f"{day}'s special edition is not released yet")
+    if any(r.get("day") == day and r.get("ok") for r in read_jsonl(Path(root) / SLACK_LOG)):
+        return {"ok": True, "skipped": f"{day}'s special edition is already posted"}
+    p = slackpost.pcfg(cfg)
+    if not p.get("enabled"):
+        return {"ok": False, "skipped": "slack.post.enabled is off"}
+    tok = slackpost.token()
+    if not tok:
+        return {"ok": False, "skipped": "no SLACK_BOT_TOKEN"}
+    from .release import require
+    require(root, cfg, "slack post", log)
+    _, summary, _ = _summary(root, day)
+    url = page_url(cfg, day)
+    mins = int(round(rec.get("minutes") or 10))
+    text = "\n".join(x for x in [f":rotating_light: :headphones: *AI Briefing · Special edition: {rec.get('title', '')}*  ·  {mins} min",
+                                  summary, f"<{url}|Read it>  ·  :headphones: <{url}#listen|Listen>"] if x)
+    import httpx
+    client = client or httpx.Client()
+    ch = slackpost.channel_id(client, tok, p["channel"], p.get("channel_id", ""))
+    ts = slackpost._send(client, tok, ch, text, None, f"AI Briefing · special edition · {day}")
+    row = {"day": day, "at": dt.datetime.now().isoformat(timespec="seconds"), "ok": bool(ts), "channel": p["channel"], "ts": ts}
+    append_jsonl(Path(root) / SLACK_LOG, [row])
+    log(f"special {day}: posted in #{p['channel']}")
+    return row
+
+
 def status(root: Path) -> list:
     out = []
     for day in sorted({r["day"] for r in records(root)}, reverse=True):
         r = latest(root, day)
         out.append({"day": day, "title": r.get("title", ""), "status": r.get("status"),
-                    "emailed": bool(emailed(root, day)), "facts": len(fact_items(root, day))})
+                    "emailed": bool(emailed(root, day)), "facts": len(fact_items(root, day)),
+                    "slacked": any(x.get("day") == day and x.get("ok") for x in read_jsonl(Path(root) / SLACK_LOG))})
     return out

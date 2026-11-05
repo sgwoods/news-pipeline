@@ -9,6 +9,22 @@ form.add input[type=text]{padding:5px 8px;border:1px solid var(--line);border-ra
 <h1>Sources <span class="muted small">verified {{ verified_at.replace('T',' ') }}</span></h1>
 {% if action %}<div hx-get="/actions/output" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
 
+<div class="card" style="margin:8px 0 14px" id="health">
+<h2 style="margin:0 0 6px">Source health <span class="muted small">every source we know about · fix in priority order</span></h2>
+<p class="small">{% for k in ['failing', 'known, not ingested', 'quiet', 'ingesting'] %}<span class="pill {{ 'flag' if k == 'failing' }}">{{ k }}: {{ health_sum.status.get(k, 0) }}</span> {% endfor %}</p>
+{% if health_sum.categories %}<p class="small muted">Needs work, by category: {% for c, n in health_sum.categories.items() %}{{ c }} ({{ n }}){{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
+<details open><summary class="small">Needs work ({{ health|rejectattr('status', 'equalto', 'ingesting')|list|length }})</summary>
+<table class="small" style="width:100%;border-collapse:collapse"><thead><tr style="text-align:left"><th>#</th><th>Source</th><th>Category</th><th>Status</th><th>Why</th><th>Items</th><th>Newest</th><th>Note</th></tr></thead><tbody>
+{% for r in health if r.status != 'ingesting' %}<tr style="border-top:1px solid var(--line)"><td>{{ r.priority }}</td>
+<td>{% if r.url and r.url.startswith('http') %}<a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %}{% if 'close' in r.tier %} <span class="pill">follow closely</span>{% endif %}</td>
+<td>{{ r.category }}</td><td class="{{ 's-error' if r.status == 'failing' }}">{{ r.status }}</td><td>{{ r.why }}</td><td>{{ r.items }}</td><td>{{ r.newest }}</td><td class="muted">{{ r.note }}</td></tr>{% endfor %}
+</tbody></table></details>
+<details><summary class="small">Ingesting ({{ health|selectattr('status', 'equalto', 'ingesting')|list|length }})</summary>
+<table class="small" style="width:100%;border-collapse:collapse"><thead><tr style="text-align:left"><th>Source</th><th>Category</th><th>Items</th><th>Newest</th></tr></thead><tbody>
+{% for r in health if r.status == 'ingesting' %}<tr style="border-top:1px solid var(--line)"><td>{{ r.name }}</td><td>{{ r.category }}</td><td>{{ r.items }}</td><td>{{ r.newest }}</td></tr>{% endfor %}
+</tbody></table></details>
+</div>
+
 {% if failing %}<div class="card" style="margin:8px 0 14px"><b class="s-error">{{ failing|length }} source(s) failing</b>
 <ul class="small" style="margin:4px 0 0">{% for s in failing[:8] %}<li>{{ s.person }} <span class="muted">[{{ s.kind }}]</span> · {{ (s.last.error or '')|short(90) }}</li>{% endfor %}</ul>
 <div class="muted small">They are listed first under Wired sources below.</div></div>

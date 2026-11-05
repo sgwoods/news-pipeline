@@ -2992,7 +2992,7 @@ def cmd_special(cfg: dict, argv: list) -> int:
     from pipeline import special
     sub, rest = (argv[0] if argv else "status"), argv[1:]
     commit = lambda msg: (cfg.get("archive", {}).get("git_commit", True) and print("git:", Archive(ROOT, cfg["paths"]).git_commit(
-        msg, paths=(special.DIR, special.LOG, special.EMAIL_LOG, "data/audit", "data/deepdive_queue.json"))))
+        msg, paths=(special.DIR, special.LOG, special.EMAIL_LOG, special.SLACK_LOG, "data/audit", "data/deepdive_queue.json"))))
     try:
         if sub == "status":
             for r in special.status(ROOT):
@@ -3016,6 +3016,11 @@ def cmd_special(cfg: dict, argv: list) -> int:
             print(f"Special edition recorded: {r.get('title')} · {r.get('minutes')} min (publish adds its page)")
             commit(f"special edition {rest[0]}: recorded")
             return 0
+        if sub == "slack" and rest:
+            r = special.slack(ROOT, cfg, rest[0], log=print)
+            print("Special edition Slack post:", r)
+            commit(f"special edition {rest[0]}: posted in Slack")
+            return 0
         if sub == "email" and rest:
             to = rest[rest.index("--to") + 1] if "--to" in rest else ""
             r = special.email(ROOT, cfg, rest[0], to=to, log=print)
@@ -3025,7 +3030,7 @@ def cmd_special(cfg: dict, argv: list) -> int:
     except special.SpecialError as e:
         print(f"Special edition: {e}")
         return 1
-    print('usage: ./np special draft QID | revise DAY "notes" | decide DAY "F1: B" | release DAY | email DAY [--to ADDR] | status')
+    print('usage: ./np special draft QID | revise DAY "notes" | decide DAY "F1: B" | release DAY | email DAY [--to ADDR] | slack DAY | status')
     return 2
 
 

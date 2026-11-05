@@ -295,7 +295,13 @@ def create_app(root: Path = ROOT) -> Flask:
         bl_counts = Counter(r.get("person") for r in idx if r.get("source_kind") == "bluesky" and r.get("person") not in {s["person"] for s in rows})
         enriched = sorted(enriched, key=lambda r: 0 if (r.get("last") or {}).get("status") == "error" else 1)
         failing = [r for r in enriched if (r.get("last") or {}).get("status") == "error"]
-        return render_template("sources.html", rows=enriched, failing=failing, verified_at=meta.get("verified_at", ""),
+        from pipeline import sourcehealth
+        dropped = [u for r in read_jsonl(root / "data" / "deepdives.jsonl")
+                   if r.get("day", "") >= (dt.date.today() - dt.timedelta(days=30)).isoformat()
+                   for u in (r.get("sources_dropped") or [])]
+        health = sourcehealth.table(enriched, last_status, news.get("newsletters") or [], xs, bl, idx, dropped)
+        return render_template("sources.html", rows=enriched, failing=failing, health=health,
+                               health_sum=sourcehealth.summary(health), verified_at=meta.get("verified_at", ""),
                                q=q, removed=managed["removed"], news=news, bluesky=bl, bl_counts=bl_counts, xs=xs,
                                last_status=last_status, busy_suggest=bool((action_status() or {}).get("running")),
                                report_name=reports[0].name if reports else "",
@@ -435,7 +441,8 @@ def create_app(root: Path = ROOT) -> Flask:
     # run queue gates on the Mac (approve) still ask in its dialog or on his phone.
     DASH_JOBS = {"send-held": "Send today's held edition", "takes-done": "Release the edition now (takes done)",
                  "approve": "Approve the protected-file changes", "service-install": "Restart the dashboard service",
-                 "special-release": "Release today's special edition"}
+                 "special-release": "Release today's special edition",
+                 "special-draft": "Draft a special edition from this topic"}
 
     @app.route("/api/queue/<recipe>", methods=["POST"])
     def queue_job(recipe):
@@ -451,6 +458,12 @@ def create_app(root: Path = ROOT) -> Flask:
             args = {"kind": "dashboard"}
         elif recipe == "special-release":
             args = {"day": dt.date.today().isoformat()}
+        elif recipe == "special-draft":
+            import re
+            qid = (request.form.get("qid") or "").strip()
+            if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", qid):
+                abort(400)
+            args = {"qid": qid}
         stamp = f"Steven, {dt.date.today().isoformat()}, dashboard button: {DASH_JOBS[recipe]}"
         try:
             p = runner.enqueue(root, recipe, args, chat_approval=stamp if recipe != "approve" else "", queued_by="Steven (dashboard)")

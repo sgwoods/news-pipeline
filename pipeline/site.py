@@ -751,11 +751,20 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
         pass
     specials = []
     try:                                   # special editions: their own pages + the deep-dive feed (pipeline/special.py)
-        from .special import feed_episodes, site_pages
+        from .special import feed_episodes, landing_items, site_pages
         site_pages(root, cfg, out, base_url, _page, _md_to_html)
-        specials = feed_episodes(root, base_url, _md_to_html)         # in the deep-dive feed too (Steven, 11-04)
+        specials = feed_episodes(root, base_url, _md_to_html)         # everywhere (Steven, 11-05)
+        for sp in specials:                                            # the daily show's feed: a bonus episode
+            episodes.append({**sp, "type": "bonus", "guid": sp["guid"].replace("ai-briefing-dd-", "ai-briefing-", 1)})
+            n_audio += 1
+            link = sp["link"]
+            feed.insert(0, f"<item><title>{htmllib.escape(sp['title'])}</title><link>{link}</link><guid>{link}</guid>"
+                           f"<pubDate>{format_datetime(dt.datetime.fromisoformat(sp['day'] + 'T18:00:00').astimezone())}</pubDate>"
+                           f"<description>{htmllib.escape(sp['summary'])}</description></item>")
+        dives_and_specials = sorted(dives + landing_items(root), key=lambda d: d["day"], reverse=True)
     except Exception as e:  # noqa: BLE001 - a special never breaks the site
         print(f"special pages skipped: {e}"[:200])
+        dives_and_specials = dives
     podcast_url = ""
     if episodes:
         podcast_url = "" if _is_staging() else build_podcast(root, cfg, out, episodes, base_url)
@@ -766,7 +775,7 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
         build_podcast(root, cfg, out, dd_eps, base_url, feed=DD_FEED, title=DD_TITLE, desc=DD_DESC,
                       cover="deepdive-cover.png")
     (out / "index.html").write_text(_page(cfg.get("podcast", {}).get("title", "AI Briefing"),
-                                          landing(cfg, latest, rows, podcast_url, bool(episodes), base_url, dives),
+                                          landing(cfg, latest, rows, podcast_url, bool(episodes), base_url, dives_and_specials),
                                           cfg=cfg, bare=True), "utf-8")
     (out / "releases").mkdir(exist_ok=True)
     (out / "releases" / "index.html").write_text(releases_page(cfg), "utf-8")
@@ -836,12 +845,14 @@ def landing(cfg: dict, latest, rows: list, podcast_url: str, has_podcast: bool, 
         cards = []
         for d in dives[:12]:
             day_label = dt.date.fromisoformat(d["day"]).strftime("%a %b %-d")
-            cards.append(f'<div class="card dive"><div class="k">{e(day_label)} · deep dive{" · 🔊" if d.get("audio") else ""}</div>'
-                         f'<h3><a href="{d["day"]}/deep-dive/index.html">{e(d["title"].removeprefix("Deep dive: "))}</a></h3>'
+            href = d.get("href") or f'{d["day"]}/deep-dive/index.html'
+            kind = "special edition" if d.get("special") else "deep dive"
+            cards.append(f'<div class="card dive"><div class="k">{e(day_label)} · {kind}{" · 🔊" if d.get("audio") else ""}</div>'
+                         f'<h3><a href="{href}">{e(d["title"].removeprefix("Deep dive: ").removeprefix("Special edition: "))}</a></h3>'
                          f'<p class="small muted">{e(_clip(re.sub(r"[*_]", "", d.get("summary") or ""), 220))}</p>'
                          f'<div class="actions">'
-                         + (f'<a class="button primary" href="{d["day"]}/deep-dive/index.html#read">Read</a>' if d.get("written") else "")
-                         + (f'<a class="button{"" if d.get("written") else " primary"}" href="{d["day"]}/deep-dive/index.html#listen">▶ Listen</a>'
+                         + (f'<a class="button primary" href="{href}#read">Read</a>' if d.get("written") else "")
+                         + (f'<a class="button{"" if d.get("written") else " primary"}" href="{href}#listen">▶ Listen</a>'
                             if d.get("audio") else "")
                          + f'<a class="button ghost" href="{d["day"]}/index.html">That day\'s briefing</a></div></div>')
         H.append('<section class="panel" id="deep-dives"><h2>Deep dives</h2>'

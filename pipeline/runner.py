@@ -123,7 +123,8 @@ RECIPES = {
                        "steps": [("prod", ["special", "decide", "{day}", "{choices}"])]},
     "special-release": {"tier": "chat", "args": {"day": "day"},
                         "steps": [("prod", ["special", "release", "{day}"]), ("prod", ["publish"]), ("local", ["verify"]),
-                                  ("prod", ["special", "email", "{day}"])]},   # draft tomorrow's deep dive now
+                                  ("prod", ["special", "email", "{day}"]), ("prod", ["special", "slack", "{day}"])]},
+    "special-slack": {"tier": "chat", "args": {"day": "day"}, "steps": [("prod", ["special", "slack", "{day}"])]},   # draft tomorrow's deep dive now
     "service-install": {"tier": "chat", "args": {"kind": "text"}, "steps": [("prod", ["service", "install", "{kind}"])]},
     "slack-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["slack-setup"])]},   # the bot token
     "jev-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["jev-setup"])]},       # the TypeSafe key
@@ -145,7 +146,7 @@ RECIPES = {
 }
 CHANGES_PRODUCTION = {"setup", "correct", "publish", "remaster", "deepdive-rebuild", "restore", "ship", "release", "rollback", "approve", "install-hooks",
                       "push-code", "source-add", "send-held", "takes-apply", "takes-sync", "deploy-mailer", "slack-post", "slack-deepdive", "slack-archive", "slack-promo", "service-install",
-                      "special-draft", "special-revise", "special-release"}
+                      "special-draft", "special-revise", "special-release", "special-slack"}
 IN_RELEASE_WINDOW = {"ship", "release"}
 # Steven, 2026-10-31: "pull approvals forward to the beginning of a task". A ship or release carrying his yes from
 # chat (asked when the task starts, answerable in the Claude iOS app) needs no tap: it runs on its own once tests and

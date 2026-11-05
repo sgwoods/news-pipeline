@@ -292,7 +292,7 @@ def _take_html(text: str) -> str:
 
 
 def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | None = None,
-           takes: dict | None = None, chart: dict | None = None) -> dict:
+           takes: dict | None = None, chart: dict | None = None, special: dict | None = None) -> dict:
     """→ {"subject", "html", "text"} with {{UNSUBSCRIBE}} where each recipient's link goes.
     takes: {key: text} from day_takes(): "overall", "top", or a story's item id."""
     from .textutil import item_id
@@ -404,6 +404,13 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
                      f'their own: <a href="{base}/deepdive.xml" style="color:{C["link"]}">subscribe to the deep dives</a>. '
                      f'Got a story that deserves a whole episode? <a href="{{{{SUGGEST}}}}" style="color:{C["link"]}">Suggest a deep dive</a>.</p>'
                    + "</td></tr>")
+    if special:                                  # a special edition since the last edition (pipeline/special.py)
+        H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Special edition · " + special["when"])}'
+                 f'<div style="font-size:18px;font-weight:600;line-height:1.35;margin:0 0 6px;color:{C["text"]}">'
+                 f'{htmllib.escape(special["title"])}</div>'
+                 + (f'<p {P}>{_inline(defuse(special["summary"]))}</p>' if special.get("summary") else "")
+                 + _btn(special["url"] + "#listen", "🎧 Listen") + _btn(special["url"] + "#read", "Read it", False)
+                 + "</td></tr>")
     if b.get("reading"):
         rr = b["reading"]
         H.append(f'<tr><td style="height:16px"></td></tr><tr><td {cell}>{_label("Recommended reading")}'
@@ -464,6 +471,8 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
                                             + (tk_line(item_id(s["url"])) if s.get("url") else [])]
                      + ([ "", f"TODAY'S DEEP DIVE: {deep['title']}", deep.get("summary", ""), deep["url"],
                           f"The deep dives as their own podcast: {base}/deepdive.xml"] if deep else [])
+                     + ([ "", f"SPECIAL EDITION ({special['when']}): {special['title']}", special.get("summary", ""),
+                          special["url"]] if special else [])
                      + ([ "", "RECOMMENDED READING", f"{b['reading']['title']} ({b['reading']['who']})", b["reading"]["url"],
                           f"Why it matters: {b['reading']['why']}"] if b.get("reading") else [])
                      + ["", f"Full briefing: {page}", f"Podcast feed: {feed}", "",
@@ -501,6 +510,23 @@ def deep_dive_for(root: Path, cfg: dict, day: str) -> dict | None:
             "minutes": int(round(rec.get("minutes") or 10)), "flagship": rec.get("format") == "flagship"}
 
 
+def special_for(root: Path, cfg: dict, day: str) -> dict | None:
+    """The special edition that went out since the previous edition (the day before DAY, or DAY itself before the
+    edition), for a card in DAY's email: {"title", "summary", "url", "when"} or None."""
+    try:
+        from . import special
+        d = dt.date.fromisoformat(day)
+        for back, when in ((1, "yesterday"), (0, "today")):
+            sd = (d - dt.timedelta(days=back)).isoformat()
+            rec = special.latest(root, sd) or {}
+            if rec.get("status") == "published":
+                _, summary, _ = special._summary(root, sd)
+                return {"title": rec.get("title", ""), "summary": summary, "url": special.page_url(cfg, sd), "when": when}
+    except Exception:  # noqa: BLE001 - a special never blocks the edition
+        return None
+    return None
+
+
 def send_new(root: Path, cfg: dict, day: str) -> dict:
     """DAY's edition to active subscribers who confirmed after it was emailed (one send each, nobody twice).
     The log keeps counts only, never addresses."""
@@ -520,7 +546,7 @@ def send_new(root: Path, cfg: dict, day: str) -> dict:
         return {"day": day, "ok": True, "sent": 0, "note": "no one has confirmed since it was emailed"}
     bdir = root / cfg.get("paths", {}).get("briefings", "briefings")
     msg = render(day, (bdir / f"{day}.md").read_text("utf-8"), cfg, (bdir / f"{day}.mp3").is_file(),
-                 deep_dive_for(root, cfg, day), day_takes(root, day), _chart(root, day))
+                 deep_dive_for(root, cfg, day), day_takes(root, day), _chart(root, day), special_for(root, cfg, day))
     bad = privacy_gate(msg, cfg)
     if bad:
         raise MailError("privacy gate blocked the email: " + "; ".join(bad))
@@ -549,7 +575,7 @@ def send_day(root: Path, cfg: dict, day: str, to: str = "", force: bool = False)
     if not to and day in sent_days(root) and not force:
         return {"ok": True, "skipped": f"{day} already emailed"}
     msg = render(day, md_file.read_text("utf-8"), cfg, (bdir / f"{day}.mp3").is_file(), deep_dive_for(root, cfg, day),
-                 day_takes(root, day), _chart(root, day))
+                 day_takes(root, day), _chart(root, day), special_for(root, cfg, day))
     bad = privacy_gate(msg, cfg)
     if bad:
         raise MailError("privacy gate blocked the email: " + "; ".join(bad))
