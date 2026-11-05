@@ -5,6 +5,21 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.56-beta · 2026-11-04
+- Tighter pronunciation (Steven, 2026-11-04): OpenAI's letter-o models are said "four-oh" and "oh three" everywhere
+  (GPT-4o, 4o, o3, o4-mini); chips and parts are spelled, then the number (GB300 "G B three hundred", MI300X, B200s,
+  H100); about forty more acronyms said letter by letter or as the word people use (FTC, SEC, EU, CEO, VC, ETF, SB,
+  PAC "pack" ...) in pronunciations.yaml.
+- Fix: a comma right after a number was dropped from what the voice said ("SB 53, the law" was read "fifty-three the
+  law"), so the voice ran clauses together. Numbers now take a comma only as a thousands separator.
+- Steven's takes are read with real pauses at his commas, semicolons and dashes (0.22 s, 0.32 s): each clause is
+  voiced on its own and joined, so "and", "but" and "so" after a comma no longer run on. Only where both sides have
+  at least four words; only takes. `./np say-compare "a take"` (run-queue recipe say-compare) renders before and after.
+- Special editions are in the deep-dive podcast feed too (deepdive.xml; Steven, 2026-11-04 evening), titled
+  "Special edition: ...", dated the day they went out; still not in the daily feed.
+- Fix: the Slack shared-links read logged "FAIL shared links (Slack): unsupported operand ..." in every release's test
+  step since v0.2.0 (a test reads Slack with no folder to write to). A read without one now writes nothing.
+
 ## v0.2.55-beta · 2026-11-04
 - "Who they are" (Steven, 2026-11-04; `pipeline/intros.py`): the first time the briefing names a company, one or two
   sentences on what it does and how it differs from or complements the well-known players; a company back after

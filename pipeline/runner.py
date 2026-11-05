@@ -114,6 +114,7 @@ RECIPES = {
     "ntfy-setup": {"tier": "mac", "args": {}, "steps": [APPROVE, ("local", ["ntfy-setup"])]},     # phone notifications
     "ntfy-test": {"tier": "auto", "args": {}, "steps": [("prod", ["ntfy", "test"])]},
     "advance": {"tier": "auto", "args": {}, "steps": [("prod", ["advance"])]},
+    "say-compare": {"tier": "auto", "args": {"text": "text"}, "steps": [("prod", ["say-compare", "{text}"])]},
     # special editions (pipeline/special.py): Steven asks in chat; release needs his yes (chat or the dashboard button)
     "special-draft": {"tier": "chat", "args": {"qid": "text"}, "steps": [("prod", ["special", "draft", "{qid}"])]},
     "special-revise": {"tier": "chat", "args": {"day": "day", "note": "text"},

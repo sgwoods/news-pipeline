@@ -161,13 +161,13 @@ def fetch(root: Path, cfg: dict, run_id: str, log, lookback_hours: int | None = 
                                    "The article itself is the source: cite its publisher, never this note, never who "
                                    "shared it, and never mention where it was shared.",
                     "fetched_at": iso(now), "run_id": run_id})
-        if take_rows:
+        if take_rows and root is not None:          # no root (a test, a dry read): nothing is written
             from .takes import add_slack
             add_slack(root, take_rows)
             log.info("  your words on %d shared link(s) kept as take candidates", len(take_rows))
         from . import linkedin                       # his own LinkedIn posts are his words, not news
         own_posts = [it for it in items if linkedin.is_own_post(it, cfg)]
-        if own_posts:
+        if own_posts and root is not None:
             n = linkedin.add_posts(root, [linkedin.from_item(it) for it in own_posts])
             items = [it for it in items if it not in own_posts]
             log.info("  own LinkedIn post(s): %d -> public record (%d new), not briefed", len(own_posts), n)

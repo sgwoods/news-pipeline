@@ -2281,11 +2281,20 @@ def cmd_slack(cfg: dict, argv: list) -> int:
 def cmd_say(cfg: dict, text: str) -> int:
     """./np say "TEXT": hear how the voice says TEXT with the pronunciation table -> briefings/voice-samples/say.mp3"""
     from pipeline import audio, speech
+    compare = text.startswith("compare: ")
+    text = text.removeprefix("compare: ")
     said = speech.spoken(text, speech.load_table(ROOT))
     print("spoken as:", said)
     eng = audio.engine_from(cfg)
     eng.check()
     out = ROOT / "briefings" / "voice-samples" / "say.mp3"
+    if compare:                                  # a take read as before (one breath) and as now (pauses at commas)
+        before, after = out.with_name("take-before.mp3"), out.with_name("take-after.mp3")
+        audio.render_mp3(eng, [("say", said)], before, "take, before")
+        audio.render_mp3(eng, [("Take 1", said)], after, "take, after")
+        print("phrases:", [p for p, _ in audio.take_phrases(said)])
+        print(f"-> {before.relative_to(ROOT)} and {after.relative_to(ROOT)}")
+        return 0
     audio.render_mp3(eng, [("say", said)], out, "say")
     print(f"-> {out.relative_to(ROOT)}  (open it: open {out})")
     return 0

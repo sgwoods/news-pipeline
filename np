@@ -146,6 +146,7 @@ case "$cmd" in
   feedback)  run $PY run.py --feedback "${@:-list}" ;;           # list | fetch [DAYS] | triage | set ID STATUS | todo ID
   linkedin)  run $PY run.py --linkedin "${@:-list}" ;;           # import [PATH] | list [N]: own posts from LinkedIn's export (data/inbox/)
   slack)     run $PY run.py --slack "${@:-test}" ;;              # test | fetch [HOURS]: links Steven shares in Slack
+  say-compare) run $PY run.py --say "compare: ${1:?usage: ./np say-compare \"a take\"}" ;;   # a take, before/after pauses
   say)       run $PY run.py --say "${1:?usage: ./np say \"text\"}" ;;   # hear TEXT with pronunciations.yaml
   voices)    run $PY run.py --voices ;;                         # sample clip per candidate voice
   site)      run $PY run.py --site ;;                       # build the public site locally (site/)

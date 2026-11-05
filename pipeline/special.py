@@ -13,8 +13,9 @@ files (briefings/specials/DAY.*), its own log (data/specials.jsonl) and its own 
     email DAY         one email to every active subscriber, once, after the page is live
     status            the specials, newest first
 
-Where it goes (Steven, 2026-11-04): an email to subscribers, linking to its own page with the audio. It is not in
-the podcast feeds, the landing page, Slack or the next morning's edition.
+Where it goes (Steven, 2026-11-04): an email to subscribers, linking to its own page with the audio, and the deep-dive
+podcast feed (deepdive.xml; Steven, 11-04 evening). It is not in the daily podcast feed, the landing page, Slack or the
+next morning's edition.
 
 "Occasionally": at most one special a day and MAX_PER_30_DAYS in thirty days; the email goes out 07:00-21:00.
 """
@@ -390,6 +391,28 @@ def site_pages(root: Path, cfg: dict, out: Path, base_url: str, page, md_to_html
             (out / day / "special" / "index.html").write_text(page(title, body, "../../", cfg, kind="deepdive"), "utf-8")
             made.append(day)
     return made
+
+
+def feed_episodes(root: Path, base_url: str, md_to_html=None) -> list:
+    """Released specials as episodes of the deep-dive feed (deepdive.xml), newest first. A re-recorded special is a
+    new episode version (pipeline/episodes.py), so podcast apps fetch it again."""
+    from .episodes import version
+    out = []
+    for r in reversed(status(root)):
+        day = r["day"]
+        rec = latest(root, day) or {}
+        mp3 = Path(root) / DIR / f"{day}.mp3"
+        if rec.get("status") != "published" or not mp3.is_file():
+            continue
+        key = f"special:{day}"
+        v = version(root, key)
+        md, summary, _ = _summary(root, day)
+        link = f"{base_url.rstrip('/')}/{day}/special/" if base_url else f"{day}/special/index.html"
+        out.append({"key": key, "day": day, "title": f"Special edition: {rec.get('title', '')}", "md": md, "mp3": mp3,
+                    "file": f"special-{day}.mp3", "guid": f"ai-briefing-dd-special-{day}" + (f"-v{v}" if v > 1 else ""),
+                    "type": "full", "time": "18:00:00", "summary": summary or rec.get("title", ""), "link": link,
+                    "audio": True, **({"notes_html": md_to_html(md)} if md_to_html else {})})
+    return sorted(out, key=lambda e: e["day"], reverse=True)
 
 
 def status(root: Path) -> list:

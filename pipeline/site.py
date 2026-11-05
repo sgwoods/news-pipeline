@@ -749,9 +749,11 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
                 n_audio += 1
     except Exception:  # noqa: BLE001 - deep dives never break the site
         pass
-    try:                                   # special editions: their own pages, in no feed (pipeline/special.py)
-        from .special import site_pages
+    specials = []
+    try:                                   # special editions: their own pages + the deep-dive feed (pipeline/special.py)
+        from .special import feed_episodes, site_pages
         site_pages(root, cfg, out, base_url, _page, _md_to_html)
+        specials = feed_episodes(root, base_url, _md_to_html)         # in the deep-dive feed too (Steven, 11-04)
     except Exception as e:  # noqa: BLE001 - a special never breaks the site
         print(f"special pages skipped: {e}"[:200])
     podcast_url = ""
@@ -759,6 +761,7 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
         podcast_url = "" if _is_staging() else build_podcast(root, cfg, out, episodes, base_url)
     dd_eps = [{**x, "type": "full", "guid": x.get("guid", "").replace("ai-briefing-", "ai-briefing-dd-", 1)}
               for x in dives if x.get("audio")]
+    dd_eps = sorted(dd_eps + specials, key=lambda x: (x["day"], x.get("time", "06:50:00")), reverse=True)
     if dd_eps and not _is_staging():                 # the deep dives as their own podcast (v0.2.17)
         build_podcast(root, cfg, out, dd_eps, base_url, feed=DD_FEED, title=DD_TITLE, desc=DD_DESC,
                       cover="deepdive-cover.png")
@@ -782,7 +785,8 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
            f'<link>{base_url}</link></image>' if base_url else "")
         + "".join(feed[:60]) + "</channel></rss>", "utf-8")
     return {"days": len(days), "audio": n_audio, "out": str(out), "podcast": podcast_url,
-            "episode_keys": built_keys + [e["key"] for e in episodes if e.get("key", "").startswith("deepdive:")]}
+            "episode_keys": built_keys + [e["key"] for e in episodes if e.get("key", "").startswith("deepdive:")]
+                            + [e["key"] for e in specials]}
 
 
 def landing(cfg: dict, latest, rows: list, podcast_url: str, has_podcast: bool, base_url: str = "",

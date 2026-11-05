@@ -65,7 +65,7 @@ def year_words(y: int) -> str:
     return int_words(hi) + " " + (("oh " + ONES[lo]) if 0 < lo < 10 else int_words(lo) if lo else "hundred")
 
 
-NUM = r"\d[\d,]*(?:\.\d+)?"
+NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"     # 11-04: "\d[\d,]*" ate the comma after "53," (lost pauses)
 END = r"(?![\w]|\.\d)"
 _SUF = r"(thousand|million|billion|trillion|bn|mn|tn|[kKmMbBtT])\b"
 _MONEY = re.compile(r"(?<![\w$])(US\$|C\$|CA\$|\$|€|£|¥)\s?(" + NUM + r")(?:\s?" + _SUF + r")?"
@@ -135,8 +135,16 @@ def expand(text: str) -> str:
     t = re.sub(r"(?<![\w&])#(\d+)\b", lambda m: "number " + num_words(m.group(1)), t)
     t = re.sub(r"\bpass@(\d+)\b", lambda m: "pass at " + num_words(m.group(1)), t)
     t = re.sub(r"\b[Qq]([1-4])\b", lambda m: "Q " + ONES[int(m.group(1))], t)
+    # OpenAI's letter-o models (Steven, 2026-11-04: "4o as 4-oh across the board"): GPT-4o -> four-oh, o3 -> oh three
+    t = re.sub(r"(?<![\w.])(\d+)o(?![\w])", lambda m: num_words(m.group(1)) + "-oh", t)
+    t = re.sub(r"(?<![\w.])o(\d+)(?![\w.])", lambda m: "oh " + num_words(m.group(1)), t)
+    # two to four capitals glued to a number: chips and parts are spelled, then the number ("GB300", "MI300X", "B200s")
+    t = re.sub(r"(?<![\w.])([A-Z]{2,4})(\d+)([A-Z]?)(s?)(?![\w])",
+               lambda m: " ".join(m.group(1)) + " " + num_words(m.group(2)) + (" " + m.group(3) if m.group(3) else "")
+               + m.group(4), t)
     # a single capital glued to a version number ("K3.1", "R1", "H100") is said as letter + number, not "Kthree"
-    t = re.sub(r"(?<![\w.])([A-Z])(\d+(?:\.\d+)*)(?![\w])", r"\1 \2", t)
+    t = re.sub(r"(?<![\w.])([A-Z])(\d+(?:\.\d+)?)(s?)(?![\w]|\.\d)",
+               lambda m: f"{m.group(1)} {num_words(m.group(2))}{m.group(3)}", t)
     t = re.sub(r"([?!])\.(?=\s|$)", r"\1", t)             # "...the Patches?." (a title ending a sentence)
     t = t.replace("and/or", "and or")
     t = re.sub(r"\best\.(?=\)|\s|$)", "estimate", t)

@@ -565,6 +565,45 @@ def _silence(path: Path, seconds: float, rate: int = 24000):
     _write_wav(path, [0.0] * int(rate * seconds), rate)
 
 
+TAKE_PAUSE = {",": 0.22, ";": 0.32, "—": 0.32, "–": 0.32}
+
+
+def is_take(name: str) -> bool:
+    n = str(name or "").lower()
+    return n.startswith("take") or n == "steven_take"
+
+
+def take_phrases(text: str, min_words: int = 4) -> list:
+    """Steven's take split at commas, semicolons and dashes into [(phrase, pause after)], so the voice stops where he
+    did instead of running his clauses together (Steven, 2026-11-04). A split only where both sides have at least
+    MIN_WORDS words: "Yes, and" stays one phrase. Numbers like 1,300 never split (no space after the comma)."""
+    out, buf = [], ""
+    toks = re.split(r"(?<=[,;])\s+|\s+[—–]\s+", text)
+    marks = re.findall(r"[,;](?=\s)|\s+[—–]\s+", text)
+    for k, tok in enumerate(toks):
+        buf = (buf + " " + tok).strip() if buf else tok
+        mark = marks[k].strip() if k < len(marks) else ""
+        rest = " ".join(toks[k + 1:])
+        if mark and len(buf.split()) >= min_words and len(rest.split()) >= min_words:
+            out.append((buf, TAKE_PAUSE.get(mark, 0.22)))
+            buf = ""
+        elif mark in ("—", "–"):
+            buf += ","                               # a dash kept inside a phrase still gets a comma's breath
+    if buf:
+        out.append((buf, 0.0))
+    return out or [(text, 0.0)]
+
+
+def _join_wavs(files: list, out: Path) -> None:
+    with wave.open(str(files[0])) as w0:
+        params = w0.getparams()
+    with wave.open(str(out), "wb") as o:
+        o.setparams(params)
+        for f in files:
+            with wave.open(str(f)) as w:
+                o.writeframes(w.readframes(w.getnframes()))
+
+
 def render_mp3(engine, parts: list, out_mp3: Path, title: str = "", bitrate: str = "64k", brand: dict | None = None) -> float:
     """TTS each section, join with short pauses, encode MP3. Returns duration in minutes. brand (pipeline/sonic.py
     sounds) adds the sound logo before the first section, a sting before each story and the close at the end."""
@@ -581,9 +620,22 @@ def render_mp3(engine, parts: list, out_mp3: Path, title: str = "", bitrate: str
             marks = placement(parts)
             short = td / "short.wav"
             _silence(short, 0.35)
-        for i, (_, text) in enumerate(parts):
+        for i, (name, text) in enumerate(parts):
             w = td / f"{i:02d}.wav"
-            engine.synth(text, w)
+            phrases = take_phrases(text) if is_take(name) else [(text, 0.0)]
+            if len(phrases) == 1:
+                engine.synth(text, w)
+            else:                                # Steven's takes: a real pause at his commas and dashes (11-04)
+                bits = []
+                for k, (ph, gap) in enumerate(phrases):
+                    pw = td / f"{i:02d}-{k:02d}.wav"
+                    engine.synth(ph, pw)
+                    bits.append(pw)
+                    if gap:
+                        g = td / f"{i:02d}-{k:02d}-gap.wav"
+                        _silence(g, gap)
+                        bits.append(g)
+                _join_wavs(bits, w)
             m = marks[i] if marks else None
             if m and brand.get(m):
                 files += [Path(brand[m]), short]
