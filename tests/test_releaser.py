@@ -73,8 +73,8 @@ class Releases(unittest.TestCase):
 
     def test_refusals(self):
         with self.ok, self.nocommit:
-            with self.assertRaises(releaser.ReleaseError):            # outside 08:30-20:00
-                releaser.promote(self.prod, {}, "0.2.0-beta", "reviewed: x", now=dt.datetime(2026, 10, 22, 22, 0))
+            with self.assertRaises(releaser.ReleaseError):            # today's edition not out yet (no clock window, 11-05)
+                releaser.promote(self.prod, {}, "0.2.0-beta", "reviewed: x", now=dt.datetime(2026, 10, 22, 9, 0))
             with self.assertRaises(releaser.ReleaseError):            # dev is at a different version
                 releaser.promote(self.prod, {}, "0.3.0", "reviewed: x", now=NOON)
             with self.assertRaises(releaser.ReleaseError):            # a note is required

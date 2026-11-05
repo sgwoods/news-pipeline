@@ -147,10 +147,12 @@ class Tiers(Base):
         self.assertEqual(self.make(ask=lambda j, s: "approve", now=NOON + dt.timedelta(minutes=25)).run_job(w), "ok")
         self.assertIn(("local", ["release", "0.1.12-beta", "reviewed: x"]), self.calls)
 
-    def test_waiting_jobs_expire_at_eight(self):
+    def test_waiting_jobs_expire_at_the_end_of_the_day(self):
         p = self.queue("release", {"version": "0.1.12-beta", "note": "reviewed: x"})
         self.make(ask=lambda j, s: "timeout").run_job(p)
-        self.make(now=dt.datetime(2026, 10, 23, 20, 5)).expire()
+        self.make(now=dt.datetime(2026, 10, 23, 21, 0)).expire()
+        self.assertTrue((runner.qdir(self.root, "waiting") / "j-release.json").exists())     # 2026-11-05: no 20:00 cut
+        self.make(now=dt.datetime(2026, 10, 23, 23, 35)).expire()
         self.assertEqual(self.done("j-release")["status"], "expired")
 
     def test_production_jobs_wait_out_the_morning_run(self):
@@ -160,25 +162,28 @@ class Tiers(Base):
         self.assertEqual(self.calls, [])
         self.assertEqual(self.make().run_job(p), "ok")
 
-    def test_releases_only_in_the_window(self):
+    def test_releases_wait_only_for_the_edition_not_the_clock(self):
         p = self.queue("release", {"version": "0.1.12-beta", "note": "reviewed: x"})
-        self.assertEqual(self.make(now=dt.datetime(2026, 10, 23, 21, 0)).run_job(p), "deferred")
+        self.assertEqual(self.make(now=dt.datetime(2026, 10, 23, 9, 0)).run_job(p), "deferred")     # edition not out
+        self.assertEqual(self.make(now=dt.datetime(2026, 10, 23, 21, 0)).run_job(p), "ok")          # evenings are fine
 
-    def test_no_release_dialog_that_would_be_answered_after_eight(self):
+    def test_no_release_dialog_that_would_be_answered_after_the_day_ends(self):
         p = self.queue("release", {"version": "0.1.12-beta", "note": "reviewed: x"})
         st = self.make(ask=lambda j, s: self.fail("no dialog this late"),
-                       now=dt.datetime(2026, 10, 23, 19, 55)).run_job(p)
+                       now=dt.datetime(2026, 10, 23, 23, 25)).run_job(p)
         self.assertEqual(st, "waiting")
         self.assertEqual(self.calls, [])
 
-    def test_an_approval_after_eight_expires_instead_of_failing(self):
+    def test_an_approval_that_lands_during_a_run_expires_instead_of_failing(self):
         p = self.queue("release", {"version": "0.1.12-beta", "note": "reviewed: x"})
         clock = [dt.datetime(2026, 10, 23, 19, 40)]
+        busy = [False]
 
         def ask(job, s):
-            clock[0] = dt.datetime(2026, 10, 23, 20, 2)     # Steven clicks at 20:02
+            busy[0] = True                                  # a run started while the dialog was open
             return "approve"
-        r = runner.Runner(self.root, self.dev, self.local, now=lambda: clock[0], ask=ask, notify=None)
+        r = runner.Runner(self.root, self.dev, self.local, now=lambda: clock[0], ask=ask, notify=None,
+                          busy=lambda: busy[0])
         self.assertEqual(r.run_job(p), "expired")
         self.assertNotIn("release", [c[1][0] for c in self.calls])
 

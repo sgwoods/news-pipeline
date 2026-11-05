@@ -1,6 +1,6 @@
 """Promote a release from dev to production, or roll production back (docs/plans/release-process.md).
 
-    ./np release VERSION "reviewed: ..."   # in production, 08:30-20:00: merge dev, gate + approval, tag,
+    ./np release VERSION "reviewed: ..."   # in production, any time but while the edition is out for takes: merge dev, gate + approval, tag,
                                            # public code, backup, hub status. One approval for the whole release.
     ./np rollback "reviewed: ..."          # in production, any time no run is in progress: code back to the
                                            # previous release (VERSION included), gate + approval, backup, hub
@@ -18,7 +18,7 @@ from pathlib import Path
 from .env import staging
 
 CODE_PATHS = ("pipeline", "dashboard", "scripts", "tests", "run.py", "np", "requirements.txt", "VERSION")
-WINDOW = (dt.time(8, 30), dt.time(20, 0))
+EDITION_EDGE, SHIP_AFTER_EDITION = dt.time(4, 30), dt.time(11, 0)   # same rule as the run queue (2026-11-05)
 LOG = "data/state/releases.jsonl"
 
 
@@ -56,24 +56,25 @@ def run_in_progress(root: Path) -> bool:
     return bool(r.stdout.strip())
 
 
-def _edition_out(root: Path, now, t) -> bool:
-    """Before 08:30, a release may go once today's edition has gone out (v0.2.14; same rule as the run queue)."""
-    if not (dt.time(5, 0) <= t <= WINDOW[1]):
+def _edition_pending(root: Path, now, t) -> bool:
+    """Today's edition is between the morning run and its send (until 11:00): the one time a release waits.
+    No clock window otherwise (Steven, 2026-11-05: ship when ready, not for arbitrary deadlines)."""
+    if not (EDITION_EDGE <= t < SHIP_AFTER_EDITION):
         return False
     try:
         from .mailer import sent_days
-        return (now or dt.datetime.now()).date().isoformat() in sent_days(root)
+        return (now or dt.datetime.now()).date().isoformat() not in sent_days(root)
     except Exception:  # noqa: BLE001
-        return False
+        return True
 
 
 def _checks(root: Path, force: bool, now: dt.datetime | None, window: bool = True):
     if staging(root):
         raise ReleaseError("releases are promoted from the production folder, not from dev")
     t = (now or dt.datetime.now()).time()
-    if window and not force and not (WINDOW[0] <= t <= WINDOW[1]) and not _edition_out(root, now, t):
-        raise ReleaseError("releases go out between 08:30 and 20:00 (after the morning send, before the evening "
-                           "preflight); use --force only if you must")
+    if window and not force and _edition_pending(root, now, t):
+        raise ReleaseError("today's edition hasn't gone out yet: a release waits for the send (or 11:00); "
+                           "use --force only if you must")
     if run_in_progress(root):
         raise ReleaseError("a run is in progress: wait for it to finish")
     dirty = _git(root, "status", "--porcelain", "--", *CODE_PATHS).stdout.strip()

@@ -35,8 +35,13 @@ DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 VERSION = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}(?:-(?:beta|rc\d{0,2}))?$")
 JOB_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 MORNING = (dt.time(3, 30), dt.time(8, 30))
-RELEASE_WINDOW = (dt.time(8, 30), dt.time(20, 0))
-SHIP_AFTER_EDITION = dt.time(11, 0)    # a ship waits for today's edition to go out, but not past 11:00 (2026-11-03)
+# Steven, 2026-11-05: "move forward when things are ready, not for arbitrary deadlines". No clock window for
+# releases any more (was 08:30-20:00); a release waits only for what it could break: a run in progress, or today's
+# edition between the morning run and its send (from EDITION_EDGE, 30 min before the 05:00 run, until it is sent,
+# or SHIP_AFTER_EDITION if it is held all morning). Approvals are signed for one day, so they lapse at DAY_END.
+EDITION_EDGE = dt.time(4, 30)
+SHIP_AFTER_EDITION = dt.time(11, 0)    # a held edition never blocks a release past 11:00 (2026-11-03)
+DAY_END = dt.time(23, 30)
 REPROMPT = dt.timedelta(minutes=20)
 DIALOG_SECONDS = 600                  # for the end-of-window check (no dialog if an answer would land after 20:00)
 DIALOG_SHOWN = 1140                   # the dialog stays up 19 min; REPROMPT (20 min) asks again right after
@@ -518,7 +523,12 @@ class Runner:
 
     def _release_open(self) -> bool:
         t = self.now().time()
-        return RELEASE_WINDOW[0] <= t <= RELEASE_WINDOW[1] or (t <= RELEASE_WINDOW[1] and self._edition_out())
+        return not self.busy() and not self._edition_pending()
+
+    def _edition_pending(self) -> bool:
+        """Today's edition is between the morning run and its send (and it isn't 11:00 yet)."""
+        t = self.now().time()
+        return EDITION_EDGE <= t < SHIP_AFTER_EDITION and not self.sent_today()
 
     def _slot_used(self, job: dict) -> bool:
         """A slot ship already went out today (one batched release a day)."""
@@ -552,10 +562,11 @@ class Runner:
         if job["recipe"] in CHANGES_PRODUCTION and (self.busy() or (MORNING[0] <= t < MORNING[1] and not self._edition_out())):
             return "the morning run's window or a run in progress"
         if job["recipe"] in IN_RELEASE_WINDOW and not self._release_open():
-            return "releases go out 08:30-20:00 (earlier once the morning edition is out)"
+            return ("today's edition goes out first (a ship waits for it until 11:00)" if self._edition_pending()
+                    else "a run is in progress")
         if job["recipe"] == "rehearse" and (MORNING[0] <= t < MORNING[1] or self.busy()):
             return "a rehearsal never competes with the morning run"
-        if job["recipe"] == "ship" and t < SHIP_AFTER_EDITION and not self.sent_today():
+        if job["recipe"] == "ship" and self._edition_pending():
             # 2026-11-03: 0.2.51 started at 08:30 while the edition was held for a GitHub Pages blip; the edition
             # goes out first, so a release never competes with (or changes the code under) the morning send
             return "today's edition goes out first (a ship waits for it until 11:00)"
@@ -737,7 +748,7 @@ class Runner:
             r0 = RECIPES[job["recipe"]]
             chat_ok = job["recipe"] in CHAT_APPROVES and job.get("chat_approval")
             if APPROVE in r0["steps"] and self.key and not chat_ok and not self.approved_early(job) and \
-                    self.now().time() < RELEASE_WINDOW[1]:       # ask now; it runs when the morning is done
+                    self.now().time() < DAY_END:                 # ask now; it runs when the morning is done
                 self._phone_send(job, raw, src)
                 pa = self._phone_answer(job, src)
                 if pa == "approve":
@@ -774,10 +785,10 @@ class Runner:
                 _finish(self.root, src, job, "failed", f"step {len(job['steps'])} exited {code}", self.notify)
                 return "failed"
         if cut < len(steps):                               # mac tier: Steven decides here
-            end = dt.datetime.combine(self.now().date(), RELEASE_WINDOW[1])
+            end = dt.datetime.combine(self.now().date(), DAY_END)
             if job["recipe"] in IN_RELEASE_WINDOW and not terminal and \
                     self.now() + dt.timedelta(seconds=DIALOG_SECONDS) > end:
-                job["phase"] = "approval"                  # an answer would land after 20:00: don't ask tonight
+                job["phase"] = "approval"                  # an answer would land after DAY_END: don't ask tonight
                 dst = qdir(self.root, "waiting") / src.name
                 _write(dst, job)
                 if src != dst:
@@ -815,8 +826,8 @@ class Runner:
                 return "rejected"
             if job["recipe"] in IN_RELEASE_WINDOW and not self._release_open():
                 job["log"] = str(log.relative_to(self.root))
-                _finish(self.root, src, job, "expired", "approved after the 08:30-20:00 release window; queue it "
-                        "again in the window", self.notify)
+                _finish(self.root, src, job, "expired", "approved while a run was in progress or today's edition "
+                        "was still out for takes; queue it again", self.notify)
                 return "expired"
             code = self._run_approved(job, steps, cut + 1, log, "terminal" if terminal else
                                       "chat: " + job["chat_approval"][:200] if job.get("approved_by") == "chat" else
@@ -831,14 +842,14 @@ class Runner:
         return status
 
     def expire(self):
-        """Waiting jobs lapse at the end of the release window: approvals never sit overnight."""
+        """Waiting jobs lapse at the end of the day: an approval is signed for one day and never sits overnight."""
         for p in qdir(self.root, "waiting").glob("*.json"):
-            if self.now().time() > RELEASE_WINDOW[1]:
+            if self.now().time() > DAY_END:
                 try:
                     job = json.loads(p.read_text("utf-8"))
                 except ValueError:
                     job = {"id": p.stem, "recipe": "?", "args": {}}
-                _finish(self.root, p, job, "expired", "not approved by 20:00; queue it again tomorrow", self.notify)
+                _finish(self.root, p, job, "expired", "not approved today; queue it again", self.notify)
 
     def watch_protected(self) -> str:
         return _watch_protected(self.root, self.now(), self.notify)

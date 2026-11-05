@@ -5,6 +5,13 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.58-beta · 2026-11-05
+- Releases go when they are ready (Steven, 2026-11-05: "move forward as we want when things are shipped, not for
+  arbitrary deadlines"). The 08:30-20:00 release window is gone. A ship or release waits only while a run is in
+  progress, or while today's edition is between the morning run and its send (from 04:30 until it is sent, at most
+  until 11:00). Evenings and nights are fine. Waiting approvals lapse at 23:30 instead of 20:00 (an approval is
+  signed for one day); the "no Mac dialog that would be answered after 20:00" rule moves to 23:30 too.
+
 ## v0.2.57-beta · 2026-11-05
 - Special editions everywhere (Steven, 2026-11-05): besides their page, the email and the deep-dive feed, a special
   is now a bonus episode in the daily podcast feed (podcast.xml), a card on the front page with the deep dives
