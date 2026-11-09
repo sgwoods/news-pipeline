@@ -67,34 +67,34 @@ daily. That reflects the use case, not their quality.
 - The rubric is weighted for this briefing's use. It is not a general ranking of the shows.
 
 ## Latest results
-_Generated at build time from the critic run of 2026-10-31._
+_Generated at build time from the critic run of 2026-11-07._
 
 | Rank | Show | Score | Rated |
 |---|---|---|---|
-| 1 | Stratechery | 77.0 | The End of the Internet (2026-10-26) |
-| 2 | The AI Daily Brief (newsletter) | 74.4 | How the Most AI-Pilled Company in the World Works (2026-10-30) |
-| 3 | The AI Daily Brief | 73.0 | How the Most AI-Pilled Company in the World Works (2026-10-30) |
-| 4 | Latent Space | 71.6 | Why Agents Love Supabase (2026-10-28) |
-| 5 | All-In | 70.8 | Anthropic S-1 Shocker, Greatest Business Ever? Google's $500 (2026-10-31) |
-| 6 | Acquired | 70.6 | Seinfeld (Fall 2026, Ep 3) (2026-10-18) |
-| 7 | **AI Briefing (us)** | **69.6** | the week's editions (2026-10-31) |
-| 8 | Machine Gods (NPR) | 69.4 | OpenAI's Latest Discoveries Spark a Backlash + Help! My Kid  (2026-10-30) |
-| 9 | The Neuron | 64.5 | Mistral released a 1T-parameter open model (2026-10-30) |
-| 10 | Lex Fridman Podcast | 62.5 | #503 AI Crisis in Math (2026-10-26) |
-| 11 | Dwarkesh Podcast | 61.2 | Robert Caro, the master biographer, reflects at 91 (not AI) (2026-10-30) |
-| 12 | TLDR AI | 57.8 | Daily issue (OpenAI Model Spec; Mistral open weights) (2026-10-30) |
+| 1 | Stratechery | 85.2 | AI on the Ballot (2026-11-04) |
+| 2 | The AI Daily Brief (newsletter) | 77.9 | Companies Are Spending 5x More on AI Now (2026-11-06) |
+| 3 | The AI Daily Brief (podcast) | 74.2 | Companies Are Spending 5x More on AI Now (2026-11-06) |
+| 4 | Machine Gods (NPR) | 73.7 | The Purple Tsunami Against Data Centers (2026-11-06) |
+| 5 | Acquired | 72.5 | Seinfeld (2026-10-18) |
+| 6 | Latent Space | 72.2 | Deep Dive: Anthropic S-1 Myths and Mythos (Jamin Ball, Altim (2026-11-07) |
+| 7 | **AI Briefing (us)** | **70.8** | the week's editions (2026-11-07) |
+| 8 | All-In | 68.6 | Anthropic S-1 Shocker, Greatest Business Ever? Google's $500 (2026-10-30) |
+| 9 | The Neuron | 63.5 | OpenAI released GPT-6 Cyber, a hacking AI (2026-11-06) |
+| 10 | Dwarkesh Podcast | 61.6 | What Robert Caro learned about power after studying it for 5 (2026-10-30) |
+| 11 | TLDR AI | 59.8 | TLDR AI 2026-11-06 (GPT-6 Cyber, Inkling 2 Small, Gemini Omn (2026-11-06) |
+| 12 | Lex Fridman Podcast | 57.8 | #503 - AI Crisis in Math: Navier-Stokes, Riemann Hypothesis  (2026-10-26) |
 
 | Characteristic (weight) | Us | Field average | Best |
 |---|---|---|---|
-| Content selection (18) | 6 | 7.0 | 8 (Stratechery) |
-| Accuracy & sourcing (15) | 7 | 7.2 | 9 (Acquired) |
-| Depth & insight (14) | 8 | 6.0 | 8 (All-In) |
-| Timeliness & cadence (10) | 8 | 7.3 | 9 (The Neuron) |
-| Structure & pacing (10) | 7 | 7.3 | 8 (The AI Daily Brief (newsletter)) |
-| Opinion / point of view (9) | 7 | 6.3 | 9 (Stratechery) |
-| Distinctiveness & fit (7) | 8 | 5.8 | 8 (Stratechery) |
-| Writing / script (6) | 6 | 7.3 | 9 (Stratechery) |
-| Tone & voice (5) | 6 | 7.5 | 8 (The AI Daily Brief (newsletter)) |
-| Production (6) | 6 | 7.2 | 9 (Acquired) |
+| Content selection (18) | 7 | 7.5 | 9 (Stratechery) |
+| Accuracy & sourcing (15) | 6 | 7.3 | 9 (Acquired) |
+| Depth & insight (14) | 8 | 6.4 | 9 (Stratechery) |
+| Timeliness & cadence (10) | 8 | 7.4 | 10 (TLDR AI) |
+| Structure & pacing (10) | 6.5 | 7.1 | 8 (The AI Daily Brief (newsletter)) |
+| Opinion / point of view (9) | 8 | 6.4 | 9 (Stratechery) |
+| Distinctiveness & fit (7) | 8 | 6.3 | 9 (Stratechery) |
+| Writing / script (6) | 6.5 | 6.8 | 8 (Stratechery) |
+| Tone & voice (5) | 7 | 7.4 | 8 (The AI Daily Brief (newsletter)) |
+| Production (6) | 5.5 | 6.9 | 9 (Machine Gods (NPR)) |
 
-Our overall score by week: 2026-10-24 62.2 · 2026-10-31 69.6
+Our overall score by week: 2026-10-24 62.2 · 2026-10-31 69.6 · 2026-11-07 70.8

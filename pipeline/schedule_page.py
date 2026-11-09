@@ -51,15 +51,15 @@ def rows(cfg: dict) -> list:
         "'Notes for the editor' (what to change: the morning run revises the draft from them, checks it again, and "
         "records it with your take). Type or talk to Claude; write 'done' or just stop.")
     add("~every 20 min", "The run queue: jobs Claude queues; approvals arrive on your phone with Approve and Reject.",
-        "Your phone (ntfy); the Mac dialog as a backup.", "Until 20:00 for releases; one tap.", "Tap Approve. A tap after 20:00 waits for tomorrow.")
+        "Your phone (ntfy); the Mac dialog as a backup.", "Until 23:30 for releases; one tap.", "Tap Approve. A release waits only for a run in progress or the unsent edition; a tap after 23:30 waits for tomorrow.")
     slot = str((cfg.get("release") or {}).get("slot") or "13:00")
     if slot.lower() != "off":
         add(f"{slot} weekdays", "The release slot: at most one batched code release a day. It first rebuilds today's "
             "edition with the new code and compares it with what went out; a big difference stops it before you're asked. "
             "Fixes for broken things can go any time (the fix lane); no feature releases at weekends.",
-            "Your phone (ntfy): one Approve with the soak result.", "Until 20:00.", "Tap Approve, or Reject to hold it.")
+            "Your phone (ntfy): one Approve with the soak result.", "Until 23:30.", "Tap Approve, or Reject to hold it.")
     add(pre, "Evening preflight: would tomorrow's run be allowed to publish and email? One alert if an approval is pending.",
-        "Your phone and inbox, only if something is wrong.", "Until 20:00 the same evening for releases.", "Approve on the phone.")
+        "Your phone and inbox, only if something is wrong.", "Until 23:30 the same evening for releases.", "Approve on the phone.")
     if flag_day:
         add(f"{flag_day}s", f"The weekly flagship: the deep dive as a two-voice episode (~{fl.get('minutes', 22)} min).",
             "The same places as the daily deep dive.", "Same as any deep dive.", "Same as any deep dive; the Friday note flags it.", "weekly")

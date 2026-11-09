@@ -5,6 +5,15 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.59-beta · 2026-11-05
+- Tests: Jev shadow test used a fixed 2026-10-30 date and fell outside the 7-day report window; now uses today.
+- Config: local X generator (127.0.0.1:8787) restored as the first instance in x.yaml; newsletters.yaml merges Lenny sub-letters and Simple AI senders and adds backup flags for web-fed newsletters.
+- Schedule page: the approval windows now say 23:30 and explain that a release waits only for a run in progress
+  or the unsent edition (the rows still said 20:00 after v0.2.58). Docs updated for the same rule: ARCHITECTURE.md
+  (Releases), security/RELEASE.md, plans/release-process.md. No behaviour change.
+- Sources page: the Source health table's Items column showed `<built-in method items of dict object ...>` instead
+  of the count (Jinja read `r.items` as the dict method; now `r['items']`).
+
 ## v0.2.58-beta · 2026-11-05
 - Releases go when they are ready (Steven, 2026-11-05: "move forward as we want when things are shipped, not for
   arbitrary deadlines"). The 08:30-20:00 release window is gone. A ship or release waits only while a run is in

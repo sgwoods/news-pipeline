@@ -1,3 +1,4 @@
+import datetime
 """Jev in the shadow (Steven, 2026-10-30): asked after the local filter, logged beside it, changes nothing; a daily
 token budget; off without a key, and in staging."""
 import json
@@ -43,7 +44,7 @@ class Shadow(unittest.TestCase):
     def test_logs_both_and_changes_nothing(self):
         cl = Client()
         with mock.patch.object(jev, "key", return_value="k"):
-            s = jev.shadow(self.root, self.cfg, "2026-10-30", ITEMS, DEC, log=lambda *a: None, client=cl)
+            s = jev.shadow(self.root, self.cfg, datetime.date.today().isoformat(), ITEMS, DEC, log=lambda *a: None, client=cl)
         self.assertEqual(s["asked"], 3)                              # the rule-dropped item is never sent
         self.assertEqual(s["agree"], 1)                              # a1 agree; b2 disagree; c3 unsettled
         self.assertEqual(s["unsettled"], 1)

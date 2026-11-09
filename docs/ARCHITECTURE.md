@@ -13,7 +13,7 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.58-beta (2026-11-05)
+- **Release:** v0.2.59-beta (2026-11-05)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 89 in `pipeline/`
@@ -235,12 +235,13 @@ the email.
 
 Production runs a tagged release (`VERSION`, `CHANGELOG.md`). Changes are built on a development branch whose
 checkout is in staging mode. They're verified with a full staging run compared against production, tagged as a
-release candidate, reviewed, and promoted in a safe window with a single approval. The next morning's run is the
+release candidate, reviewed, and promoted with a single approval. The next morning's run is the
 canary, and a rollback returns to the previous, already-approved release.
 
 From v0.2.33 a release goes out through the `ship` job in one of two lanes: the slot lane, once per weekday from
-13:00 (`release.slot`), or the fix lane, for something broken, any time in the release window (08:30–20:00, or
-earlier once the edition is out). Every ship first soaks: today's edition is rebuilt with the dev code and compared
+13:00 (`release.slot`), or the fix lane, for something broken, at any time. Since v0.2.58 there is no clock window
+for releases: a ship waits only for what it could break — a run in progress, or today's edition between the morning
+run and its send (from 04:30 until it is sent, at most until 11:00). Evenings and nights are fine. Every ship first soaks: today's edition is rebuilt with the dev code and compared
 with production, and a compare that needs review stops the ship unless the owner accepts it. Rules and approvals:
 docs/security/RELEASE.md. Editorial content (sources, watchlist,
 perspective, takes) isn't code and is edited in production at any time.
@@ -277,7 +278,7 @@ The click grants presence in memory for that job's approved steps only (`presenc
 chat yes for `ship` and `release` (which rests on Claude quoting the owner faithfully, as the chat tier does), no
 file or setting can stand in for it: an early click is kept as a signature over that job, made with a key in the Mac's Keychain (which
 the VM and Claude can't read), used once and only that day. Jobs that change production wait out the morning run,
-which ends when the day's edition has gone out. Unanswered approvals lapse at 20:00.
+which ends when the day's edition has gone out. Unanswered approvals lapse at 23:30 (v0.2.58; was 20:00).
 
 **Phone approvals** (v0.2.22): once the `phone-setup` job has stored an approval passphrase in the Keychain (typed
 into a Mac dialog), each mac-tier job also emails the owner a one-time link to the mail script's approve page, good

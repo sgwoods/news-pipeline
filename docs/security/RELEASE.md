@@ -58,12 +58,17 @@ when Steven was away from the Mac, were the interruption. For `ship` and `releas
 by Claude when the task starts; answerable in the Claude iOS app) is the approval: Claude quotes it in the job's
 `chat_approval`, and the runner releases on its own once tests and the soak on today's edition pass, then notifies
 him. The trade-off, accepted by Steven: this rests on Claude quoting him faithfully, like the chat tier always has,
-not on a key only the Mac holds. Failed tests, a soak that needs review, the 08:30–20:00 window and the slot rules
-still stop it. `rollback`, `push-code`, `approve` and every secrets setup keep the tap.
+not on a key only the Mac holds. Failed tests, a soak that needs review, a run in progress or an unsent edition, and
+the slot rules still stop it. `rollback`, `push-code`, `approve` and every secrets setup keep the tap.
 
 **No-ask jobs (same day):** re-recording after an agreed correction (`remaster`) and rebuilding a broken deep dive
 on its topic (`deepdive-rebuild`) are auto tier; checks, previews, probes and the daily X-list refresh already were.
-Each is logged and notified. Releases run 08:30–20:00, or earlier once the morning edition is out.
+Each is logged and notified.
+
+**Releases go when ready (Steven, 2026-11-05; v0.2.58).** The 08:30–20:00 release window is gone. A ship or release
+waits only while a run is in progress, or while today's edition is between the morning run and its send (from 04:30
+until it is sent, at most until 11:00). Evenings and nights are fine. A waiting approval is signed for one day and
+lapses at 23:30 (was 20:00); no Mac dialog is shown if its answer would land after 23:30.
 
 ## Release rules for day-to-day stability (2026-10-30)
 The newsletter matters more than the next feature. From v0.2.33:
@@ -71,7 +76,7 @@ The newsletter matters more than the next feature. From v0.2.33:
   edition and the takes, before the 15:30 advance draft. A second slot ship the same day, or a slot ship at a
   weekend, is refused with the reason ("expired"), not held.
 - **The fix lane.** `ship` with `lane: fix` is for something that is broken (a failed run, a wrong page, a lost
-  input). It goes any time in the release window and doesn't use the slot. Claude says in chat why it is a fix.
+  input). It goes at any time and doesn't use the slot. Claude says in chat why it is a fix.
 - **The soak.** Every ship rebuilds today's edition in dev with the new code (`./np staging run`, outbound off) and
   compares it with what went out (`./np staging compare`: sections, counts, length, links, audio, privacy). A compare
   that needs review stops the ship before Steven is asked; it goes only with `accept: "accepted: <Steven's words>"`.
