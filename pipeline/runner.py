@@ -14,7 +14,8 @@ runs only the recipes below, with validated arguments, as argument lists (never 
         Approve in a dialog on this Mac (or `./np runner approve ID` in Terminal). The click grants presence in
         memory for that job's approved steps only (pipeline/presence.py); nothing in a file can.
 
-One job at a time. Jobs that change production wait out the morning run (03:30-08:30) and any run in progress.
+One job at a time. Jobs that change production wait out the morning run and any run in progress; a release also
+waits for today's edition between 04:30 and its send (at most 11:00). No other clock window; approvals lapse 23:30.
 The runner itself runs only in production, and only on released code (no code changes outside a release).
 """
 from __future__ import annotations
@@ -43,11 +44,11 @@ EDITION_EDGE = dt.time(4, 30)
 SHIP_AFTER_EDITION = dt.time(11, 0)    # a held edition never blocks a release past 11:00 (2026-11-03)
 DAY_END = dt.time(23, 30)
 REPROMPT = dt.timedelta(minutes=20)
-DIALOG_SECONDS = 600                  # for the end-of-window check (no dialog if an answer would land after 20:00)
+DIALOG_SECONDS = 600                  # for the end-of-day check (no dialog if an answer would land after DAY_END, 23:30)
 DIALOG_SHOWN = 1140                   # the dialog stays up 19 min; REPROMPT (20 min) asks again right after
 PHONE_DIALOG = 90                     # with phone approvals on, the Mac dialog is short: the runner keeps ticking
 PHONE_ITERATIONS = 300_000            # PBKDF2 rounds on the phone page (pipeline/runner.py phone_proof)
-EARLIEST = dt.time(5, 0)              # once the morning edition is out, production jobs needn't wait for 08:30
+EARLIEST = dt.time(5, 0)              # production jobs run once the morning edition is out (no fixed hour after that)
 APPROVED = "data/queue/approved"      # early approvals, signed with a key in this Mac's Keychain (see below)
 STEP_TIMEOUT = 3600
 MAX_JOB_BYTES = 8192
@@ -761,7 +762,7 @@ class Runner:
                 if not last or self.now() - dt.datetime.fromisoformat(last) >= REPROMPT:
                     _write(src, {**raw, "deferred": why, "prompted_at": self.now().isoformat(timespec="seconds")})
                     if self._dialog({**job, "early": True}, "Approve now: it runs as soon as the morning edition is out "
-                                "(or at 08:30).\n\n" + self.summary(job)) == "approve":
+                                "(or at 11:00 if the edition is held).\n\n" + self.summary(job)) == "approve":
                         self.approve_early(job)
                         return "deferred (approved)"
             return "deferred"

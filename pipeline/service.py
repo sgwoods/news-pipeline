@@ -194,8 +194,7 @@ def claude_status() -> dict:
 
 
 def all_status(root: Path, cfg: dict) -> dict:
-    return {"daily": status("daily"), "dashboard": status("dashboard"), "preflight": status("preflight"),
-            "advance": status("advance"), "overnight": status("overnight"), "rehearsal": status("rehearsal"),
+    return {**{k: status(k) for k in LABELS},           # every agent in LABELS (the runner was missing: KeyError, 11-09)
             "ollama": ollama_status(cfg),
             "claude": claude_status(), "ffmpeg": bool(shutil.which("ffmpeg")), "gh": bool(shutil.which("gh")),
             "launchctl": bool(shutil.which("launchctl"))}

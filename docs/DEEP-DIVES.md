@@ -13,7 +13,10 @@ at inference time), a change in the trajectory of the field, or a story that has
   established vs claimed → how the AGI-forward / AI-realist / market / policy readings differ (only where the
   facts allow) → our read and one diligence question → what would settle it. Claude may search the web for
   the paper, the lab's post and the strongest critique.
-- **Checks before it airs:** every source link is opened (dead ones dropped; fewer than 2 live → no episode);
+- **Checks before it airs:** every source link is opened with a browser User-Agent (dead ones dropped; a 403 or
+  429 counts as live when archive.org holds a snapshot; a known paywalled outlet — WSJ, FT, NYT, The Information,
+  Reuters, Bloomberg and similar — keeps its citation labelled "(paywalled)" in Sources and its text is not read;
+  fewer than 2 live sources, or none open, → no episode);
   quotation marks survive only around words found in the archived or fetched text; sentences with a $ or %
   figure found in no source are cut; private names are removed; markup or banned words fail the episode.
   The summary and "Why today" lines are then checked against the finished body (`pipeline/consistency.py`, since

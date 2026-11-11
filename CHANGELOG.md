@@ -5,6 +5,35 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## v0.2.60-beta · 2026-11-09
+Source health and intake hygiene (plan: docs/plans/source-health.md).
+- Source health: a newsletter marked `backup: true` in newsletters.yaml counts as ingesting while its web feed is
+  (note shows the feed's newest item) instead of "never arrived"; a backup with no ingesting web feed is still a gap.
+- Source health: `every_days` per newsletter sets its own cadence; "quiet" now means 1.5x that cadence overdue
+  (floor 14 days) rather than a flat 14, so monthly letters stop raising false alarms.
+- Email auto-add: a new sender that belongs to a listed newsletter (plus-address root, the publication's own domain,
+  or the same display name; shared mail platforms such as substack.com and beehiiv.com never match by domain) is
+  merged into it as a `merge_into` entry in newsletters-auto.yaml instead of becoming a duplicate source.
+  newsletters.yaml stays hand-edited. `./np newsletters merges` lists existing duplicates (dry run).
+- Release: a production file that is edited locally and also changed by the release no longer aborts the merge when
+  the two copies are identical (x.yaml and newsletters.yaml stopped the v0.2.59 ship); it is restored and the merge
+  brings the same bytes in. When the copies differ the release stops and names the file, and nothing is merged.
+- `./np service status` no longer crashes on the runner agent (KeyError); every launchd agent is listed.
+- Deep-dive link checks go out with a browser User-Agent (Wikipedia returned 403 to the reader's name), and a 403 or
+  429 counts as live when archive.org holds a snapshot of the page. Known paywalled outlets (WSJ, FT, NYT, The
+  Information, Reuters, Bloomberg, Economist, Washington Post, Semafor, The Times) keep their citation, labelled
+  "(paywalled)" in Sources, instead of being dropped; a dive still needs two live sources and at least one open one.
+- Publish: when today's page is not live after the wait, the GitHub Pages build is checked through `gh`; an errored
+  build is rebuilt once and the wait restarts, a slow one gets another round. If the page is still not served the
+  email is held and an alert goes out, instead of sending links to a page that does not exist (11-09: Pages failed
+  its build at 07:09, the email went at 07:15, the site served Sunday until 16:41).
+- Runner: the approval dialog and comments no longer mention 08:30 or 20:00 (the no-window rule since v0.2.58).
+- Docs: NEWSLETTERS.md (backup, cadence, merged senders), DEEP-DIVES.md (link checks), release-process.md (live
+  content vs the merge), ARCHITECTURE.md (source health), and the plan in docs/plans/source-health.md, which also
+  records what was found and left for Steven: X lists are not configured in x.yaml; the 11-02 rollback explains
+  the lost x.yaml line; a date-skew test run needs freezegun.
+
+
 ## v0.2.59-beta · 2026-11-05
 - Tests: Jev shadow test used a fixed 2026-10-30 date and fell outside the 7-day report window; now uses today.
 - Config: local X generator (127.0.0.1:8787) restored as the first instance in x.yaml; newsletters.yaml merges Lenny sub-letters and Simple AI senders and adds backup flags for web-fed newsletters.

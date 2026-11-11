@@ -54,7 +54,11 @@ Quality and checks:
 ./np verify                       re-verify every source; failures are listed, never silently dropped
 ```
 Email timing: after publishing, the run waits until GitHub Pages serves today's page (and deep dive) before emailing,
-checking every 10 seconds for up to `publish.wait_live_seconds` (300); after that the email goes anyway.
+checking every 10 seconds for up to `publish.wait_live_seconds` (300). When that runs out the Pages build is looked up
+through `gh` (2026-11-09): a build that errored gets one rebuild request and the wait starts over; a build still
+running gets one more round. If the page is still not live the email is **held** and Steven is alerted; the next
+retry (06:30, 07:30) publishes again. Before 11-09 the email went anyway, and on 11-09 it carried links to a page
+whose Pages build had failed; the site served the previous day for nine hours.
 
 When something needs you: an "Action needed: AI Briefing …" email (to email.test_to) says what happened and which
 commands to run: a pending approval (evening check or morning), a failed release-gate check, a run with no briefing,

@@ -35,11 +35,14 @@ class AutoAdd(unittest.TestCase):
     def test_hand_file_untouched_and_wins(self):
         before = (self.root / "newsletters.yaml").read_text()
         self.assertIsNone(ms.auto_add(self.root, "known@news.example", "Known", "s", "2026-11-03", M))
-        ms.auto_add(self.root, "new@letter.example", "Known", "s", "2026-11-03", M)       # name clash -> suffixed
+        e = ms.auto_add(self.root, "new@letter.example", "Known", "s", "2026-11-03", M)   # same name -> merged (11-09)
         self.assertEqual((self.root / "newsletters.yaml").read_text(), before)
-        names = [n["name"] for n in ms.load_newsletters(self.root)]
+        self.assertTrue(e["merged"])
+        nl = ms.load_newsletters(self.root)
+        names = [n["name"] for n in nl]
         self.assertEqual(names.count("Known"), 1)
-        self.assertIn("Known (new@letter.example)", names)
+        self.assertNotIn("Known (new@letter.example)", names)
+        self.assertIn("new@letter.example", next(n for n in nl if n["name"] == "Known")["from"])
 
     def test_added_once(self):
         ms.auto_add(self.root, "a@futurism.example", "Futurism", "s", "2026-11-03", M)

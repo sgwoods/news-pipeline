@@ -4,8 +4,10 @@ so the ones that don't reach the archive can be fixed in priority order.
 Status
     failing                the last fetch of it returned an error
     known, not ingested    configured (or a site our deep dives keep citing) but nothing of it is in the archive
-    quiet                  it worked before, but nothing new for QUIET_DAYS (newsletters: NEWSLETTER_QUIET_DAYS)
-    ingesting              items arriving
+    quiet                  it worked before, but nothing new for QUIET_DAYS (newsletters: NEWSLETTER_QUIET_DAYS, or
+                           1.5x the newsletter's own `every_days` cadence when newsletters.yaml gives one)
+    ingesting              items arriving (a newsletter marked `backup: true` counts as ingesting while its web
+                           feed is; the email never arriving is not a gap)
 
 Category: where it comes from (X, Bluesky, Email newsletter, RSS feed, Web page, Slack) and, when it fails, why
 (HTTP 403 blocked, HTTP 404 moved, rate limited, server error, timeout, unreadable feed, no X mirror answered,
@@ -23,6 +25,7 @@ from urllib.parse import urlsplit
 
 QUIET_DAYS = 21
 NEWSLETTER_QUIET_DAYS = 14
+CADENCE_SLACK = 1.5                       # a newsletter is quiet once it is this many cadences overdue
 STATUS_ORDER = {"failing": 0, "known, not ingested": 1, "quiet": 2, "ingesting": 3}
 KIND_LABEL = {"x": "X", "bluesky": "Bluesky", "email": "Email newsletter", "rss": "RSS feed", "feed": "RSS feed",
               "atom": "RSS feed", "page": "Web page", "pages": "Web page", "sitemap": "Web page", "shared": "Slack",
@@ -126,10 +129,26 @@ def table(rows: list, last_status: dict, newsletters: list, x_status: dict, blue
         out.append(_row(person, kind, url, st, why, n, newest_by.get(person, ""), "", (last.get("error") or "")[:160]))
         seen.add((person, url))
 
+    def _host(u):
+        return urlsplit(str(u or "")).netloc.removeprefix("www.").lower()
+
+    web_rows = {_host(r["url"]): r for r in out if r["category"] != "Email newsletter" and _host(r["url"])}
     for nl in newsletters or []:
-        st, why = judge("", "", nl.get("count", 0), nl.get("latest", ""), NEWSLETTER_QUIET_DAYS)
+        every = int(nl.get("every_days") or 0)
+        quiet_days = max(NEWSLETTER_QUIET_DAYS, round(every * CADENCE_SLACK)) if every else NEWSLETTER_QUIET_DAYS
+        web = web_rows.get(_host(nl.get("web")))
+        note = ""
+        if nl.get("backup") and web is not None and web["status"] == "ingesting":
+            st, why = "ingesting", "via web feed; the email is a backup"
+            note = f"web feed newest {web['newest']}" if web.get("newest") else ""
+        else:
+            st, why = judge("", "", nl.get("count", 0), nl.get("latest", ""), quiet_days)
+            if st == "quiet" and every:
+                why += f" (expected every {every})"
+            if nl.get("backup") and st != "ingesting":
+                note = "backup email; web feed not ingesting either" if web is not None else "backup email; no web feed listed"
         out.append(_row(nl.get("name", ""), "Email newsletter", nl.get("web") or ", ".join(nl.get("from") or []),
-                        st, why, nl.get("count", 0), nl.get("latest", ""), nl.get("tier", "")))
+                        st, why, nl.get("count", 0), nl.get("latest", ""), nl.get("tier", ""), note))
 
     xs = x_status or {}
     x_down = bool(xs.get("last_fail")) and str(xs.get("last_fail", "")) > str(xs.get("last_good", ""))

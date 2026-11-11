@@ -123,6 +123,35 @@ def _approve(root: Path, cfg: dict, note: str, pre: str, interactive=None, log=p
     Archive(root, cfg.get("paths") or {}).git_commit("security: release approval", paths=("docs/security/approvals.json",))
 
 
+def _release_local_edits(root: Path, log=print) -> list:
+    """Live-content files (x.yaml, newsletters.yaml, ...) are edited in production without a release, and sometimes the
+    same change is also committed on dev. The merge then refuses: "local changes would be overwritten" (2026-11-09,
+    v0.2.59). For every production file that is both locally modified and changed by the merge: identical to dev's
+    copy -> restore it (the merge brings the same bytes back); different -> stop and name it, so nobody loses an edit.
+    Returns the files restored."""
+    local = {f for f in _git(root, "diff", "--name-only").stdout.split("\n") if f}
+    incoming = {f for f in _git(root, "diff", "--name-only", "HEAD", "dev").stdout.split("\n") if f}
+    both = sorted(local & incoming)
+    if not both:
+        return []
+    same, differ = [], []
+    for f in both:
+        try:
+            mine = (root / f).read_bytes()
+        except OSError:
+            differ.append(f)
+            continue
+        dev = subprocess.run(["git", "show", f"dev:{f}"], cwd=root, capture_output=True, env=_clean_env()).stdout
+        (same if mine == dev else differ).append(f)
+    if differ:
+        raise ReleaseError("production has uncommitted edits to files this release also changes, and they differ "
+                           f"from dev: {', '.join(differ)}. Commit or discard the production copy first (nothing was merged).")
+    for f in same:
+        _git(root, "checkout", "--", f)
+        log(f"release: {f} was edited in production and is identical on dev; restored so the merge can bring it in")
+    return same
+
+
 def promote(root: Path, cfg: dict, version: str, note: str, force: bool = False, now=None, interactive=None,
             log=print) -> dict:
     version = version.lstrip("v")
@@ -143,6 +172,7 @@ def promote(root: Path, cfg: dict, version: str, note: str, force: bool = False,
         raise ReleaseError(f"CHANGELOG.md on dev has no '## v{version}' section")
     previous = (root / "VERSION").read_text("utf-8").strip() if (root / "VERSION").exists() else ""
     pre = _git(root, "rev-parse", "HEAD").stdout.strip()
+    restored = _release_local_edits(root, log)
     r = _git(root, "merge", "--no-ff", "dev", "-m", f"release v{version}", check=False)
     if r.returncode:
         _git(root, "merge", "--abort", check=False)

@@ -198,10 +198,47 @@ def backup_push(root: Path, cfg: dict | None = None) -> str:
 
 # ---------- wait for GitHub Pages before emailing ----------
 
-def wait_live(cfg: dict, day: str, timeout: int = 300, every: int = 10, log=print, client=None, sleep=None) -> bool:
+def pages_build(repo: str, run=None) -> dict:
+    """GitHub Pages' latest build for REPO, through the signed-in gh: {"status": built|building|queued|errored|
+    unknown, "error": str}. "unknown" when gh is missing or the call fails (never raises)."""
+    import json as _json
+    import shutil
+    run = run or subprocess.run
+    if not repo or not shutil.which("gh"):
+        return {"status": "unknown", "error": "gh not available"}
+    try:
+        r = run(["gh", "api", f"repos/{repo}/pages/builds/latest"], capture_output=True, text=True, timeout=30)
+        if r.returncode:
+            return {"status": "unknown", "error": (r.stderr or r.stdout).strip()[:200]}
+        d = _json.loads(r.stdout or "{}")
+        return {"status": str(d.get("status") or "unknown"), "error": str(((d.get("error") or {}).get("message")) or ""),
+                "commit": str(d.get("commit") or "")[:7]}
+    except Exception as e:  # noqa: BLE001
+        return {"status": "unknown", "error": f"{type(e).__name__}: {e}"[:200]}
+
+
+def request_pages_build(repo: str, run=None) -> bool:
+    """Ask GitHub Pages to build the current commit again (what fixed the 2026-11-09 'Page build failed.')."""
+    import shutil
+    run = run or subprocess.run
+    if not repo or not shutil.which("gh"):
+        return False
+    try:
+        r = run(["gh", "api", "-X", "POST", f"repos/{repo}/pages/builds"], capture_output=True, text=True, timeout=30)
+        return r.returncode == 0
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def wait_live(cfg: dict, day: str, timeout: int = 300, every: int = 10, log=print, client=None, sleep=None,
+              run=None) -> bool:
     """After a push, GitHub Pages takes a few seconds to minutes to serve the new pages. Poll today's page (and its
     deep dive, if there is one) until both answer with today's content, so the email's links work when it lands
-    (Steven, 2026-10-19). -> True when live; False after `timeout` seconds (the email then goes anyway)."""
+    (Steven, 2026-10-19). -> True when live; False after `timeout` seconds.
+    2026-11-09: the build itself can fail ("Page build failed.", nothing wrong with the content) and the site then
+    serves yesterday for hours. On timeout the Pages build is looked up through gh: errored -> one rebuild is
+    requested and the wait starts over (once); building/queued -> wait one more round. The caller holds the email
+    when this returns False."""
     import time
     site = ((cfg.get("publish") or {}).get("site_url") or "").rstrip("/")
     if not site or not day:
@@ -215,6 +252,7 @@ def wait_live(cfg: dict, day: str, timeout: int = 300, every: int = 10, log=prin
         from .netguard import client as guarded
         client = guarded(follow_redirects=True, timeout=15, headers={"Cache-Control": "no-cache"})
     waited, pending = 0, list(urls)
+    rebuilt = extended = False
     while True:
         still = []
         for u in pending:
@@ -229,7 +267,22 @@ def wait_live(cfg: dict, day: str, timeout: int = 300, every: int = 10, log=prin
             log(f"Site live after {waited}s: {', '.join(urls)}")
             return True
         if waited >= timeout:
-            log(f"Site not live after {waited}s ({', '.join(pending)}); sending anyway")
+            repo = (cfg.get("publish") or {}).get("repo", "")
+            b = pages_build(repo, run)
+            if b["status"] == "errored" and not rebuilt:
+                rebuilt = request_pages_build(repo, run)
+                log(f"Site not live after {waited}s: Pages build errored ({b.get('error') or 'no message'}); "
+                    f"{'rebuild requested, waiting again' if rebuilt else 'rebuild request failed'}")
+                if rebuilt:
+                    waited = 0
+                    continue
+            elif b["status"] in ("building", "queued") and not extended:
+                extended = True
+                log(f"Site not live after {waited}s: Pages still {b['status']}; waiting one more round")
+                waited = 0
+                continue
+            log(f"Site not live after {waited}s ({', '.join(pending)}); Pages build: {b['status']}"
+                + (f" ({b['error']})" if b.get("error") else ""))
             return False
         sleep(every)
         waited += every

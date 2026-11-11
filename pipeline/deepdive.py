@@ -827,16 +827,21 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
         sections = [(f"{t['section']}~{t['speaker']}", str(t["text"])) for t in turns]
 
     # 3 check
-    srcs = [s for s in out.get("sources") or [] if isinstance(s, dict) and str(s.get("url", "")).startswith("http")][:12]
+    srcs = [dict(s) for s in out.get("sources") or [] if isinstance(s, dict) and str(s.get("url", "")).startswith("http")][:12]
     live = check_links([s["url"] for s in srcs], cfg)
     srcs_live = [s for s in srcs if live.get(s["url"])]
+    for s in srcs_live:
+        if live.get(s["url"]) == "paywalled":              # kept and labelled; its text is not read (11-09)
+            s["paywalled"] = True
     rec["sources_dropped"] = [s["url"] for s in srcs if not live.get(s["url"])]
-    for s in srcs_live[:8]:
+    rec["sources_paywalled"] = [s["url"] for s in srcs_live if s.get("paywalled")]
+    n_open = sum(1 for s in srcs_live if not s.get("paywalled"))
+    for s in [s for s in srcs_live if not s.get("paywalled")][:8]:
         t = page_text(s["url"], cfg, 20000)
         if t:
             corpus.append(t)
-    if len(srcs_live) < 2:
-        rec.update(status="failed", reason=f"only {len(srcs_live)} live source(s)", title=out.get("title", ""))
+    if len(srcs_live) < 2 or n_open < 1:
+        rec.update(status="failed", reason=f"only {len(srcs_live)} live source(s), {n_open} open", title=out.get("title", ""))
         set_status(root, item["id"], "failed", note=rec["reason"])
         append_jsonl(root / LOG, [rec])
         log(f"Deep dive: not published, {rec['reason']}")
@@ -892,6 +897,7 @@ def run(root: Path, cfg: dict, day: str, log=print, topic: str = "", force: bool
     from .profiles import profile
     from .editorial import _KIND_WORD
     src_md = "\n".join(f"- [{s.get('title') or s['url']}]({s['url']}) · {_KIND_WORD.get(profile({'url': s['url']})['kind'], 'source')}"
+                       + (" (paywalled)" if s.get("paywalled") else "")
                        + (f": {s['what']}" if s.get("what") else "") for s in srcs_live)
     from .links import scrub_output
     notes_md, _ = scrub_output(

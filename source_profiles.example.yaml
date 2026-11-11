@@ -622,6 +622,11 @@ sources:
     standards: mixed
     stance: AGI-forward
     interests: venture firm invested across AI
+  Dwarkesh Patel:
+    kind: analysis
+    standards: mixed
+    stance: AGI-forward
+    note: long interviews; guests' claims are self-reported
   TLDR AI:
     kind: aggregator
     standards: mixed
@@ -632,10 +637,20 @@ sources:
     standards: mixed
     stance: AGI-forward
     interests: sponsored
+  Simple AI (Dharmesh Shah):
+    kind: opinion
+    standards: mixed
+    stance: AGI-forward
+    interests: HubSpot co-founder; sells AI products
   BetaKit:
     kind: reporting
     standards: cites-and-corrects
     stance: neutral
+  Lenny's Newsletter (Lenny Rachitsky):
+    kind: analysis
+    standards: mixed
+    stance: AGI-forward
+    note: guests describe their own products
   OpenAI (news):
     kind: primary
     standards: cites

@@ -43,6 +43,25 @@ class Table(unittest.TestCase):
         s = sh.summary(t)
         self.assertEqual(s["status"]["failing"], 3)
 
+    def test_backup_newsletter_and_cadence(self):
+        rows = [{"person": "Marcus web", "kind": "rss", "url": "https://garymarcus.substack.com/feed", "tier": "follow closely",
+                 "last": {"status": "ok"}, "archived": 30, "newest": "2026-11-04"}]
+        news = [{"name": "Marcus email", "from": ["garymarcus@substack.com"], "web": "https://garymarcus.substack.com/",
+                 "count": 0, "latest": "", "tier": "follow closely", "backup": True},
+                {"name": "Orphan backup", "from": ["o@example.org"], "web": "", "count": 0, "latest": "", "backup": True},
+                {"name": "Monthly", "from": ["m@example.org"], "count": 4, "latest": "2026-10-10", "every_days": 31},
+                {"name": "Weekly", "from": ["w@example.org"], "count": 9, "latest": "2026-10-10", "every_days": 7},
+                {"name": "Plain", "from": ["p@example.org"], "count": 9, "latest": "2026-10-20"}]
+        t = {r["name"]: r for r in sh.table(rows, {}, news, {}, {}, [], [], today=TODAY)}
+        self.assertEqual((t["Marcus email"]["status"], t["Marcus email"]["why"]), ("ingesting", "via web feed; the email is a backup"))
+        self.assertIn("2026-11-04", t["Marcus email"]["note"])
+        self.assertEqual(t["Orphan backup"]["status"], "known, not ingested")       # backup with no web feed is still a gap
+        self.assertIn("no web feed", t["Orphan backup"]["note"])
+        self.assertEqual(t["Monthly"]["status"], "ingesting")                      # 26 days late is within 1.5 x 31
+        self.assertEqual(t["Weekly"]["status"], "quiet")
+        self.assertIn("expected every 7", t["Weekly"]["why"])
+        self.assertEqual(t["Plain"]["status"], "quiet")                            # 16 days > NEWSLETTER_QUIET_DAYS
+
     def test_reasons(self):
         self.assertEqual(sh.reason("ReadTimeout: The read operation timed out"), "timeout")
         self.assertEqual(sh.reason("HTTP 404"), "HTTP 404 moved or gone")

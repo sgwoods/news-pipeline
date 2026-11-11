@@ -71,6 +71,39 @@ class Releases(unittest.TestCase):
         self.assertEqual((self.prod / "VERSION").read_text().strip(), "0.1.0-beta")
         self.assertEqual([h["kind"] for h in releaser.history(self.prod)], ["release", "rollback"])
 
+    def test_identical_production_edit_is_restored_before_merge(self):
+        # x.yaml edited in production (live content, no release) and the same change committed on dev (2026-11-09)
+        (self.dev / "x.yaml").write_text("accounts: [a, b]\n")
+        commit(self.dev, "x.yaml on dev")
+        (self.prod / "x.yaml").write_text("accounts: [a]\n")
+        commit(self.prod, "x.yaml in production")
+        git(self.dev, "merge", "-q", "main", "-m", "sync")                       # dev knows production's base
+        (self.dev / "x.yaml").write_text("accounts: [a, b, c]\n")
+        commit(self.dev, "x.yaml again on dev")
+        (self.prod / "x.yaml").write_text("accounts: [a, b, c]\n")              # the same edit, uncommitted in production
+        logs = []
+        with self.ok, self.nocommit:
+            releaser.promote(self.prod, {}, "0.2.0-beta", "reviewed: x", now=NOON, log=logs.append)
+        self.assertEqual((self.prod / "x.yaml").read_text(), "accounts: [a, b, c]\n")
+        self.assertEqual(git(self.prod, "status", "--porcelain", "x.yaml").stdout.strip(), "")
+        self.assertTrue(any("identical on dev" in l for l in logs))
+
+    def test_differing_production_edit_stops_the_release(self):
+        (self.dev / "x.yaml").write_text("accounts: [a, b]\n")
+        commit(self.dev, "x.yaml on dev")
+        (self.prod / "x.yaml").write_text("accounts: [a]\n")
+        commit(self.prod, "x.yaml in production")
+        git(self.dev, "merge", "-q", "main", "-m", "sync")
+        (self.dev / "x.yaml").write_text("accounts: [a, b, c]\n")
+        commit(self.dev, "x.yaml again on dev")
+        (self.prod / "x.yaml").write_text("accounts: [a, z]\n")                 # a different, unsaved production edit
+        with self.ok, self.nocommit, self.assertRaises(releaser.ReleaseError) as cm:
+            releaser.promote(self.prod, {}, "0.2.0-beta", "reviewed: x", now=NOON, log=lambda *_: None)
+        self.assertIn("x.yaml", str(cm.exception))
+        self.assertEqual((self.prod / "x.yaml").read_text(), "accounts: [a, z]\n")   # the edit is kept
+        self.assertEqual(git(self.prod, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip(), "main")
+        self.assertEqual(git(self.prod, "log", "--oneline", "-1").stdout.split(" ", 1)[1].strip(), "x.yaml in production")
+
     def test_refusals(self):
         with self.ok, self.nocommit:
             with self.assertRaises(releaser.ReleaseError):            # today's edition not out yet (no clock window, 11-05)

@@ -350,9 +350,19 @@ def cmd_bluesky(cfg: dict, argv: list) -> int:
 
 
 def cmd_newsletters(cfg: dict, argv: list) -> int:
-    """./np newsletters [status | test | fetch [DAYS] | label [DAY]]"""
+    """./np newsletters [status | test | fetch [DAYS] | label [DAY] | merges]"""
     from pipeline import mailsource
     sub = argv[0] if argv else "status"
+    if sub == "merges":
+        rows = mailsource.proposed_merges(ROOT)
+        if not rows:
+            print("newsletters-auto.yaml: no auto-added entry duplicates a listed newsletter")
+            return 0
+        print("Auto-added entries that are a second sender of a listed newsletter (dry run; nothing changed):")
+        for name, sender, target in rows:
+            print(f"  {name:36} {sender:44} -> {target}")
+        print("To apply: move the sender into the newsletter's `from:` list in newsletters.yaml (dev, release gate) or ask Claude.")
+        return 0
     if sub == "label":
         day = argv[1] if len(argv) > 1 else dt.date.today().isoformat()
         try:
@@ -2762,13 +2772,16 @@ def _next_try(cfg: dict) -> str:
     return later[0] if later else ""
 
 
-def _wait_live(cfg: dict, day: str) -> None:
-    """Hold the email until GitHub Pages serves today's pages (up to publish.wait_live_seconds, default 300)."""
+def _wait_live(cfg: dict, day: str) -> bool:
+    """Wait until GitHub Pages serves today's pages (up to publish.wait_live_seconds, default 300; a failed Pages
+    build gets one rebuild). False = not live: the caller holds the email (2026-11-09: it went out with links to a
+    page Pages had failed to build, and the site served the day before for 9 hours)."""
     try:
         from pipeline import publish
-        publish.wait_live(cfg, day, timeout=int((cfg.get("publish") or {}).get("wait_live_seconds", 300)))
-    except Exception as e:  # noqa: BLE001 - never blocks the email
+        return publish.wait_live(cfg, day, timeout=int((cfg.get("publish") or {}).get("wait_live_seconds", 300)))
+    except Exception as e:  # noqa: BLE001 - a broken check never blocks the email, a failed build does
         print(f"site check skipped: {e}")
+        return True
 
 
 def _publish_and_verify(cfg: dict, today: str, alert: bool = True) -> bool:
@@ -2779,7 +2792,11 @@ def _publish_and_verify(cfg: dict, today: str, alert: bool = True) -> bool:
             _alert(cfg, "publish", detail="See logs/last-command.txt for the error. The live site was not changed.",
                    next_try=_next_try(cfg))
         return False
-    _wait_live(cfg, today)
+    if not _wait_live(cfg, today):
+        _alert(cfg, "publish", detail="The site was pushed but GitHub Pages is not serving today's pages (see the "
+                                      "Pages build in logs/last-command.txt). The email is held until a publish "
+                                      "passes; the next retry publishes again.", next_try=_next_try(cfg))
+        return False
     from pipeline import publish, shipped
     bad = shipped.verify_live(ROOT, (cfg.get("publish") or {}).get("site_url", ""))
     if not bad:
@@ -3420,7 +3437,7 @@ def main() -> int:
     ap.add_argument("--x", nargs="*", metavar="ARG", help="status | fetch [HOURS]  (X accounts via Nitter mirrors)")
     ap.add_argument("--todo", nargs="*", metavar="ARG", help="list | seed | done ID | reopen ID | add TITLE [GROUP]")
     ap.add_argument("--bluesky", nargs="*", metavar="ARG", help="status | fetch [HOURS]  (Bluesky lists + own posts)")
-    ap.add_argument("--newsletters", nargs="*", metavar="ARG", help="status | test | fetch [DAYS]  (Gmail label as a source)")
+    ap.add_argument("--newsletters", nargs="*", metavar="ARG", help="status | test | fetch [DAYS] | merges  (Gmail label as a source)")
     ap.add_argument("--email", nargs="*", metavar="ARG", help="status | list | add EMAIL | remove EMAIL | test [EMAIL] [DAY] | send [DAY]")
     ap.add_argument("--rebuild-history", nargs="*", metavar="DAY", help="rebuild every briefing + audio with the current "
                     "profile (optionally FROM [TO]); older versions are kept")

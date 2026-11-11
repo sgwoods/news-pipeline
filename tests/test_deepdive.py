@@ -76,6 +76,23 @@ class DeepDive(unittest.TestCase):
         self.assertIn("https://www.nature.com/x", notes)
         self.assertNotIn("dead.example", notes)
 
+    def test_paywalled_source_kept_and_labelled_but_one_open_needed(self):
+        pick = Fake({"candidates": [{"topic": "AI proofs", "kind": "breakthrough", "why_today": "OpenAI claim", "angle": "a",
+                                     "story_numbers": [1], "strength": 5}], "best": 0})
+        dive.check_links = lambda urls, cfg: {u: ("paywalled" if "nature" in u else "dead" not in u) for u in urls}
+        r = deepdive.run(self.root, self.cfg, "2026-10-14", log=lambda *a: None, llm_pick=pick, llm_write=Fake(WRITE), tts=False)
+        self.assertEqual(r["status"], "written")
+        self.assertEqual(r["sources_paywalled"], ["https://www.nature.com/x"])
+        notes = (self.root / deepdive.DIR / "2026-10-14.md").read_text()
+        self.assertIn("(https://www.nature.com/x) · ", notes)
+        self.assertIn("(paywalled)", notes)
+        # two live sources but both paywalled: no open source to read -> not published
+        (self.root / "data/deepdive_queue.json").unlink(missing_ok=True)
+        dive.check_links = lambda urls, cfg: {u: ("paywalled" if "dead" not in u else False) for u in urls}
+        r = deepdive.run(self.root, self.cfg, "2026-10-14", log=lambda *a: None, llm_pick=pick, llm_write=Fake(WRITE), tts=False)
+        self.assertEqual(r["status"], "failed")
+        self.assertIn("0 open", r["reason"])
+
     def test_queue_first_and_ordering(self):
         a = deepdive.add_manual(self.root, "Third scaling law explained", day="2026-10-13")
         b = deepdive.add_manual(self.root, "Lab economics after the IPO filings", day="2026-10-13")

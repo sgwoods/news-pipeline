@@ -20,5 +20,17 @@ class TestService(unittest.TestCase):
         self.assertEqual(p["Label"], "com.sgwoods.news-pipeline.dashboard")
 
 
+class AllStatus(unittest.TestCase):
+    def test_every_agent_is_reported(self):
+        from unittest import mock
+        with mock.patch.object(service, "status", lambda k: {"kind": k, "loaded": True, "installed": True}), \
+             mock.patch.object(service, "ollama_status", lambda cfg: {"reachable": False, "url": "", "models": []}), \
+             mock.patch.object(service, "claude_status", lambda: {"installed": False}):
+            s = service.all_status(Path("."), {})
+        for k in service.LABELS:                      # ./np service status crashed on "runner" (KeyError, 2026-11-09)
+            self.assertIn(k, s)
+            self.assertEqual(s[k]["kind"], k)
+
+
 if __name__ == "__main__":
     unittest.main()

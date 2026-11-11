@@ -86,6 +86,87 @@ def _load_auto(root: Path) -> list:
         return []
 
 
+# Mail platforms many unrelated newsletters share: a domain match there says nothing about the publication.
+SHARED_MAIL_DOMAINS = ("substack.com", "beehiiv.com", "mail.beehiiv.com", "convertkit.com", "ck.page", "kit.com",
+                       "mailchimpapp.net", "mcsv.net", "ghost.io", "buttondown.email", "buttondown.com", "sendgrid.net",
+                       "amazonses.com", "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "yahoo.com",
+                       "icloud.com", "me.com", "proton.me", "protonmail.com", "mailgun.org", "sparkpostmail.com",
+                       "hubspotemail.net", "klaviyomail.com", "em.customer.io", "ccsend.com", "rsgsv.net")
+
+
+def _root_domain(host: str) -> str:
+    parts = (host or "").lower().strip(".").split(".")
+    return ".".join(parts[-2:]) if len(parts) >= 2 else (host or "").lower()
+
+
+def _shared_domain(dom: str) -> bool:
+    d = (dom or "").lower()
+    return any(d == sd or d.endswith("." + sd) for sd in SHARED_MAIL_DOMAINS)
+
+
+def _norm_name(s: str) -> str:
+    s = re.sub(r"\s*\(.*?\)\s*", " ", str(s or ""))          # "Lenny's Newsletter (Lenny Rachitsky)" -> "Lenny's Newsletter"
+    s = re.sub(r"[^a-z0-9]+", " ", s.lower())
+    return " ".join(w for w in s.split() if w not in {"the", "newsletter", "by", "a", "ai"})
+
+
+def merge_target(addr: str, display: str, newsletters: list) -> str | None:
+    """The existing newsletter a brand-new sender belongs to, or None (Steven, 2026-11-09: no more duplicates
+    of Lenny's sub-letters or Simple AI's second sender). Matched by, in order: the plus-address root on the same
+    domain (lenny+x@substack.com -> lenny@substack.com), the root domain of a sender or web address when the domain
+    is the publication's own (not a shared mail platform), then the display name."""
+    a = (addr or "").lower().strip()
+    if "@" not in a:
+        return None
+    local, dom = a.split("@", 1)
+    local_root = local.split("+", 1)[0]
+    dom_root = _root_domain(dom)
+    disp = _norm_name(display)
+    for n in newsletters:
+        for f in n.get("from") or []:
+            if "@" not in f:
+                continue
+            fl, fd = f.split("@", 1)
+            if fd == dom and fl.split("+", 1)[0] == local_root:
+                return n["name"]
+    if not _shared_domain(dom):
+        for n in newsletters:
+            hosts = [f.split("@", 1)[1] for f in (n.get("from") or []) if "@" in f]
+            hosts += [h for h in (n.get("from") or []) if "@" not in h]
+            web = (n.get("web") or "").lower()
+            if web:
+                hosts.append(re.sub(r"^https?://(www\.)?", "", web).split("/")[0])
+            if any(_root_domain(h) == dom_root and not _shared_domain(h) for h in hosts):
+                return n["name"]
+    if disp and len(disp) >= 4:
+        for n in newsletters:
+            if _norm_name(n["name"]) == disp:
+                return n["name"]
+    return None
+
+
+def proposed_merges(root: Path) -> list:
+    """Dry run over newsletters-auto.yaml: [(auto entry name, sender, target name)] for auto-added entries that
+    merge_target would now fold into an existing newsletter. Nothing is changed; ./np newsletters merges prints it."""
+    hand = []
+    import yaml
+    p = root / "newsletters.yaml"
+    for r in (yaml.safe_load(p.read_text("utf-8")) if p.exists() else None) or []:
+        if isinstance(r, dict) and r.get("name"):
+            hand.append({"name": str(r["name"]), "from": [str(x).lower() for x in (r.get("from") or [])],
+                         "web": str(r.get("web") or "")})
+    out = []
+    autos = [r for r in _load_auto(root) if isinstance(r, dict) and r.get("name") and not r.get("merge_into")]
+    for i, r in enumerate(autos):
+        others = hand + [{"name": o["name"], "from": [str(x).lower() for x in (o.get("from") or [])], "web": str(o.get("web") or "")}
+                         for j, o in enumerate(autos) if j < i]
+        for f in r.get("from") or []:
+            t = merge_target(str(f), r.get("name", ""), others)
+            if t and t != r["name"]:
+                out.append((r["name"], str(f), t))
+    return out
+
+
 def auto_add(root: Path, addr: str, display: str, subject: str, day: str, cfg_m: dict) -> dict | None:
     """Every new sender under the sources label becomes a source as it arrives (Steven, 2026-11-03). It goes to
     data/state/newsletters-auto.yaml (code-written; newsletters.yaml stays hand-edited and protected), flagged
@@ -95,7 +176,23 @@ def auto_add(root: Path, addr: str, display: str, subject: str, day: str, cfg_m:
     if not auto_ok(a, cfg_m) or match_sender(a, load_newsletters(root), subject) is not None:
         return None
     rows = _load_auto(root)
-    names = {n["name"] for n in load_newsletters(root)}
+    known = load_newsletters(root)
+    target = merge_target(a, display, known)
+    if target:                                                   # a second sender of a newsletter we already have
+        for r in rows:
+            if isinstance(r, dict) and (r.get("name") == target or r.get("merge_into") == target):
+                r.setdefault("from", [])
+                if a not in [str(x).lower() for x in r["from"]]:
+                    r["from"].append(a)
+                entry = r
+                break
+        else:
+            entry = {"name": target, "merge_into": target, "from": [a], "added": day,
+                     "note": f"sender merged automatically on {day} into the existing newsletter (same publication)"}
+            rows.append(entry)
+        _save_auto(root, rows)
+        return {**entry, "merged": True}
+    names = {n["name"] for n in known}
     name = " ".join((display or "").split())[:60] or a
     if name in names:
         name = f"{name} ({a})"
@@ -104,14 +201,20 @@ def auto_add(root: Path, addr: str, display: str, subject: str, day: str, cfg_m:
                       "not reviewed it yet. Weigh it as an unreviewed source: check its claims and who pays for it."),
              "added": day, "first_subject": (subject or "")[:120]}
     rows.append(entry)
+    _save_auto(root, rows)
+    return entry
+
+
+def _save_auto(root: Path, rows: list) -> None:
+    import yaml
     p = root / AUTO
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_suffix(".tmp")
     tmp.write_text("# Written by the pipeline (mailsource.auto_add): new senders under the sources label, added as\n"
                    "# they arrive. Move an entry to newsletters.yaml (on dev, with a bias note) to review it.\n"
+                   "# An entry with merge_into: adds its senders to that hand-listed newsletter (same publication).\n"
                    + yaml.safe_dump(rows, sort_keys=False, allow_unicode=True, width=110), "utf-8")
     tmp.replace(p)
-    return entry
 
 
 def load_newsletters(root: Path) -> list:
@@ -119,7 +222,14 @@ def load_newsletters(root: Path) -> list:
     p = root / "newsletters.yaml"
     rows = (yaml.safe_load(p.read_text("utf-8")) if p.exists() else None) or []
     hand = {str(f).lower() for r in rows if isinstance(r, dict) for f in (r.get("from") or [])}
-    rows = list(rows) + [r for r in _load_auto(root) if isinstance(r, dict)        # hand-edited entries win
+    autos = [r for r in _load_auto(root) if isinstance(r, dict)]
+    merged = {}                                                   # merge_into entries: extra senders for a hand entry
+    for r in autos:
+        if r.get("merge_into"):
+            merged.setdefault(str(r["merge_into"]), []).extend(str(f).lower() for f in (r.get("from") or []))
+    rows = [({**r, "from": list(r.get("from") or []) + [f for f in merged.get(str(r.get("name")), []) if f not in hand]}
+             if isinstance(r, dict) and str(r.get("name")) in merged else r) for r in rows]
+    rows = list(rows) + [r for r in autos if not r.get("merge_into")                   # hand-edited entries win
                          and not any(str(f).lower() in hand for f in (r.get("from") or []))]
     out = []
     for r in rows:
@@ -129,7 +239,8 @@ def load_newsletters(root: Path) -> list:
                     "web": str(r.get("web") or ""), "tier": str(r.get("tier") or "follow"),
                     "scrutiny": bool(r.get("scrutiny")), "flags": [str(x) for x in (r.get("flags") or [])],
                     "bias": " ".join(str(r.get("bias") or "").split()), "note": str(r.get("note") or ""),
-                    "subject": str(r.get("subject") or ""), "added": str(r.get("added") or "")})
+                    "subject": str(r.get("subject") or ""), "added": str(r.get("added") or ""),
+                    "backup": bool(r.get("backup")), "every_days": int(r.get("every_days") or 0)})
     return out
 
 

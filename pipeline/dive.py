@@ -83,27 +83,54 @@ def related(root: Path, story: dict, latest: dict, limit: int = 12, days: int = 
     return [r for _, _, r in scored[:limit]]
 
 
+# Outlets that answer a link check with a sign-in or a 403 even when the article exists (2026-11-09). Their citation
+# is kept and labelled "(paywalled)"; a dive still needs one open source beside it.
+PAYWALLED_HOSTS = ("wsj.com", "ft.com", "nytimes.com", "theinformation.com", "reuters.com", "bloomberg.com",
+                   "economist.com", "washingtonpost.com", "semafor.com", "thetimes.com")
+# Link checks go out as a browser would: Wikipedia and others return 403 to a bare client name (11-09 proved it).
+BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) "
+              "Version/17.4 Safari/605.1.15")
+WAYBACK = "https://archive.org/wayback/available?url="
+
+
+def paywalled(url: str) -> bool:
+    from urllib.parse import urlsplit
+    host = urlsplit(url or "").netloc.lower().removeprefix("www.")
+    return any(host == h or host.endswith("." + h) for h in PAYWALLED_HOSTS)
+
+
 def check_links(urls: list, cfg: dict) -> dict:
-    """url → True/False (live). Never raises."""
+    """url -> True (live and open), "paywalled" (a known paywalled outlet that answered or has an archive.org
+    snapshot: keep the citation, labelled) or False (dead). Truthy means "keep". Never raises."""
     out = {}
     if not urls:
         return out
     try:
-        import httpx
+        import httpx  # noqa: F401
     except ImportError:
         return {u: False for u in urls}
     f = cfg.get("fetch", {})
+    ua = f.get("link_check_user_agent") or BROWSER_UA
     from .netguard import client as guarded_client
-    with guarded_client(follow_redirects=True, timeout=15, headers={"User-Agent": f.get("user_agent", "news-pipeline/0.1")}) as c:
+    with guarded_client(follow_redirects=True, timeout=15, headers={"User-Agent": ua}) as c:
         for u in urls:
-            out[u] = _live_once(c, u) or _live_once(c, u, wait=2.0)    # 11-04 trial: 10 of 24 "dead" were fine on a retry
-            if not out[u]:
+            code = _status_once(c, u)
+            if code is None or code >= 400 and code not in (401, 402, 403, 429):
+                code = _status_once(c, u, wait=2.0)       # 11-04 trial: 10 of 24 "dead" were fine on a retry
+            live = code is not None and code < 400
+            if not live and code in (401, 402, 403, 429) and _archived(c, u):
+                live = True                                # the page exists; the site just refuses robots (archive.org has it)
+            if not live:
                 from .headless import fetch as headless_fetch     # a bot check or a JavaScript page (5 of 24)
-                out[u] = bool(headless_fetch(u, cfg))
+                live = bool(headless_fetch(u, cfg))
+            if paywalled(u):
+                out[u] = "paywalled" if (live or code in (401, 402, 403, 429)) else False
+            else:
+                out[u] = live
     return out
 
 
-def _live_once(c, u: str, wait: float = 0.0) -> bool:
+def _status_once(c, u: str, wait: float = 0.0) -> int | None:
     import time
     if wait:
         time.sleep(wait)
@@ -111,7 +138,16 @@ def _live_once(c, u: str, wait: float = 0.0) -> bool:
         r = c.head(u)
         if r.status_code in (403, 405, 404, 400, 429) or r.status_code >= 500:   # many servers refuse HEAD only
             r = c.get(u)
-        return r.status_code < 400
+        return r.status_code
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _archived(c, u: str) -> bool:
+    """archive.org has a snapshot of the page (so the 403 is a bot wall, not a missing page)."""
+    try:
+        r = c.get(WAYBACK + u, timeout=10)
+        return r.status_code == 200 and bool((r.json().get("archived_snapshots") or {}).get("closest", {}).get("available"))
     except Exception:  # noqa: BLE001
         return False
 

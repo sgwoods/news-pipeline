@@ -66,3 +66,19 @@ dev, with your bias note); the hand-edited entry then wins. Never added automati
 writing from gmail.com / outlook.com / iCloud and similar, and notices (no-reply, notifications, Slack, Google).
 Subscription confirmations are still listed on the Sources page for a click.
 
+**Second senders are merged, not duplicated (2026-11-09).** Before a new sender becomes its own entry, the reader
+checks whether it belongs to a newsletter already listed: the same plus-address root on the same domain
+(`lenny+how-i-ai@substack.com` → `lenny@substack.com`), the publication's own domain in a listed sender or `web:`
+address (never a shared mail platform such as substack.com or beehiiv.com), or the same display name. A match is
+recorded in `newsletters-auto.yaml` as an entry with `merge_into: <newsletter name>` whose `from:` senders are added
+to that newsletter when the list is loaded; `newsletters.yaml` is never written by code. `./np newsletters merges`
+lists auto-added entries that would merge today (a dry run; move the sender into `newsletters.yaml` to apply).
+
+## Backup newsletters and cadence (2026-11-09)
+- `backup: true` on an entry means the publication is already read from its web feed every run and the email is a
+  second route. On the Sources page it shows as *ingesting* ("via web feed; the email is a backup") while that web
+  feed is ingesting, whatever the email count; a backup whose web feed is not ingesting is still a gap.
+- `every_days: N` gives the newsletter its own cadence (weekly 7, fortnightly 14, monthly 31). It is *quiet* once
+  more than 1.5 × N days have passed since its newest issue (floor 14 days), instead of the flat 14-day rule, so a
+  monthly letter stops raising a false alarm three weeks in.
+

@@ -13,7 +13,7 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.59-beta (2026-11-05)
+- **Release:** v0.2.60-beta (2026-11-09)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
 - **Modules:** 89 in `pipeline/`
@@ -126,7 +126,7 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
 - **Fact-check options** (`factopts.py`): the checks' findings at the bottom of the takes email as F1, F2 ... with A/B/C options and a recommendation, applied before publishing.
 - **Special editions** (`special.py`): an occasional deep dive sent on its own the day news breaks: its own files (briefings/specials/), checks and review email to Steven, a page at <site>/DAY/special/ (in no feed), one email to subscribers after the page is live; also both podcast feeds, the front page, that day's briefing page, feed.xml, a Slack post and a card in the next morning's email. At most one a day and four in 30 days.
 - **Headless last try** (`headless.py`): a page the plain fetch couldn't read (a bot check, a page that needs JavaScript) is opened once in the Mac's Chrome, headless, with a throwaway profile, only where robots.txt allows, public hosts only, capped per run.
-- **Source health** (`sourcehealth.py`): every known source (feeds, pages, X, Bluesky, email newsletters, Slack, and sites our deep dives keep citing but can't open) with a status (failing, known but not ingested, quiet, ingesting), an error category and a priority, at the top of the dashboard's Sources page.
+- **Source health** (`sourcehealth.py`): every known source (feeds, pages, X, Bluesky, email newsletters, Slack, and sites our deep dives keep citing but can't open) with a status (failing, known but not ingested, quiet, ingesting), an error category and a priority, at the top of the dashboard's Sources page. A newsletter marked `backup: true` counts as ingesting while its web feed is; `every_days` gives a newsletter its own cadence for "quiet" (docs/NEWSLETTERS.md).
 - **Campaigns** (`campaigns.py`): invite lists and their outcome (signed up, subscribed, abandoned, replies) for the dashboard's Campaigns page.
 - **Secrets** (`vault.py`): macOS Keychain first, then `.env` (gitignored, mode 600).
 
