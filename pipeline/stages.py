@@ -409,9 +409,13 @@ def item_block(it: dict, max_chars: int) -> str:
             kind = describe({**it, "url": it.get("read_url", ""), "person": "", "source_label": ""})
         except Exception:  # noqa: BLE001
             kind = "unknown"
-        lines += [f"linked article (fetched from {it.get('read_url', '')}; evidence type: {kind}). "
-                  "It is evidence for the post's claim; judge the claim with it:",
-                  _clean(it["read_text"])[:max_chars * 2]]
+        if it.get("read_url") == it.get("url"):   # the feed carried only the headline; this is the article itself
+            lines += [f"full article (the feed item was headline-only; fetched from {it.get('read_url', '')}):",
+                      _clean(it["read_text"])[:max_chars * 2]]
+        else:
+            lines += [f"linked article (fetched from {it.get('read_url', '')}; evidence type: {kind}). "
+                      "It is evidence for the post's claim; judge the claim with it:",
+                      _clean(it["read_text"])[:max_chars * 2]]
     lines.append("</item>")
     return "\n".join(lines)
 
@@ -443,6 +447,45 @@ def _ask(llm, system: str, user: str, max_tokens: int):
         return llm.complete_json(system, user, max_tokens=max_tokens)
     except TypeError:
         return llm.complete_json(system, user)
+
+
+_DEAL_AMOUNT = re.compile(r"\b(?:rais(?:e|es|ed|ing)|funding|fundraise|round|Series [A-H]\b|seed\b|valuation|valued at|acquir\w+|"
+                          r"acquisition|buys|bought|merger|merges|IPO|S-1|secondary|tender offer|debt|loan|credit facility|"
+                          r"prepay\w*|invest(?:s|ed|ment)\b)", re.I)
+_AMOUNT = re.compile(r"(?:[$€£]\s?\d[\d,.]*\s?(?:[kmbt]n?|million|billion|trillion)?\b|\b\d[\d,.]*\s?(?:million|billion|trillion)\b)", re.I)
+_PUBLICATION_KINDS = {"feed", "site", "pages", "email", "shared", "atom", "rss"}
+
+
+def deal_with_amount(text: str) -> bool:
+    """A round, acquisition, IPO or financing with a figure: the Money section's raw material. The local filter dropped
+    '$625M acquisition' and '$28.8B Series H' as 'not AI-specific' (selection review, 2026-11-13)."""
+    t = text or ""
+    return bool(_DEAL_AMOUNT.search(t)) and bool(_AMOUNT.search(t))
+
+
+def protected_from_model_drop(it: dict, cfg: dict) -> str:
+    """Why this item never goes through the model filter ('' = it does). Fail-open for what the briefing exists for
+    (selection review, 2026-11-13): publications (not social posts) from portfolio, follow-closely and configured beat
+    sources; and any item with a deal amount in its title or first lines. Rule drops (duplicates, empty, excluded URLs)
+    still apply before this. Social posts from the same people stay with the model: that is where the chatter is."""
+    kind = (it.get("source_kind") or "").lower()
+    flags = {str(f).upper() for f in (it.get("flags") or [])}
+    tier = (it.get("tier") or "").lower().strip()
+    person = it.get("person") or ""
+    keep_flags = {str(f).upper() for f in cfg.get("filter_keep_flags", ["PORTFOLIO"])}
+    keep_tiers = {str(t).lower() for t in cfg.get("filter_keep_tiers", ["follow closely", "scrutiny"])}
+    keep_sources = set(cfg.get("filter_keep_sources") or [])
+    if kind in _PUBLICATION_KINDS:
+        if flags & keep_flags:
+            return f"portfolio source ({', '.join(sorted(flags & keep_flags))})"
+        if person in keep_sources or (it.get("source_label") or "") in keep_sources:
+            return "a beat the briefing covers (filter_keep_sources)"
+        if tier in keep_tiers:
+            return f"{tier} publication"
+    head = " ".join([it.get("title") or "", _clean(content_text(it))[:400]])
+    if deal_with_amount(head):
+        return "a deal with an amount"
+    return ""
 
 
 def run_filter(llm: Backend, items: list, system: str, cfg: dict, log) -> tuple:
@@ -479,7 +522,10 @@ def run_filter(llm: Backend, items: list, system: str, cfg: dict, log) -> tuple:
     min_long = cfg.get("filter_skip_min_chars", 800)
     short = []
     for it in items:
-        if it.get("source_kind") in long_kinds and len(content_text(it)) >= min_long:
+        why = protected_from_model_drop(it, cfg)
+        if why:
+            decisions[it["id"]] = {"keep": True, "reason": f"kept without the model filter: {why}", "protected": True}
+        elif it.get("source_kind") in long_kinds and len(content_text(it)) >= min_long:
             decisions[it["id"]] = {"keep": True, "reason": "long-form from tracked source (not filtered)"}
         else:
             short.append(it)
@@ -488,6 +534,38 @@ def run_filter(llm: Backend, items: list, system: str, cfg: dict, log) -> tuple:
     for it in items:   # fail open: never lose an item because the model misbehaved
         decisions.setdefault(it["id"], {"keep": True, "reason": "no decision returned (kept by default)"})
     return decisions, version, errors
+
+
+def run_rescue(llm: Backend, items: list, decisions: dict, system: str, cfg: dict, log) -> tuple:
+    """A second look at what the model filter dropped (selection review, 2026-11-13): the titles and first words of
+    today's dropped publication items (not social posts) go to the rescue backend (Claude) once; anything it names is
+    kept with its reason. -> (rescued ids -> reason, prompt version, errors). Never raises."""
+    tmpl, version = prompt("rescue")
+    cand = [it for it in items if decisions.get(it["id"], {}).get("keep") is False
+            and not decisions[it["id"]].get("rule") and (it.get("source_kind") or "").lower() in _PUBLICATION_KINDS]
+    cap = int(cfg.get("rescue_max_items", 40))
+    cand = cand[:cap]
+    if not cand:
+        return {}, version, []
+    lines = []
+    for it in cand:
+        first = _clean(content_text(it))[:160].replace("\n", " ")
+        lines.append(f'<item id="{it["id"]}"> {it.get("person", "")} | {(it.get("title") or "")[:140]} | {first} | '
+                     f'filter: {decisions[it["id"]].get("reason", "")[:80]}</item>')
+    try:
+        out = _ask(llm, system, tmpl.replace("{{items}}", "\n".join(lines)), 600)
+    except Exception as e:  # noqa: BLE001
+        log.warning("rescue failed: %s", str(e)[:160])
+        return {}, version, [f"rescue: {type(e).__name__}: {e}"[:300]]
+    ids = {it["id"] for it in cand}
+    rescued = {}
+    for r in out.get("rescue", []) if isinstance(out, dict) else []:
+        if isinstance(r, dict) and r.get("id") in ids:
+            rescued[r["id"]] = f"rescued by the second look: {str(r.get('why', ''))[:120]}"
+    for i, why in rescued.items():
+        decisions[i] = {"keep": True, "reason": why, "rescued": True}
+    log.info("rescue: %d of %d dropped publication items kept on the second look", len(rescued), len(cand))
+    return rescued, version, []
 
 
 def _norm_summary(s: dict) -> dict:

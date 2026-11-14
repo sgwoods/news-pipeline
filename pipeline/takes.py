@@ -348,6 +348,16 @@ def build_email(root: Path, cfg: dict, day: str, review: bool = True, drive: str
     for slot, label, body, text in _sections(root, cfg, day):
         H.append(f'<div {CARD}><div {HEAD}>{esc(slot)} · {esc(label)}</div>{body}{btn(slot)}</div>')
         L += text + [""]
+    try:                                         # what the pick left out, and why (selection review, 2026-11-13)
+        lo = left_out_lines(root, day)
+    except Exception:  # noqa: BLE001
+        lo = []
+    if lo:
+        H.append(f'<div {CARD}><div {HEAD}>Left out today</div><ul style="margin:6px 0 0 18px;padding:0;font-size:13px;'
+                 f'color:#374151">' + "".join(f"<li>{esc(x)}</li>" for x in lo)
+                 + '</ul><p style="color:#6b7280;font-size:12px;margin:6px 0 0">Reply "add N" to say one should have '
+                   'been in; the full list is on the dashboard\'s Selection page.</p></div>')
+        L += ["Left out today:"] + [f"- {x}" for x in lo] + [""]
     if fh:
         H.append(fh)
         L += fl
@@ -705,21 +715,41 @@ def _slack_refresh(root: Path, cfg: dict, log=print):
         log(f"takes: Slack read failed ({e})")
 
 
-def _cutoff(cfg: dict, day: str) -> dt.datetime:
+def _cutoff(cfg: dict, day: str, root: Path | None = None) -> dt.datetime:
     h, m = (int(x) for x in tcfg(cfg)["cutoff"].split(":"))
-    return dt.datetime.combine(dt.date.fromisoformat(day), dt.time(h, m))
+    end = dt.datetime.combine(dt.date.fromisoformat(day), dt.time(h, m))
+    if root is not None:                         # the morning check may extend it while it rebuilds (R4, 11-14)
+        end += dt.timedelta(minutes=int(state(root, day).get("cutoff_extend_minutes") or 0))
+    return end
 
 
-def wait(root: Path, cfg: dict, day: str, log=print, now=dt.datetime.now, sleep=time.sleep, fetch=None) -> dict:
-    """Poll for replies until the cutoff, "done" or "skip"; then collect. Never raises: no takes = today as before."""
+def extend_cutoff(root: Path, day: str, minutes: int, why: str = "") -> int:
+    """Push today's cutoff back (cumulative) so a rebuild during the hold finishes before the release."""
+    st = state(root, day)
+    st["cutoff_extend_minutes"] = int(st.get("cutoff_extend_minutes") or 0) + int(minutes)
+    st["cutoff_extended_why"] = why[:200]
+    _save_state(root, day, st)
+    return st["cutoff_extend_minutes"]
+
+
+def wait(root: Path, cfg: dict, day: str, log=print, now=None, sleep=time.sleep, fetch=None) -> dict:
+    """Poll for replies until the cutoff, "done" or "skip"; then collect. Never raises: no takes = today as before.
+    The cutoff is read in schedule.timezone when one is set (pipeline/clock.py), so 09:15 stays 09:15 Toronto."""
+    if now is None:
+        from .clock import now as _now
+        now = lambda: _now(cfg)  # noqa: E731
     fetch = fetch or (lambda: (_slack_refresh(root, cfg, log), fetch_all(root, cfg, day, log))[1])
-    end = _cutoff(cfg, day)
+    end = _cutoff(cfg, day, root)
     replies = []
     while True:
         try:
             replies = fetch()
         except Exception as e:  # noqa: BLE001
             log(f"takes: mailbox read failed ({e}); trying again")
+        new_end = _cutoff(cfg, day, root)        # the morning check can extend it mid-hold
+        if new_end != end:
+            log(f"takes: cutoff moved to {new_end:%H:%M} ({state(root, day).get('cutoff_extended_why', '')})")
+            end = new_end
         if any(r.get("done") or r.get("skip") for r in replies) or now() >= end or \
                 state(root, day).get("release_requested"):
             break
@@ -822,3 +852,14 @@ def revoice(root: Path, cfg: dict, day: str, st: dict, log=print) -> str:
                                brand=sonic.for_audio(root))
     delivered = audio.deliver(cfg, mp3, type("L", (), {"info": staticmethod(log), "warning": staticmethod(log)})())
     return f"audio re-rendered with {len(st['published'])} take(s): {minutes:.1f} min ({delivered})"
+
+
+def left_out_lines(root: Path, day: str, n: int = 5) -> list:
+    """'Headline · why' for the stories the selection model considered and left out (data/stories/<day>.jsonl)."""
+    from .archive import read_jsonl
+    p = Path(root) / "data" / "stories" / f"{day}.jsonl"
+    if not p.exists():
+        return []
+    recs = read_jsonl(p)
+    sel = (recs[-1].get("selection") or {}) if recs else {}
+    return [f"{x.get('headline', '')} · {x.get('why', '')}".strip(" ·") for x in (sel.get("left_out") or [])[:n]]

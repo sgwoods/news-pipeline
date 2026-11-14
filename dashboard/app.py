@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -224,9 +225,19 @@ def create_app(root: Path = ROOT) -> Flask:
         best = sorted(((n, pts) for n, pts in field.items() if n != critic.OURS and pts),
                       key=lambda kv: -kv[1][-1][1])[:3]
         spark = trends.svg_lines({**ours, **dict(best)}, "Weekly critic score: us and the top three", height=220)
+        from pipeline import health
+        try:
+            board = health.board(root, cfg_now)
+        except Exception as e:  # noqa: BLE001 - the board never takes the home page down
+            board = {"tiles": [], "problems": 0, "warnings": 0, "headline": f"status board unavailable: {e}"[:120]}
         return render_template("home.html", needs=h.needs(root, cfg_now, today), running=h.now_running(root),
-                               ed=h.edition(root, cfg_now, today),
+                               ed=h.edition(root, cfg_now, today), board=board,
                                tm=h.tomorrow(root, today), hl=h.health(root), spark=spark, today=today)
+
+    @app.route("/api/health")
+    def api_health():
+        from pipeline import health
+        return health.board(root, cfg)
 
     @app.route("/status")
     def status():
@@ -471,6 +482,82 @@ def create_app(root: Path = ROOT) -> Flask:
             return redirect(url_for("home", msg=f"Not queued: {e}"[:200]))
         return redirect(url_for("home", msg=f"Queued: {DASH_JOBS[recipe]} ({p.stem}). It runs within a minute."))
 
+    # The queue form (2026-11-14, Steven 11-11: "no more Terminal pastes"): any run-queue recipe, its arguments as
+    # fields, and Steven's typed "yes" as the chat approval. The form is the last Terminal paste's replacement:
+    # Claude cannot write into production's queue from the chat app, so Steven does it here with one click.
+    FORM_RECIPES = ["ship", "release", "publish", "send-held", "takes-done", "approve", "correct", "remaster",
+                    "rescue-item", "morning-check", "rollback", "tests", "gate", "doctor", "consistency", "compare"]
+    FIELD_HELP = {"version": "like 0.2.61-beta", "note": "what you checked; a release note starts with \"reviewed:\"",
+                  "lane": "slot (the weekday release) or fix (something is broken / weekend)",
+                  "accept": "\"accepted: …\" if the soak compare may differ and you accept that", "day": "YYYY-MM-DD",
+                  "id": "the item id (Selection page)", "reason": "why", "qid": "queue item id"}
+
+    def _queue_form_recipes():
+        from pipeline import runner
+        out = []
+        for r in FORM_RECIPES:
+            spec = (runner.RECIPES.get(r) or {}).get("args")
+            if spec is None:
+                continue
+            out.append({"name": r, "tier": runner.RECIPES[r]["tier"],
+                        "fields": [{"name": k, "kind": kind.rstrip("?"), "optional": kind.endswith("?"),
+                                    "help": FIELD_HELP.get(k, kind.rstrip("?"))} for k, kind in spec.items()],
+                        "what": " → ".join(" ".join(a for a in step[1] if not a.startswith("{"))
+                                           for step in runner.RECIPES[r]["steps"] if isinstance(step, tuple) and len(step) == 2
+                                           and step[0] != "approve")[:160]})
+        return out
+
+    @app.route("/queue")
+    def queue_page():
+        from pipeline import runner
+        jobs = []
+        for state in ("running", "pending"):
+            for f in sorted(runner.qdir(root, state).glob("*.json")):
+                try:
+                    j = json.loads(f.read_text("utf-8"))
+                except (OSError, ValueError):
+                    continue
+                jobs.append({"state": state, "id": j.get("id", f.stem), "recipe": j.get("recipe", ""),
+                             "args": j.get("args", {}), "queued_by": j.get("queued_by", "")})
+        done = []
+        for f in sorted(runner.qdir(root, "done").glob("*.json"), reverse=True)[:12]:
+            if f.name.endswith(".queued.json"):
+                continue
+            try:
+                j = json.loads(f.read_text("utf-8"))
+            except (OSError, ValueError):
+                continue
+            done.append({"id": j.get("id", f.stem), "recipe": j.get("recipe", ""), "status": j.get("status", ""),
+                         "ended": (j.get("ended") or "")[:16].replace("T", " "), "detail": (j.get("detail") or "")[:160]})
+        return render_template("queue.html", recipes=_queue_form_recipes(), jobs=jobs, done=done,
+                               today=dt.date.today().isoformat(), version=(root / "VERSION").read_text().strip()
+                               if (root / "VERSION").exists() else "")
+
+    @app.route("/api/queue-form", methods=["POST"])
+    def queue_form_submit():
+        _check_post()
+        from pipeline import runner
+        recipe = (request.form.get("recipe") or "").strip()
+        if recipe not in FORM_RECIPES or recipe not in runner.RECIPES:
+            abort(400)
+        yes = (request.form.get("yes") or "").strip().lower()
+        if yes not in ("yes", "y", "ok", "go"):
+            return redirect(url_for("queue_page", msg="Not queued: type yes to approve the job."))
+        spec = runner.RECIPES[recipe]["args"]
+        args = {k: (request.form.get(f"arg_{k}") or "").strip() for k in spec}
+        if recipe == "approve" and args.get("note") and not args["note"].lower().startswith("reviewed"):
+            args["note"] = "reviewed: " + args["note"]
+        if "note" in spec and spec["note"] == "reviewed" and not args.get("note"):
+            args["note"] = "reviewed: queued from the dashboard"
+        stamp = f"Steven, {dt.datetime.now():%Y-%m-%d %H:%M}, dashboard queue form: {recipe} — typed yes"
+        try:
+            p = runner.enqueue(root, recipe, args, chat_approval=stamp if recipe != "approve" else "",
+                               queued_by="Steven (dashboard)")
+        except Exception as e:  # noqa: BLE001
+            return redirect(url_for("queue_page", msg=f"Not queued: {e}"[:220]))
+        return redirect(url_for("queue_page", msg=f"Queued: {recipe} ({p.stem}). The runner picks it up within a minute; "
+                                                  "progress on this page and under Runs."))
+
     # ---------- campaigns (2026-11-04): invites, sign-ups, conversions, replies ----------
     def _campaign_inputs():
         from pipeline import feedback as fb, mailer
@@ -583,6 +670,33 @@ def create_app(root: Path = ROOT) -> Flask:
     def briefing_latest():
         days = briefings_list()
         return redirect(url_for("briefing_page", day=days[0])) if days else redirect(url_for("briefings_page"))
+
+    @app.route("/selection")
+    @app.route("/selection/<day>")
+    def selection_page(day=None):
+        """Why today's stories were chosen and what was left out (selection review, 2026-11-13)."""
+        from pipeline import selection as _sel
+        days = briefings_list()
+        day = day or (days[0] if days else dt.date.today().isoformat())
+        if not DAY_RE.match(day):
+            abort(404)
+        view = _sel.day_view(root, P, day)
+        return render_template("selection.html", day=day, days=days[:14], **view)
+
+    @app.route("/api/selection/rescue", methods=["POST"])
+    def selection_rescue():
+        _check_post()
+        from pipeline import runner
+        day, iid = (request.form.get("day") or "").strip(), (request.form.get("id") or "").strip()
+        if not DAY_RE.match(day) or not re.fullmatch(r"[A-Za-z0-9_-]{4,64}", iid):
+            abort(400)
+        stamp = f"Steven, {day}, dashboard button: rescue {iid}"
+        try:
+            pth = runner.enqueue(root, "rescue-item", {"day": day, "id": iid}, chat_approval=stamp, queued_by="Steven (dashboard)")
+        except Exception as e:  # noqa: BLE001
+            return redirect(url_for("selection_page", day=day, msg=f"Not queued: {e}"[:200]))
+        return redirect(url_for("selection_page", day=day, msg=f"Queued: rescue ({pth.stem}). It is analysed within a minute; "
+                                                                  "a rebuild puts it in today's edition only before the cutoff."))
 
     @app.route("/briefings/<day>")
     def briefing_page(day):

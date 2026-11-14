@@ -81,3 +81,18 @@ class TestMailer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SubjectLead(unittest.TestCase):
+    """The subject follows Must read 1 even when the fact check cut its Top-of-mind bullet (11-12)."""
+    def test_top_bullet_when_it_is_about_must_read_one(self):
+        from pipeline import mailer
+        b = {"top": ["**Nvidia's Huang resigns**; the board names an interim CEO."], "must": [{"headline": "Jensen Huang resigns as Nvidia CEO"}], "title": "T"}
+        self.assertEqual(mailer.subject_lead(b), "Nvidia's Huang resigns")
+
+    def test_must_read_headline_when_the_bullet_was_cut(self):
+        from pipeline import mailer
+        b = {"top": ["**Anthropic ships Claude 5**; pricing unchanged."], "must": [{"headline": "Jensen Huang resigns as Nvidia CEO"}], "title": "T"}
+        self.assertEqual(mailer.subject_lead(b), "Jensen Huang resigns as Nvidia CEO")
+        self.assertEqual(mailer.subject_lead({"top": [], "must": [], "title": "AI Briefing"}), "AI Briefing")
+        self.assertEqual(mailer.subject_lead({"top": [], "must": [{"headline": "H"}], "title": "T"}), "H")

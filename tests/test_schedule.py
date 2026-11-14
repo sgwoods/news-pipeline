@@ -46,7 +46,8 @@ class Rebrief(unittest.TestCase):
         import run
         self.assertIn("critique", run.llm_stage_names({}, rebrief=True))
         self.assertNotIn("filter", run.llm_stage_names({}, rebrief=True))
-        self.assertEqual(run.llm_stage_names({}), ["filter", "rank", "critique", "cluster", "merge", "editorial", "write"])
+        self.assertEqual(run.llm_stage_names({}), ["filter", "rescue", "rank", "critique", "cluster", "select", "merge", "editorial", "write"])
+        self.assertEqual(run.llm_stage_names({}, rebrief=True), ["critique", "cluster", "select", "merge", "editorial", "write"])
 
 
 class AfterTakes(unittest.TestCase):

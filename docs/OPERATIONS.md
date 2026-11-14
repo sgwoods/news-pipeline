@@ -7,6 +7,7 @@
 | Evening preflight (is the release approval current? notifies if not; the reminder comes again at 23:00) | launchd agent `com.sgwoods.news-pipeline.preflight`, at `schedule.preflight` (21:00, 23:00) | `./np service … preflight` |
 | Overnight analysis (fetch and judge new items, no edition; the last slot also checks the deep-dive draft) | launchd agent `com.sgwoods.news-pipeline.overnight`, at `schedule.overnight` (23:30, 01:30, 03:30); keeps the Mac awake until 05:45 | `./np service … overnight` |
 | Nightly rehearsal (dev code rebuilds the latest edition and is compared; a pass lets the next ship of that code skip its soak) | launchd agent `com.sgwoods.news-pipeline.rehearsal` queues a `rehearse` job at `schedule.rehearsal` (00:30) | `./np service … rehearsal` |
+| Morning check (08:00, while the edition is held for takes: light fetch, Claude decides, rebuild with the cutoff extended 20 min if news broke) | the daily agent's tick, `schedule.morning`; `morning:` in config.yaml (`enabled: false` turns it off) | `./np morning`; log `data/state/morning.jsonl` |
 | Dashboard (http://127.0.0.1:8775, ports 8770–8779; README "Local ports") | launchd agent `com.sgwoods.news-pipeline.dashboard`, always on, restarts on crash | `./np service … dashboard` |
 | Advance deep dive (tomorrow's draft into Drive) | launchd agent `com.sgwoods.news-pipeline.advance`, at `schedule.advance` (15:30) | `./np service … advance` |
 | Run queue (jobs Claude queues; approvals) + Drive takes sync every 20 min | launchd agent `com.sgwoods.news-pipeline.runner`, every minute | `./np runner status` |
@@ -19,7 +20,9 @@
 | Subscriber email + your evening note | Apps Script "AI Briefing mailer" in briefing@example.com (docs/security/MIGRATION-stevenwoods-ai.md) | `./np email …`, `./np note …` |
 | Private backup of this repo (code + full archive) | GitHub, repo `archive.remote_repo` (private) | `./np backup` |
 
-Everything is also on the dashboard's **Control** page (http://127.0.0.1:8775/control).
+Everything is also on the dashboard's **Control** page (http://127.0.0.1:8775/control). Jobs for the run queue (ship, release, publish, send-held, approve, correct, remaster, rescue-item, morning-check…) are queued from the **Queue** page (http://127.0.0.1:8775/queue): fill the arguments, type yes. Nothing needs to be pasted into Terminal.
+
+Travelling: set `schedule.timezone: America/Toronto` in config.yaml and the schedule, the takes cutoff and the morning check follow Toronto whatever the Mac's clock says (`pipeline/clock.py`); Home shows a Clock tile while the two differ. Overnight and rehearsal slots that cross midnight in one zone but not the other keep the Mac's date.
 
 ## Commands
 ```
@@ -35,6 +38,11 @@ Tuning and exploring (same as the dashboard Tuning / Threads / Questions pages):
 ```
 ./np preview 2026-10-07 calm-10min   # rebuild that day with a profile into briefings/experiments/ (~3-6 min)
 ./np dive 2026-10-07 2               # deep dive on story 2 of that briefing -> briefings/dives/
+```
+Selection (dashboard → Editions → Selection shows the same): why each story was picked, what was left out, what the filter kept without the model, rescued or dropped.
+```
+./np rescue 2026-11-13 <item id>     # analyse a filter-dropped item now; it joins today's edition on a rebuild before the cutoff, else tomorrow's context
+./np morning                         # the 08:00 check by hand (only acts while the edition is held)
 ```
 Profiles are `profiles/<name>.yaml`; the daily run uses `tuning.profile` in config.yaml ("Make it the daily profile" on the Tuning page).
 
@@ -94,6 +102,7 @@ is optional for the same reason; the podcast feed doesn't need it.
 Only one machine should have the services installed, or both will publish and email.
 
 ## Pronunciations (Steven, 2026-10-29)
+Quality page → "Names the voice may have garbled": what the transcript heard in place of each name over the last week, an *audition* button and an *add* box that writes the entry (then approve the protected-file change on Home). Acronyms that start with A are spelled "Ay-…" automatically.
 
 `pronunciations.yaml` is the table of how the voice says names, acronyms and abbreviations (NYT is "New York
 Times", Qwen is "Kwen", METR is "meter"). It is hand-edited and release-approved, like the other files that

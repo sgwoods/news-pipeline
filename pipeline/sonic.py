@@ -89,10 +89,11 @@ def design(style: str) -> dict:
         close = _mix(1.9, [(0.13 * i, _tone(NOTE[n], 0.9, "marimba", 0.6)) for i, n in enumerate(reversed(notes))]
                      + [(0.52, _tone(NOTE["C4"], 1.3, "pad", 0.2))])
     elif style == "C":
-        logo = _mix(2.2, [(0.0, _tone(NOTE["C3"], 0.6, "pulse", 0.7)), (0.45, _tone(NOTE["C3"], 0.6, "pulse", 0.6)),
-                          (0.9, _tone(NOTE["A5"], 1.3, "bell", 0.45))])
-        sting = _mix(0.8, [(0.0, _tone(NOTE["A5"], 0.75, "bell", 0.35))])
-        close = _mix(2.0, [(0.0, _tone(NOTE["A5"], 1.1, "bell", 0.4)), (0.6, _tone(NOTE["C3"], 0.7, "pulse", 0.6))])
+        # 2026-11-14: the pulses sat ~6 dB above the voice in the published episode; halved
+        logo = _mix(2.2, [(0.0, _tone(NOTE["C3"], 0.6, "pulse", 0.32)), (0.45, _tone(NOTE["C3"], 0.6, "pulse", 0.28)),
+                          (0.9, _tone(NOTE["A5"], 1.3, "bell", 0.3))])
+        sting = _mix(0.8, [(0.0, _tone(NOTE["A5"], 0.75, "bell", 0.25))])
+        close = _mix(2.0, [(0.0, _tone(NOTE["A5"], 1.1, "bell", 0.28)), (0.6, _tone(NOTE["C3"], 0.7, "pulse", 0.28))])
     else:
         raise ValueError(f"unknown style {style!r}")
     return {"logo": logo, "sting": sting, "close": close}
@@ -101,7 +102,7 @@ def design(style: str) -> dict:
 def sounds(root: Path, style: str) -> dict:
     from .audio import _write_wav
     d = Path(root) / DIR / style
-    out = {k: d / f"{k}.wav" for k in ("logo", "sting", "close")}
+    out = {k: d / f"{k}-v2.wav" for k in ("logo", "sting", "close")}     # v2: levels of 2026-11-14
     if not all(p.exists() for p in out.values()):
         d.mkdir(parents=True, exist_ok=True)
         for k, s in design(style).items():

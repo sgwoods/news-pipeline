@@ -412,7 +412,8 @@ def feed_episodes(root: Path, base_url: str, md_to_html=None) -> list:
         link = f"{base_url.rstrip('/')}/{day}/special/" if base_url else f"{day}/special/index.html"
         out.append({"key": key, "day": day, "title": f"Special edition: {rec.get('title', '')}", "md": md, "mp3": mp3,
                     "file": f"special-{day}.mp3", "guid": f"ai-briefing-dd-special-{day}" + (f"-v{v}" if v > 1 else ""),
-                    "type": "full", "time": "18:00:00", "summary": summary or rec.get("title", ""), "link": link,
+                    "type": "full", "time": (rec.get("at") or "T18:00:00")[11:19] or "18:00:00",   # the real release time (was a flat 18:00, future-dating the item; 11-12)
+                    "summary": summary or rec.get("title", ""), "link": link,
                     "audio": True, **({"notes_html": md_to_html(md)} if md_to_html else {})})
     return sorted(out, key=lambda e: e["day"], reverse=True)
 

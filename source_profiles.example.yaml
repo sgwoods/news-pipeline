@@ -574,6 +574,10 @@ sources:
     standards: cites
     stance: neutral
     tests: true
+  WIRED:
+    kind: reporting
+    standards: cites-and-corrects
+    stance: neutral
   Andrew Ng:
     kind: analysis
     standards: cites

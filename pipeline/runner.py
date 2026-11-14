@@ -65,6 +65,9 @@ RECIPES = {
     "gate":    {"tier": "auto", "args": {}, "steps": [("prod", ["release-check"])]},
     "consistency": {"tier": "auto", "args": {"day": "day?"}, "steps": [("prod", ["consistency", "{day}"])]},
     "verify":  {"tier": "auto", "args": {}, "steps": [("local", ["verify"])]},
+    "morning-check": {"tier": "chat", "args": {}, "steps": [("prod", ["morning", "--force"])]},   # re-run today by hand: rebuild the held edition
+    "rescue-item": {"tier": "auto", "args": {"day": "day", "id": "text"},   # Selection page: analyse a dropped item now
+                    "steps": [("prod", ["rescue", "{day}", "{id}"])]},
     "correct": {"tier": "chat", "args": {"day": "day", "note": "text"},
                 "steps": [("prod", ["correct", "{day}", "{note}"]), ("prod", ["publish"]), ("local", ["verify"])]},
     "publish": {"tier": "chat", "args": {}, "steps": [("prod", ["publish"]), ("local", ["verify"])]},

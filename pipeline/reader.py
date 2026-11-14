@@ -153,12 +153,16 @@ def _text_path(root: Path, url: str) -> Path:
     return root / TEXT_DIR / (hashlib.sha256(url.encode()).hexdigest()[:24] + ".txt")
 
 
-def read_thin(root: Path, items: list, cfg: dict, log=None) -> dict:
-    """Attach `read_text` / `read_url` to thin items in place; mark the unreadable ones `thin`. -> counts."""
+def read_thin(root: Path, items: list, cfg: dict, log=None, headless: bool = False, max_fetch: int = MAX_FETCH) -> dict:
+    """Attach `read_text` / `read_url` to thin items in place; mark the unreadable ones `thin`. -> counts.
+    headless=True: a page the plain fetch could not read is tried once in the local headless browser
+    (pipeline/headless.py: robots.txt, public hosts, capped) — for publication feeds that carry only the headline
+    (Sifted, Hugging Face, OpenAI news, TechCrunch), read before the filter so the model judges the article, not
+    an empty item (selection review, 2026-11-13)."""
     from . import netguard
     from .stages import _clean, content_text
     todo = [it for it in items if len(_clean(content_text(it))) < MIN_CHARS]
-    stats = {"thin": len(todo), "read": 0, "unreadable": 0, "no_link": 0, "fetched": 0}
+    stats = {"thin": len(todo), "read": 0, "unreadable": 0, "no_link": 0, "fetched": 0, "headless": 0}
     if not todo:
         return stats
     cache = _load(root)
@@ -182,8 +186,9 @@ def read_thin(root: Path, items: list, cfg: dict, log=None) -> dict:
                     if hit.get("ok") and _text_path(root, u).exists():
                         got = (u, _text_path(root, u).read_text("utf-8"))
                         break
-                    continue
-                if c is None or stats["fetched"] >= MAX_FETCH:
+                    if not (headless and not hit.get("headless")):    # a cached failure; worth one headless try
+                        continue
+                if c is None or stats["fetched"] >= max_fetch:
                     break
                 stats["fetched"] += 1
                 ok, text, answered = False, "", False
@@ -201,6 +206,11 @@ def read_thin(root: Path, items: list, cfg: dict, log=None) -> dict:
                         log.info("  reader: %s failed (%s)", _host(u), type(e).__name__)
                 if answered:
                     cache[u] = {"ok": ok, "chars": len(text), "status": r.status_code}
+                if not ok and headless and (hit is None or not hit.get("headless")):
+                    text = _headless_text(it, u, cfg, log)
+                    ok = bool(text)
+                    stats["headless"] += 1
+                    cache[u] = {"ok": ok, "chars": len(text), "headless": True, "status": cache.get(u, {}).get("status")}
                 if ok:
                     p = _text_path(root, u)
                     p.parent.mkdir(parents=True, exist_ok=True)
@@ -222,6 +232,24 @@ def read_thin(root: Path, items: list, cfg: dict, log=None) -> dict:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(cache, indent=0, sort_keys=True), "utf-8")
     if log:
-        log.info("  reader: %d thin item(s): %d article(s) read, %d unreadable, %d with no link (judged as posts)",
-                 stats["thin"], stats["read"], stats["unreadable"], stats["no_link"])
+        log.info("  reader: %d thin item(s): %d article(s) read (%d via the headless browser), %d unreadable, "
+                 "%d with no link (judged as posts)", stats["thin"], stats["read"], stats["headless"],
+                 stats["unreadable"], stats["no_link"])
     return stats
+
+
+def _headless_text(it: dict, u: str, cfg: dict, log=None) -> str:
+    """The article text through the local headless browser, or '' (off, blocked, not about the item)."""
+    try:
+        from .headless import fetch as headless_fetch
+        html = headless_fetch(u, cfg)
+        if not html:
+            return ""
+        title, text = extract(html)
+        text = text[:KEEP_CHARS]
+        if len(text) >= MIN_CHARS and about_same(it, title, text) and not (_PAYWALL.search(text[:2000]) and len(text) < 2 * MIN_CHARS):
+            return text
+    except Exception as e:  # noqa: BLE001
+        if log:
+            log.info("  reader: headless %s failed (%s)", _host(u), type(e).__name__)
+    return ""

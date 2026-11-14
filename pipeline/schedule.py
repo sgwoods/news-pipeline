@@ -28,6 +28,9 @@ def times(cfg: dict, kind: str) -> list:
         return [str(t) for t in s.get("overnight", ["23:30", "01:30", "03:30"])]
     if kind == "rehearsal":                              # rehearse the dev code so a ship can skip its soak (11-03)
         return [str(t) for t in s.get("rehearsal", ["00:30"])]
+    if kind == "morning":                                # the check during the hold: rebuild if news broke (11-14)
+        v = s.get("morning", ["08:00"])
+        return [str(t) for t in (v if isinstance(v, list) else [v])]
     if kind == "advance":                                # tomorrow's deep dive, drafted for the commute home (10-29)
         return [str(s.get("advance", "15:30"))]
     return []
@@ -35,7 +38,9 @@ def times(cfg: dict, kind: str) -> list:
 
 def due(cfg: dict, kind: str, now: dt.datetime | None = None) -> str:
     """The configured time that falls in the last half hour ('' if none): exactly one tick matches each time."""
-    now = now or dt.datetime.now()
+    if now is None:
+        from .clock import now as _now                      # schedule.timezone: Eastern wherever the Mac is (11-14)
+        now = _now(cfg)
     for t in times(cfg, kind):
         h, m = (int(x) for x in t.split(":"))
         at = now.replace(hour=h, minute=m, second=0, microsecond=0)
@@ -46,5 +51,5 @@ def due(cfg: dict, kind: str, now: dt.datetime | None = None) -> str:
 
 def check(cfg: dict) -> list:
     """Configured times the half-hour tick can't hit (must be on :00 or :30)."""
-    return [t for k in ("daily", "preflight", "advance", "overnight", "rehearsal") for t in times(cfg, k)
+    return [t for k in ("daily", "preflight", "advance", "overnight", "rehearsal", "morning") for t in times(cfg, k)
             if int(t.split(":")[1]) not in TICK_MINUTES]

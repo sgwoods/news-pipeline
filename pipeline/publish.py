@@ -231,7 +231,7 @@ def request_pages_build(repo: str, run=None) -> bool:
 
 
 def wait_live(cfg: dict, day: str, timeout: int = 300, every: int = 10, log=print, client=None, sleep=None,
-              run=None) -> bool:
+              run=None, audio: bool = True) -> bool:
     """After a push, GitHub Pages takes a few seconds to minutes to serve the new pages. Poll today's page (and its
     deep dive, if there is one) until both answer with today's content, so the email's links work when it lands
     (Steven, 2026-10-19). -> True when live; False after `timeout` seconds.
@@ -246,8 +246,12 @@ def wait_live(cfg: dict, day: str, timeout: int = 300, every: int = 10, log=prin
     sleep = sleep or time.sleep
     urls = [f"{site}/{day}/index.html"]
     from pathlib import Path as _P
-    if (_P(__file__).resolve().parent.parent / "briefings" / "deepdives" / f"{day}.md").exists():
+    root = _P(__file__).resolve().parent.parent
+    if (root / "briefings" / "deepdives" / f"{day}.md").exists():
         urls.append(f"{site}/{day}/deep-dive/index.html")
+    if (root / "briefings" / f"{day}.mp3").exists() and audio:   # 11-14: the listen check read a feed that didn't carry
+        urls.append(f"{site}/podcast.xml")                        # today's episode yet; wait for the feed and the MP3 too
+        urls.append(f"{site}/audio/{day}.mp3")
     if client is None:
         from .netguard import client as guarded
         client = guarded(follow_redirects=True, timeout=15, headers={"Cache-Control": "no-cache"})
@@ -258,7 +262,8 @@ def wait_live(cfg: dict, day: str, timeout: int = 300, every: int = 10, log=prin
         for u in pending:
             try:
                 r = client.get(f"{u}?v={int(time.time())}")
-                if not (r.status_code == 200 and day in r.text):
+                served = r.status_code == 200 and (u.endswith(".mp3") or day in r.text)
+                if not served:
                     still.append(u)
             except Exception:  # noqa: BLE001
                 still.append(u)

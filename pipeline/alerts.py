@@ -48,11 +48,17 @@ KINDS = {
                 "The briefing was built but the publish step failed.",
                 ['Press "Send it now" under "Needs you" on the dashboard ({dash}): it retries the publish and then the email',
                  'or tell Claude in the chat "send today\'s held edition"']),
-    "audio": ("Part of today's podcast is missing or garbled",
+    "audio": ("A section of today's podcast was not heard by the check",
               "The as-published check transcribed today's episode from the public feed and compared it with its "
-              "script: a section was not heard (details below).",
-              ['Listen to the start of today\'s episode', 'tell Claude "the listen check failed" in the chat: it can '
-               're-voice the day from the same script']),
+              "script; one section was not heard, even on a second pass of its own time window (details below). "
+              "This is a machine check: it can miss speech that follows a sound or music, so listen before acting.",
+              ['Listen at the timestamp below', 'if it really is missing or garbled, tell Claude "the listen check '
+               'failed" in the chat: it can re-voice the day from the same script']),
+    "morning": ("The morning rebuild failed; the 05:00 edition stands",
+                "The 08:00 check found news that would change the lead and tried to rebuild the edition before the "
+                "cutoff, but the rebuild failed. The edition written at 05:00 goes out as planned (details below).",
+                ['Tell Claude in the chat "rebuild today\'s edition": it reads the run log and queues fetch, reprocess and rebrief',
+                 'or let it go: tomorrow\'s edition carries the story']),
     "accuracy": ("A claim in today's edition may need a correction",
                  "The accuracy audit re-checked some of today's claims against their own sources, and at least one "
                  "came back only partly right or contradicted (details below). It is a machine check: read the claim "

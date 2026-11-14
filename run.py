@@ -659,7 +659,17 @@ def write_v2(run, cfg, backends, system, entries, day, dropped, meta, briefings_
     with run.stage("cluster") as st:
         raw, cv, errs = editorial.run_cluster(backends["cluster"], entries, system, acfg, run.log)
         stories = editorial.build_stories(raw, by_id)
-        sel = editorial.select(stories, acfg)
+        selection_rec = {}
+        if acfg.get("claude_selects", True) and "select" in backends:    # Claude picks (selection review 11-13)
+            from pipeline import houseviews as _hv, selection
+            _views = _hv.load(ROOT) if (cfg.get("editorial") or {}).get("house_views", True) else []
+            sel, selection_rec, serrs = selection.run_select(backends["select"], stories, system, cfg, run.log,
+                                                             earlier=earlier, views=_views, profile=acfg)
+            errs += serrs
+            run.log.info("selection: %d must, %d worth, %d money%s", len(sel["must"]), len(sel["worth"]),
+                         len(sel["money"]), " (mechanical fallback)" if selection_rec.get("fallback") else "")
+        else:
+            sel = editorial.select(stories, acfg)
         try:                                     # story fatigue: the same lead two days running needs something new
             why = editorial.stale_lead(sel, stories_dir, day)
             if why:
@@ -723,6 +733,8 @@ def write_v2(run, cfg, backends, system, entries, day, dropped, meta, briefings_
             run.log.info("  write: %d lower item(s) left out to stay within %s words", trimmed, acfg.get("max_words", 1500))
         srec = editorial.story_records(sel, run.run_id, day)
         srec["editorial"] = ed
+        if selection_rec:
+            srec["selection"] = selection_rec
         if views:
             st["positions"] = houseviews.log_positions(ROOT, day, sel, views)
         from pipeline import profiles
@@ -1541,8 +1553,10 @@ def _listen_check(cfg: dict, day: str, alert: bool = True) -> dict:
         print(f"listen check skipped: {type(e).__name__}: {e}"[:200])
         return {}
     if res.get("missing") and alert:
-        _alert(cfg, "audio", day=day, detail="Not heard (coverage of the section's words): " + "; ".join(
-            f"{r['section']} {int(r['coverage'] * 100)}%" for r in res["sections"] if r["flag"]))
+        _alert(cfg, "audio", day=day, detail="Not heard on two passes (share of the section's words found, and where "
+               "in the episode to listen): " + "; ".join(
+                   f"{r['section']} {int(r['coverage'] * 100)}%" + (f" at {r['window']}" if r.get("window") else "")
+                   for r in res["sections"] if r["flag"]))
     if cfg.get("archive", {}).get("git_commit", True):
         print("git:", Archive(ROOT, cfg["paths"]).git_commit(f"listen check {day}", paths=("data/transcripts",)))
     return res
@@ -1739,6 +1753,42 @@ def cmd_slack_post(cfg: dict, argv: list) -> int:
     r = slackpost.post(ROOT, cfg, day, log=print)
     print(r if not r.get("ok") else "posted")
     return 0 if r.get("ok") else 1
+
+
+def cmd_rescue(cfg: dict, argv: list) -> int:
+    """./np rescue DAY ITEM_ID: an item the filter dropped is analysed now (summary, importance) and recorded as kept
+    for DAY, so a rebuild before the cutoff (or tomorrow's run, as "earlier" context) can use it. From the dashboard's
+    Selection page (selection review, 2026-11-13). Nothing is published here."""
+    if len(argv) < 2 or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", argv[0]):
+        print(cmd_rescue.__doc__)
+        return 2
+    day, iid = argv[0], argv[1]
+    from pipeline import llm as _llm, stages
+    it = stages.raw_items(ROOT, [iid]).get(iid)
+    if not it:
+        print(f"rescue: no fetched item {iid}")
+        return 1
+    paths = cfg["paths"]
+    from pipeline import perspective
+    system, _ = stages.system_prompt(perspective.load(ROOT / paths["perspective"]).raw)
+    acfg = cfg.get("analysis", {})
+    class _L:
+        info = staticmethod(lambda m, *a: print(m % a if a else m))
+        warning = staticmethod(lambda m, *a: print("WARNING " + (m % a if a else m)))
+    summaries, v, errs = stages.run_summarize(_llm.for_stage(cfg, "rank"), [it], system, acfg, _L)
+    if errs or iid not in summaries:
+        print(f"rescue: summary failed: {errs}")
+        return 1
+    decisions = {iid: {"keep": True, "reason": "rescued by Steven (dashboard)", "rescued": True}}
+    meta = {"run_id": f"rescue-{dt.datetime.now():%Y%m%dT%H%M%S}", "day": day,
+            "models": {"rank": _llm.for_stage(cfg, "rank").label}, "prompt_versions": {"summarize": v}}
+    recs = stages.build_records([it], decisions, summaries, {}, meta)
+    stages.append_records(ROOT / paths["summaries"], day, recs)
+    s = summaries[iid]
+    print(f"rescued: {it.get('person', '')} · {it.get('title', '')[:90]} · importance {s.get('importance')} · "
+          f"{s.get('claim', '')[:120]}")
+    print("It joins today's edition on a rebuild before the cutoff; otherwise it is context for tomorrow's run.")
+    return 0
 
 
 def cmd_pronounce(cfg: dict, argv: list) -> int:
@@ -2365,11 +2415,11 @@ def pending_items(cfg: dict, archive: Archive, day: str, reprocess_day=None, lim
 def llm_stage_names(acfg: dict, rebrief: bool = False) -> list:
     """The model-backed stages a run needs. A rebrief reuses the filter and rank results but still needs the
     critique model: the v2 verify stage (evidence check on every Must read) calls it (fixed in v0.1.5)."""
-    names = ["filter", "rank", "critique", "write"]
+    names = ["filter", "rescue", "rank", "critique", "write"]
     if acfg.get("briefing_format", "v2") == "v2":
-        names[3:3] = ["cluster", "merge", "editorial"]
+        names[4:4] = ["cluster", "select", "merge", "editorial"]
     if rebrief:
-        names = [s for s in names if s not in ("filter", "rank")]
+        names = [s for s in names if s not in ("filter", "rescue", "rank")]
     return names
 
 
@@ -2450,9 +2500,25 @@ def run_llm_stages(run: Run, cfg: dict, archive: Archive, reprocess_day=None, li
                 for it in own:
                     pre[it["id"]] = {"keep": False, "rule": True, "reason": "Steven's own LinkedIn post (public record)"}
                 to_llm = [it for it in to_llm if it["id"] not in pre]
+            if acfg.get("read_before_filter", True):   # feeds that carry only the headline: read the article first
+                from pipeline import reader
+                thin_pubs = [it for it in to_llm if it.get("source_kind") in stages._PUBLICATION_KINDS
+                             and len(stages._clean(stages.content_text(it))) < reader.MIN_CHARS]
+                if thin_pubs:
+                    try:
+                        st["reader"] = reader.read_thin(ROOT, thin_pubs, cfg, run.log, headless=True,
+                                                        max_fetch=int(acfg.get("read_before_filter_max", 60)))
+                    except Exception as e:  # noqa: BLE001 - never blocks the filter
+                        run.log.warning("reader before filter skipped: %s", e)
             decisions, v, errs = stages.run_filter(backends["filter"], to_llm, system, acfg, run.log)
             decisions.update(pre)
             meta["prompt_versions"]["filter"] = v
+            if acfg.get("rescue", True):          # Claude's second look at the model's drops (selection review 11-13)
+                rescued, rv, rerrs = stages.run_rescue(backends["rescue"], to_llm,
+                                                       decisions, system, acfg, run.log)
+                meta["prompt_versions"]["rescue"] = rv
+                errs = errs + rerrs
+                st["rescued"] = len(rescued)
             kept = [it for it in items if decisions[it["id"]]["keep"]]
             st.update({"items_in": len(items), "kept": len(kept), "dropped": len(items) - len(kept),
                        "dropped_by_rule": len(pre),
@@ -2564,7 +2630,9 @@ def run_llm_stages(run: Run, cfg: dict, archive: Archive, reprocess_day=None, li
 
 
 def cmd_run(cfg: dict, lookback_hours=None, commit=True, no_llm=False, stages_only=False,
-            reprocess_day=None, limit=None, rebrief_day=None, experiment=None, analyze_only: bool = False) -> int:
+            reprocess_day=None, limit=None, rebrief_day=None, experiment=None, analyze_only: bool = False,
+            light: bool = False) -> int:
+    """light=True: feeds, Bluesky and X only (no newsletters, no Slack) — the morning check's quick look (R4)."""
     paths = cfg["paths"]
     src_file = ROOT / paths["sources"]
     if not src_file.exists() and not (stages_only or reprocess_day or rebrief_day):
@@ -2584,7 +2652,7 @@ def cmd_run(cfg: dict, lookback_hours=None, commit=True, no_llm=False, stages_on
             with run.stage("fetch") as st:
                 run.log.info("fetching %d sources", len(rows))
                 res = fetch.fetch_all(rows, cfg, archive, run.run_id, run.log, lookback_hours)
-                if (cfg.get("email_sources") or {}).get("enabled"):
+                if (cfg.get("email_sources") or {}).get("enabled") and not light:
                     from pipeline import mailsource
                     try:
                         mres = mailsource.fetch(ROOT, cfg, run.run_id, run.log)
@@ -2603,13 +2671,13 @@ def cmd_run(cfg: dict, lookback_hours=None, commit=True, no_llm=False, stages_on
                     res["items"] += bres["items"]
                     res["sources"] += bres["sources"]
                     st["bluesky_lists"] = {"new": len(bres["items"])}
-                if (cfg.get("slack") or {}).get("enabled"):
+                if (cfg.get("slack") or {}).get("enabled") and not light:
                     from pipeline import slacksource
                     sres = slacksource.fetch(ROOT, cfg, run.run_id, run.log, lookback_hours)
                     res["items"] += sres["items"]
                     res["sources"] += sres["sources"]
                     st["shared_links"] = {"new": len(sres["items"])}
-                if (cfg.get("slack") or {}).get("channels"):
+                if (cfg.get("slack") or {}).get("channels") and not light:
                     from pipeline import slacksource as _ss       # more channels' links, read by the bot (10-31)
                     cres = _ss.fetch_channels(ROOT, cfg, run.run_id, run.log, lookback_hours)
                     res["items"] += cres["items"]
@@ -2987,6 +3055,72 @@ def cmd_overnight(cfg: dict, slot: str = "") -> int:
     return code
 
 
+def cmd_morning(cfg: dict, force: bool = False) -> int:
+    """./np morning (schedule.morning, 08:00, on the daily agent's tick): while the edition is held for takes, a light
+    fetch, the new items analysed, and one Claude call on whether anything would displace the lead or enter the top
+    three. If so the cutoff is extended, Steven is told, and the edition is rebuilt (pipeline/morning.py; R4)."""
+    from pipeline import morning, takes
+    m = morning.mcfg(cfg)
+    today = dt.date.today().isoformat()
+    if not m["enabled"] and not force:
+        print("morning check off (morning.enabled: false)")
+        return 0
+    if not takes.waiting(ROOT, today):
+        print("morning check: no edition is being held today; nothing to do")
+        return 0
+    from pipeline import clock
+    left = (takes._cutoff(cfg, today, ROOT) - clock.now(cfg)).total_seconds() / 60
+    if left < m["min_minutes_left"]:
+        print(f"morning check: only {left:.0f} min to the cutoff; a rebuild would not finish. Skipped.")
+        morning.record(ROOT, today, {"skipped": f"{left:.0f} min left"})
+        return 0
+    started = dt.datetime.now()
+    print("Morning check: light fetch and analysis of what arrived since the edition was written...")
+    code = cmd_run(cfg, analyze_only=True, light=True, commit=False)
+    items = morning.new_items(ROOT, cfg["paths"], today, started, m["min_importance"])
+    must = morning.current_must(ROOT, today)
+    if not items and not force:
+        print(f"morning check: nothing new at importance >= {m['min_importance']}; the edition stands")
+        morning.record(ROOT, today, {"new_strong": 0, "rebuild": False})
+        return code
+    if force:                                    # Steven asked for the rebuild (dashboard Queue: morning-check)
+        verdict = {"rebuild": True, "headline": "re-run asked for by Steven", "why": "forced from the dashboard"}
+    else:
+        from pipeline import llm as _llm, perspective, stages
+        system, _ = stages.system_prompt(perspective.load(ROOT / cfg["paths"]["perspective"]).raw)
+        verdict = morning.judge(_llm.for_stage(cfg, "select"), system, must, items, log=print)
+    print(f"morning check: {len(items)} new strong item(s); rebuild={verdict['rebuild']}: {verdict.get('why', '')}")
+    morning.record(ROOT, today, {"new_strong": len(items), **verdict,
+                                 "items": [str(r.get("headline") or r.get("title", ""))[:120] for r in items[:10]]})
+    if not verdict["rebuild"]:
+        return code
+    takes.extend_cutoff(ROOT, today, m["extend_minutes"], why=f"rebuilding for: {verdict.get('headline', '')}")
+    note = (f"Breaking: {verdict.get('headline', '')}. {verdict.get('why', '')} Rebuilding Top of mind and the lead now; "
+            f"the cutoff moves {m['extend_minutes']} min later. Story numbers may change: a fresh takes email follows.")
+    _notify("AI Briefing: rebuilding the edition", note)
+    try:
+        from pipeline import ntfy
+        ntfy.notify(cfg, "AI Briefing · rebuilding", note, tags=("rotating_light",), root=ROOT)
+    except Exception:  # noqa: BLE001
+        pass
+    rc = cmd_run(cfg, rebrief_day=today, commit=False)
+    if rc == 0:
+        st = takes.state(ROOT, today)
+        st.pop("emailed_at", None)                   # a fresh takes email with the new numbering
+        st["rebuilt_at"] = dt.datetime.now().isoformat(timespec="seconds")
+        takes._save_state(ROOT, today, st)
+        try:
+            print(takes.send_email(ROOT, cfg, today))
+        except Exception as e:  # noqa: BLE001
+            print(f"takes email after the rebuild failed: {e}")
+        print("Morning check: edition rebuilt; the holder releases it at the extended cutoff.")
+    else:
+        print("Morning check: the rebuild failed; the edition written at 05:00 stands.")
+        _alert(cfg, "morning", detail=f"The rebuild for '{verdict.get('headline', '')}' failed; see logs/cmd-daily-*.txt.")
+    morning.record(ROOT, today, {"rebuilt": rc == 0})
+    return rc
+
+
 def cmd_rehearse_queue(cfg: dict) -> int:
     """./np scheduled rehearsal (schedule.rehearsal, 00:30): queue tonight's rehearsal of the dev code (the run queue
     does it, one job at a time): rebuild the latest edition with dev, compare it with production, and record a pass
@@ -3195,6 +3329,15 @@ def cmd_daily(cfg: dict) -> int:
             print(f"expiry skipped: {e}"[:160])
     if w.get("status") == "ok" and published and not gate_blocked and (cfg.get("audio") or {}).get("listen_check", True):
         _listen_check(cfg, today)                # hear what was published: the as-published transcript (v0.2.17)
+    try:                                         # the status board's one line, after the morning (Steven, 11-11)
+        from pipeline import health, ntfy
+        b = health.board(ROOT, cfg)
+        print("System:", b["headline"])
+        if b["problems"]:
+            ntfy.notify(cfg, "AI Briefing · " + b["headline"], "\n".join(f"{t['name']}: {t['note']}" for t in b["tiles"]
+                                                                       if t["state"] == "bad")[:400], tags=("warning",), root=ROOT)
+    except Exception as e:  # noqa: BLE001
+        print(f"status board skipped: {e}"[:160])
     if w.get("status") == "ok" and published and not gate_blocked:
         from pipeline.audit import DIR as _ADIR
         if (cfg.get("analysis") or {}).get("accuracy_audit", True) and not (ROOT / _ADIR / f"{today}.json").exists():
@@ -3409,6 +3552,8 @@ def main() -> int:
     ap.add_argument("--schedule", action="store_true", help="the day's schedule and feedback windows")
     ap.add_argument("--jev", nargs="*", metavar="ARG", help="report [DAYS]: the Jev shadow filter")
     ap.add_argument("--pronounce", nargs="*", metavar="ARG", help="lint [DAYS]: words the voice may have garbled")
+    ap.add_argument("--rescue", nargs="*", metavar="ARG", help="DAY ITEM_ID: analyse a filter-dropped item now and keep it")
+    ap.add_argument("--health", action="store_true", help="the system status board: what is live and what is broken")
     ap.add_argument("--brand", nargs="*", metavar="ARG", help="show | build [--covers]: the brand template (brand/brand.yaml)")
     ap.add_argument("--slack-post", nargs="*", metavar="ARG", help="preview DAY | send DAY: the morning post in the team channel")
     ap.add_argument("--positions", nargs="*", metavar="ARG", help="list | score [DAY]: the house-view calls ledger")
@@ -3447,6 +3592,7 @@ def main() -> int:
                     help="list | suggest [N] | find NAME [NOTE] | accept ID | deny ID | remove URL | ...")
     ap.add_argument("--voices", action="store_true", help="make a sample clip in each candidate voice")
     ap.add_argument("--daily", action="store_true", help="scheduled run: once per day, then notify")
+    ap.add_argument("--morning", nargs="*", metavar="ARG", help="the 08:00 check while the edition is held: rebuild if news broke (--force: rebuild regardless)")
     ap.add_argument("--doctor", action="store_true", help="check environment, packages, LLM, sources, git")
     ap.add_argument("--report", action="store_true", help="write + print logs/last-report.md")
     ap.add_argument("--cmd", default="", help=argparse.SUPPRESS)
@@ -3517,6 +3663,13 @@ def main() -> int:
         return cmd_schedule(cfg, [])
     if args.jev is not None:
         return cmd_jev(cfg, args.jev or ["report"])
+    if args.health:
+        from pipeline import health
+        b = health.board(ROOT, cfg)
+        print(health.text(b))
+        return 1 if b["problems"] else 0
+    if args.rescue is not None:
+        return cmd_rescue(cfg, args.rescue)
     if args.pronounce is not None:
         return cmd_pronounce(cfg, args.pronounce or ["lint"])
     if args.slack_post is not None:
@@ -3531,6 +3684,8 @@ def main() -> int:
         return cmd_runner(cfg, args.runner)
     if args.overnight is not None:
         return cmd_overnight(cfg, args.overnight)
+    if args.morning is not None:
+        return cmd_morning(cfg, force="--force" in args.morning)
     if args.rehearse_queue:
         return cmd_rehearse_queue(cfg)
     if args.special is not None:

@@ -415,7 +415,12 @@ def register(app, root, cfg, P, check_post, md_html, DAY_RE):
             craft_field = craft.field(root, 14)
         except Exception:  # noqa: BLE001
             craft_field = {}
-        return render_template("quality.html", rows=rows, keys=keys, fmt=quality.fmt, dims=dims, dim=dim,
+        from pipeline import listen
+        try:
+            names = listen.recent_names(root, 7)
+        except Exception:  # noqa: BLE001
+            names = []
+        return render_template("quality.html", rows=rows, keys=keys, fmt=quality.fmt, dims=dims, dim=dim, names=names,
                                field_svg=field_svg, daily_svgs=daily_svgs, craft_field=craft_field, craft_ours=craft.OURS,
                                craft_keys=[("para_words", "Words per paragraph (median)"),
                                            ("long_para_pct", f"Paragraphs over {craft.LONG_PARA} words %"),
@@ -423,6 +428,34 @@ def register(app, root, cfg, P, check_post, md_html, DAY_RE):
                                            ("long_sent_pct", f"Sentences over {craft.LONG_SENT} words %"),
                                            ("repeat_per_1k", "Repeated phrases per 1,000 words"),
                                            ("filler_per_1k", "Filler per 1,000 words"), ("grade", "Reading grade")])
+
+    @app.route("/api/pronounce", methods=["POST"])
+    def pronounce_add():
+        """Quality page: add or change a pronunciations.yaml entry (guarded file: Steven approves before the next publish)."""
+        check_post()
+        from pipeline import speech
+        word, said = (request.form.get("word") or "").strip(), (request.form.get("said") or "").strip()
+        try:
+            line = speech.add_pronunciation(root, word, said, note=f"dashboard {dt.date.today().isoformat()}")
+        except ValueError as e:
+            return redirect(url_for("quality_page", msg=f"Not added: {e}"))
+        return redirect(url_for("quality_page", msg=f"Added to pronunciations.yaml: {line}. It takes effect after you approve "
+                                                     "the protected-file change (Home) — audition it first."))
+
+    @app.route("/api/say", methods=["POST"])
+    def say_now():
+        """Quality page: hear a word or phrase with the current table -> /voices/say.mp3 (a few seconds)."""
+        check_post()
+        text = (request.form.get("text") or "").strip()[:200]
+        if not text:
+            abort(400)
+        import subprocess as _sp
+        import sys as _sys
+        r = _sp.run([_sys.executable, "run.py", "--say", text], cwd=root, capture_output=True, text=True, timeout=120)
+        ok = r.returncode == 0 and (P["briefings"] / "voice-samples" / "say.mp3").exists()
+        spoken = next((ln.split(":", 1)[1].strip() for ln in r.stdout.splitlines() if ln.startswith("spoken as:")), "")
+        return redirect(url_for("quality_page", msg=(f"Said as: {spoken}" if ok else f"Not rendered: {(r.stderr or r.stdout)[-160:]}"),
+                                say=("1" if ok else "")))
 
     @app.route("/api/quality/<day>/rate", methods=["POST"])
     def quality_rate(day):

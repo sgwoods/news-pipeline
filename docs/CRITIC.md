@@ -67,34 +67,34 @@ daily. That reflects the use case, not their quality.
 - The rubric is weighted for this briefing's use. It is not a general ranking of the shows.
 
 ## Latest results
-_Generated at build time from the critic run of 2026-11-07._
+_Generated at build time from the critic run of 2026-11-14._
 
 | Rank | Show | Score | Rated |
 |---|---|---|---|
-| 1 | Stratechery | 85.2 | AI on the Ballot (2026-11-04) |
-| 2 | The AI Daily Brief (newsletter) | 77.9 | Companies Are Spending 5x More on AI Now (2026-11-06) |
-| 3 | The AI Daily Brief (podcast) | 74.2 | Companies Are Spending 5x More on AI Now (2026-11-06) |
-| 4 | Machine Gods (NPR) | 73.7 | The Purple Tsunami Against Data Centers (2026-11-06) |
-| 5 | Acquired | 72.5 | Seinfeld (2026-10-18) |
-| 6 | Latent Space | 72.2 | Deep Dive: Anthropic S-1 Myths and Mythos (Jamin Ball, Altim (2026-11-07) |
-| 7 | **AI Briefing (us)** | **70.8** | the week's editions (2026-11-07) |
-| 8 | All-In | 68.6 | Anthropic S-1 Shocker, Greatest Business Ever? Google's $500 (2026-10-30) |
-| 9 | The Neuron | 63.5 | OpenAI released GPT-6 Cyber, a hacking AI (2026-11-06) |
-| 10 | Dwarkesh Podcast | 61.6 | What Robert Caro learned about power after studying it for 5 (2026-10-30) |
-| 11 | TLDR AI | 59.8 | TLDR AI 2026-11-06 (GPT-6 Cyber, Inkling 2 Small, Gemini Omn (2026-11-06) |
-| 12 | Lex Fridman Podcast | 57.8 | #503 - AI Crisis in Math: Navier-Stokes, Riemann Hypothesis  (2026-10-26) |
+| 1 | Stratechery | 83.3 | AI on the Ballot (2026-11-04) |
+| 2 | The AI Daily Brief (podcast) | 75.5 | Washington Is Taking Control of AI (2026-11-13) |
+| 3 | The AI Daily Brief (newsletter) | 75.1 | Washington Is Taking Control of AI (2026-11-13) |
+| 4 | Dwarkesh Podcast | 73.2 | The avalanche that hit math is coming for AI development (na (2026-11-13) |
+| 5 | The Neuron | 69.8 | Jensen Huang resigned as Nvidia CEO (2026-11-13) |
+| 6 | Machine Gods (NPR) | 69.6 | The 10 Biggest Losers from Jensen Huang's Fall + The METR Re (2026-11-13) |
+| 7 | All-In | 69.2 | Jensen OUT as Nvidia CEO: Spy Scandal, Export Restrictions,  (2026-11-14) |
+| 8 | Acquired | 65.3 | Seinfeld (2026-10-18) |
+| 9 | **AI Briefing (us)** | **63.8** | the week's editions (2026-11-14) |
+| 10 | Latent Space | 62.1 | Designing for Agents - Zeno Rocha, Resend (2026-11-10) |
+| 11 | TLDR AI | 59.1 | TLDR AI 2026-11-13 (Gemini 4 Hydrogen / Claude Managed Agent (2026-11-13) |
+| 12 | Lex Fridman Podcast | 55.4 | #504 - Russia-Ukraine War: Putin, Zelenskyy, Drones and the  (2026-11-10) |
 
 | Characteristic (weight) | Us | Field average | Best |
 |---|---|---|---|
-| Content selection (18) | 7 | 7.5 | 9 (Stratechery) |
-| Accuracy & sourcing (15) | 6 | 7.3 | 9 (Acquired) |
-| Depth & insight (14) | 8 | 6.4 | 9 (Stratechery) |
-| Timeliness & cadence (10) | 8 | 7.4 | 10 (TLDR AI) |
-| Structure & pacing (10) | 6.5 | 7.1 | 8 (The AI Daily Brief (newsletter)) |
-| Opinion / point of view (9) | 8 | 6.4 | 9 (Stratechery) |
-| Distinctiveness & fit (7) | 8 | 6.3 | 9 (Stratechery) |
-| Writing / script (6) | 6.5 | 6.8 | 8 (Stratechery) |
-| Tone & voice (5) | 7 | 7.4 | 8 (The AI Daily Brief (newsletter)) |
-| Production (6) | 5.5 | 6.9 | 9 (Machine Gods (NPR)) |
+| Content selection (18) | 5.75 | 7.1 | 9 (Stratechery) |
+| Accuracy & sourcing (15) | 5.5 | 6.8 | 8 (The AI Daily Brief (newsletter)) |
+| Depth & insight (14) | 7.5 | 6.5 | 9 (Stratechery) |
+| Timeliness & cadence (10) | 6.75 | 7.4 | 9 (The Neuron) |
+| Structure & pacing (10) | 5.5 | 6.9 | 9 (Stratechery) |
+| Opinion / point of view (9) | 7.5 | 6.7 | 9 (Dwarkesh Podcast) |
+| Distinctiveness & fit (7) | 7.75 | 7.0 | 9 (Stratechery) |
+| Writing / script (6) | 6.25 | 6.9 | 8 (The Neuron) |
+| Tone & voice (5) | 7 | 7.1 | 8 (Stratechery) |
+| Production (6) | 5 | 6.5 | 9 (Acquired) |
 
-Our overall score by week: 2026-10-24 62.2 · 2026-10-31 69.6 · 2026-11-07 70.8
+Our overall score by week: 2026-10-24 62.2 · 2026-10-31 69.6 · 2026-11-07 70.8 · 2026-11-14 63.8

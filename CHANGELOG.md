@@ -5,6 +5,68 @@ a PATCH release fixes problems. Changes are built and tested on a development br
 together as a release (docs/plans/release-process.md).
 
 
+## Unreleased
+
+## v0.2.61-beta · 2026-11-14
+Operations without Terminal (the Queue page, the status board), selection, the morning check, names.
+Selection: how the day's stories are chosen (review: docs/plans/selection-review-2026-11-13 in the project; the
+14-day audit found the filter dropping legal-AI, robotics and deal items and the Nvidia governance story, 23 of 62
+Must-read leads that were Bluesky posts, and no record of why anything was picked).
+- Name check in the listen check (Steven, 11-12: "Huang" read as "H-wong", "AMD" as "a, MD"): names in the voiced
+  script that the published episode's transcript does not contain as written, with what was heard in their place
+  (respelled words reported under their real spelling). Quality page: the last week's candidates with an audition
+  button (hear it with the current table) and an add box that writes pronunciations.yaml (guarded: approve before
+  the next publish). Acronyms starting with A are spelled "Ay-M-D" by default unless the table or a short word
+  list says otherwise.
+- `schedule.timezone` (e.g. America/Toronto): the daily schedule, the takes cutoff and the morning check are read
+  in that zone wherever the Mac is (Steven travelling, 11-11); the status board shows a Clock tile when the Mac's
+  zone differs. Empty = the Mac's clock, as before. File timestamps stay in the Mac's local time.
+- After a publish, the wait for the live site also waits for podcast.xml to carry the day's episode and the MP3 to
+  be served, so the as-published listen check never reads yesterday's feed (the 11-14 race).
+- Subject line follows Must read 1: the first Top-of-mind bullet only while it is about Must read 1; when the fact
+  check cut it (11-12: story 2 took the subject), Must read 1's headline.
+- Special editions carry their real release time in both feeds (was a flat 18:00, which future-dated the 11-12 item).
+- System status board (Steven, 11-11): a "System" strip at the top of Home, one tile per link in the chain
+  (Ingestion, Today's run, Edition, Podcast, Slack, Runner, Release gate, Takes, Morning check, Special), green /
+  amber / red with a timestamp, a one-line reason and the button that fixes it; headline "All well as of HH:MM" or
+  "N problems: …", also printed after the morning run (phone notification only when something is red).
+  `./np health` (exit 1 if anything is red), `/api/health`. `pipeline/health.py`; nothing calls the network.
+- Dashboard → System → Queue: queue any run-queue job (ship, release, publish, send-held, takes-done, approve,
+  correct, remaster, rescue-item, morning-check, rollback, tests, gate…) with its arguments as fields and a typed
+  "yes" recorded as the approval — the end of Terminal pastes for jobs Claude cannot queue from the chat app.
+- `./np morning --force` / recipe `morning-check`: re-run today by hand while the edition is held (rebuild
+  regardless of the judgement call).
+- Filter prompt rewritten around an explicit KEEP list (research and capabilities incl. robotics and a lab's own
+  announcements, business value and incidents, legal AI, deals of any size, AI economics, the companies and people
+  making the market incl. governance once it reaches a board or regulator, sovereign/Canadian/European, policy,
+  tracked persons; "when unsure, KEEP").
+- Fail-open before the model: publications (not social posts) from portfolio, follow-closely and configured beat
+  sources (`filter_keep_flags/tiers/sources`), and any item with a deal amount, are never dropped by the model
+  filter; only rule drops apply (duplicates, empty, excluded URLs). 102 of the last 1,658 drops would have passed.
+- A second look: Claude reviews the day's model-dropped publication items once (`rescue`, cap 40) and rescues what
+  an early-stage AI investor would want; rescued items are analysed with the rest.
+- Headline-only feeds (Sifted, Hugging Face, OpenAI news, TechCrunch) get their article read before the filter,
+  through the local headless browser when the page needs JavaScript; the model judges the article, not an empty item.
+- Claude selects: after cluster, one call with the top 25 candidates (plus beat stories at importance ≥ 3),
+  perspective and house views, yesterday's edition; it returns the Must reads, Worth knowing and Money picks with a
+  one-line reason each, the next five left out and why, and a note on the lead. Code keeps its guards (grounded,
+  not sponsored, no post-only lead in Must read, per-source caps, fatigue, the capability slot and a portfolio/beat
+  slot) and demotes rather than drops; the mechanical selector runs if the call fails.
+- Dashboard → Editions → Selection: per day, every pick with its reason and fate, what was left out, what the
+  filter kept without the model, rescued, and dropped (model vs rule) — with a one-click rescue on any drop
+  (`./np rescue DAY ID`, run-queue recipe `rescue-item`). The takes email gains a 5-line "Left out today".
+- Morning check (08:00, on the daily agent's tick, during the hold): a light fetch (feeds, Bluesky, X), the new
+  items analysed, one Claude call on whether anything would displace the lead or enter the top three; if so the
+  cutoff is extended 20 min, Steven is told, the edition is rebuilt and a fresh takes email goes out (the 11-12
+  Huang re-run, automated). `morning:` in config.yaml; off with `enabled: false`.
+- Listen check: a section not heard in the full transcript gets a second pass over its own time window before any
+  alert; the alert says "not heard by the check" and asks for a listen first (11-14 false alarm after the sound
+  logo). Sound-logo levels halved under speech.
+- Docs: ARCHITECTURE.md, FACT-CHECKING.md and DEEP-DIVES.md brought up to v0.2.60 (overnight analysis and
+  nightly rehearsal, protected files and release merges, the current run-queue recipes, the accuracy audit before
+  the takes email and its F1/F2 choices, the Pages build check, credential links, pronunciation, the technical
+  deep-dive candidate); the daily-run, release-flow and run-queue diagrams no longer show the old clock windows.
+
 ## v0.2.60-beta · 2026-11-09
 Source health and intake hygiene (plan: docs/plans/source-health.md).
 - Source health: a newsletter marked `backup: true` in newsletters.yaml counts as ingesting while its web feed is

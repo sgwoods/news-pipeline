@@ -202,10 +202,32 @@ def pronounce(text: str, table: dict) -> tuple:
 _GLUED = re.compile(r"\b([A-Z][a-z]{2,})(\d+(?:\.\d+)?)\b")      # 'Qwen3.8' -> 'Qwen 3.8' (10-27: heard "QN3, 8")
 
 
+# Acronyms that start with A: the voice reads a lone "A" as the article ("a, M-D" for AMD; Steven, 2026-11-12), so
+# 2-4 letter all-caps words beginning with A are spelled out with "Ay" unless the table or this list says otherwise.
+_A_WORDS = {"ARM", "ASIC", "AWS", "ATM", "AMA", "APAC", "ANSI", "ARPA", "ASAP", "AAPL", "ACE", "ADA", "AIM", "ALL", "AND",
+            "ANY", "APP", "ART", "ASK", "AXE", "AGM", "AOL", "AIR", "AREA"}
+_A_ACRONYM = re.compile(r"(?<![\w'’-])A[A-Z0-9]{1,3}(?:s)?(?![\w'’])")
+
+
+def spell_a_acronyms(text: str, table: dict | None = None) -> str:
+    """AMD -> Ay-M-D, AGI -> Ay-G-I, APIs -> Ay-P-Is: letters said one by one, the A as "Ay"; words with a table entry
+    (any case) and pronounceable ones in _A_WORDS are left to the table or the voice."""
+    known = {k.upper() for k in (table or {})}
+
+    def sub(m):
+        w = m.group(0)
+        base = w[:-1] if w.endswith("s") else w
+        if base in known or base in _A_WORDS or w in known:
+            return w
+        return "Ay-" + "-".join(base[1:]) + ("s" if w.endswith("s") else "")
+    return _A_ACRONYM.sub(sub, text)
+
+
 def spoken(text: str, table: dict) -> str:
-    """Pronounce first (so names like 'GPT-6.1 Sol' can have entries), then expand figures. A name glued to its
-    version number is split first, so the table's entry for the name applies and the number is read as a number."""
-    return expand(pronounce(_GLUED.sub(r"\1 \2", text), table)[0])
+    """Pronounce first (so names like 'GPT-6.1 Sol' can have entries), then spell acronyms that start with A, then
+    expand figures. A name glued to its version number is split first, so the table's entry for the name applies and
+    the number is read as a number."""
+    return expand(spell_a_acronyms(pronounce(_GLUED.sub(r"\1 \2", text), table)[0], table))
 
 
 _ODD = re.compile(r"\b(?:[A-Za-z]+\d+[A-Za-z\d.]*|[A-Z]{4,}|[a-z]+[A-Z][A-Za-z]+)\b")
@@ -221,3 +243,27 @@ def lint(text: str, table: dict | None = None) -> list:
         if w.lower() not in known and w not in out:
             out.append(w)
     return out[:20]
+
+
+def add_pronunciation(root: Path, word: str, said: str, note: str = "") -> str:
+    """Append `word: said` to pronunciations.yaml (a guarded file: the change waits for Steven's approve before the
+    next publish). From the dashboard's Quality page (11-14). -> the line written."""
+    import re
+    word, said = word.strip(), said.strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 .'’&-]{0,40}", word) or not said or len(said) > 80 or "\n" in said:
+        raise ValueError("word: letters, digits, spaces, dots, apostrophes; respelling: one line, under 80 characters")
+    p = root / "pronunciations.yaml"
+    text = p.read_text("utf-8") if p.exists() else ""
+    table = load_table(root)
+    if word in table:
+        lines = text.splitlines()
+        for i, ln in enumerate(lines):
+            if ln.split(":", 1)[0].strip() == word:
+                lines[i] = f'{word}: "{said}"' + (f"   # {note}" if note else "")
+                p.write_text("\n".join(lines) + "\n", "utf-8")
+                return lines[i]
+    line = f'{word}: "{said}"' + (f"   # {note}" if note else "")
+    if "# --- from the dashboard ---" not in text:
+        text = text.rstrip("\n") + "\n\n# --- from the dashboard ---\n"
+    p.write_text(text.rstrip("\n") + "\n" + line + "\n", "utf-8")
+    return line

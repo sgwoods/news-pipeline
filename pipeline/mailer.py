@@ -291,6 +291,21 @@ def _take_html(text: str) -> str:
             f'{htmllib.escape(LABEL)}</span><br>{htmllib.escape(defuse(text))}</p>')
 
 
+def subject_lead(b: dict) -> str:
+    """What the subject line leads with. The first Top-of-mind bullet, as long as it is about Must read 1; when the
+    fact check cut that bullet (2026-11-12: the Huang resignation fell out of the subject and story 2 took it), Must
+    read 1's headline; with no Must reads, the title."""
+    top = re.sub(r"\*\*(.+?)\.?\*\*.*", r"\1", b["top"][0]).strip() if b.get("top") else ""
+    must = (b.get("must") or [{}])[0].get("headline", "") if b.get("must") else ""
+    if top and must:
+        stop = {"with", "from", "that", "this", "their", "after", "over", "into", "about", "says", "will", "have"}
+        words = lambda t: {w.lower().strip(".,:;'’\"()") for w in re.findall(r"[A-Za-z][A-Za-z0-9'’-]{3,}", t)} - stop
+        if words(top) & words(must):
+            return top
+        return must
+    return top or must or b.get("title", "")
+
+
 def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | None = None,
            takes: dict | None = None, chart: dict | None = None, special: dict | None = None) -> dict:
     """→ {"subject", "html", "text"} with {{UNSUBSCRIBE}} where each recipient's link goes.
@@ -309,7 +324,7 @@ def render(day: str, md: str, cfg: dict, has_audio: bool = False, deep: dict | N
     base = ((cfg.get("publish") or {}).get("site_url") or "https://sgwoods.github.io/ai-briefing/").rstrip("/")
     page = f"{base}/{day}/"
     feed = f"{base}/podcast.xml"
-    lead = re.sub(r"\*\*(.+?)\.?\*\*.*", r"\1", b["top"][0]) if b["top"] else b["title"]
+    lead = subject_lead(b)
     date = dt.date.fromisoformat(day)
     subject = e["subject"].format(date=f"{date.strftime('%a %b')} {date.day}", lead=lead.rstrip("."), title=b["title"])[:150]
     cell = f'style="padding:22px 26px;background:{C["panel"]};border:1px solid {C["border"]};border-radius:20px"'

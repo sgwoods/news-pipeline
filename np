@@ -56,6 +56,11 @@ case "$cmd" in
   tests)     NP_ENV=production NP_TESTING=1 run $PY -m unittest discover -s tests ;;   # production behaviour, never the live machine
   scheduled) # launchd ticks every half hour; run only when this Mac's local clock says a scheduled time just passed
              kind="${1:?usage: ./np scheduled daily|preflight|advance|overnight|rehearsal}"
+             if [ "$kind" = daily ] && $PY run.py --due morning >/dev/null 2>&1; then   # 08:00 check rides the daily agent (R4)
+               cmd=morning; out="logs/cmd-morning-${ts}.txt"
+               CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"
+               run $CAF $PY run.py --morning; exit 0
+             fi
              $PY run.py --due "$kind" >/dev/null 2>&1 || exit 0
              cmd="$kind"; out="logs/cmd-${kind}-${ts}.txt"
              if [ "$kind" = daily ]; then
@@ -135,6 +140,9 @@ case "$cmd" in
   advance)   run $PY run.py --advance ;;
   special)   run $PY run.py --special "$@" ;;                  # draft QID | revise | decide | release DAY | email DAY: special editions                       # draft tomorrow's deep dive into Drive now
   pronounce) run $PY run.py --pronounce "${@:-lint}" ;;        # lint [DAYS]: words the voice may have garbled
+  rescue)   run $PY run.py --rescue "$@" ;;                    # DAY ITEM_ID: analyse a filter-dropped item now and keep it
+  health)   $PY run.py --health ;;                            # the status board: what is live, what is broken (exit 1 if anything is)
+  morning)  run $PY run.py --morning "$@" ;;                   # [--force] the 08:00 check by hand (acts only while the edition is held)
   brand)     run $PY run.py --brand "${@:-show}" ;;              # show | build [--covers]: the brand template (brand/brand.yaml)
   slack-post) run $PY run.py --slack-post "$@" ;;              # preview DAY | send DAY: the morning post in the team channel
   positions) run $PY run.py --positions "${@:-list}" ;;        # list | score [DAY]: the house-view calls ledger

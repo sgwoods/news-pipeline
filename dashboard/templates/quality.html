@@ -29,4 +29,15 @@
 {% for k, lab, tgt in keys %}{% set c = by.get(k) %}<td style="{% if c %}color:{{ 'var(--ok,#2e9d5b)' if c.ok else 'var(--err,#d33)' }}{% endif %}">{{ fmt(c.value) if c else '–' }}</td>{% endfor %}</tr>
 {% if r.privacy_details %}<tr><td></td><td colspan="{{ keys|length + 4 }}" class="small s-error">privacy: {{ r.privacy_details|join(' · ') }}</td></tr>{% endif %}
 {% endfor %}</table></div>
+<h2 style="margin-top:22px">Names the voice may have garbled <span class="muted small">last 7 listen checks</span></h2>
+{% if request.args.get('msg') %}<p class="small {{ 's-error' if request.args.get('msg').startswith('Not') else 's-ok' }}">{{ request.args.get('msg') }}</p>{% endif %}
+{% if request.args.get('say') %}<p><audio controls autoplay src="/voices/say.mp3?v={{ range(1, 99999)|random }}"></audio></p>{% endif %}
+<p class="small muted">What the written briefing says, against what the transcript of the published episode heard in its place. A Whisper mis-hearing of a well-said name looks the same, so audition before adding. An entry takes effect after you approve the protected-file change on Home; "has entry" means the current respelling itself needs tuning. Acronyms: spell the letter A as "Ay" ("Ay-M-D").</p>
+{% if names %}<table class="small"><tr><th>Written</th><th>Heard as</th><th>Days</th><th></th><th>Respelling</th></tr>
+{% for x in names %}<tr style="border-top:1px solid var(--line)"><td><b>{{ x.word }}</b>{% if x.said %} <span class="muted">(said as {{ x.said }})</span>{% endif %}{% if x.entry %} <span class="pill">has entry</span>{% endif %}{% if x.acronym %} <span class="pill">acronym</span>{% endif %}</td>
+<td class="muted">{{ x.heard }}{% if x.close %} <span class="muted small">(close)</span>{% endif %}</td><td class="muted">{{ x.n }}</td>
+<td><form class="inline" method="post" action="/api/say"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="text" value="{{ x.word }}"><button class="mini" title="hear it with the current table">audition</button></form></td>
+<td><form class="inline" method="post" action="/api/pronounce"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="word" value="{{ x.word }}"><input type="text" name="said" placeholder="{{ 'Ay-' ~ x.word[1:]|join('-') if x.acronym else 'respelling or [word](/phonemes/)' }}" style="width:220px"> <button class="mini">add</button></form></td></tr>{% endfor %}</table>
+{% else %}<p class="small muted">Nothing flagged in the last week.</p>{% endif %}
+<form class="inline" method="post" action="/api/say" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="text" name="text" placeholder="hear any phrase with the current table" style="width:360px"> <button class="mini">say it</button></form>
 {% endblock %}

@@ -98,3 +98,30 @@ class WaitLive(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FeedAndAudio(unittest.TestCase):
+    """11-14: the as-published listen check once read a feed that didn't carry the day's episode yet."""
+    def test_waits_for_the_feed_and_the_mp3_when_there_is_audio(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        root = Path(tempfile.mkdtemp())
+        (root / "briefings").mkdir()
+        (root / "briefings" / "2099-01-01.mp3").write_bytes(b"ID3")
+        answers = {"index.html": [R(200, "2099-01-01")], "podcast.xml": [R(200, "<rss>old</rss>"), R(200, "<item>2099-01-01</item>")],
+                   ".mp3": [R(404, ""), R(200, "\x00binary")]}
+
+        class C:
+            urls = []
+
+            def get(self, url):
+                C.urls.append(url)
+                for k, v in answers.items():
+                    if k in url.split("?")[0]:
+                        return v.pop(0) if len(v) > 1 else v[0]
+                return R(404, "")
+        with mock.patch("pipeline.publish.__file__", str(root / "pipeline" / "publish.py")):
+            ok = publish.wait_live(CFG, "2099-01-01", timeout=60, every=10, log=lambda *a: None, client=C(), sleep=lambda s: None)
+        self.assertTrue(ok)
+        self.assertTrue(any("podcast.xml" in u for u in C.urls) and any("/audio/2099-01-01.mp3" in u for u in C.urls))

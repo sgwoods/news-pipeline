@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block title %}Queue{% endblock %}{% block body %}
+<h1>Run queue <span class="muted small">queue a job here instead of pasting a command</span></h1>
+{% if request.args.get('msg') %}<p class="small {{ 's-error' if request.args.get('msg').startswith('Not') else 's-ok' }}">{{ request.args.get('msg') }}</p>{% endif %}
+<div class="card" style="margin-bottom:10px"><div class="k">Queue a job</div>
+<form method="post" action="/api/queue-form" id="qf"><input type="hidden" name="csrf" value="{{ csrf }}">
+<p><label>Job <select name="recipe" id="recipe" onchange="pick()">{% for r in recipes %}<option value="{{ r.name }}">{{ r.name }}</option>{% endfor %}</select></label>
+<span class="muted small" id="what"></span></p>
+{% for r in recipes %}<div class="fields" id="f-{{ r.name }}" style="display:none">
+{% for f in r.fields %}<p><label>{{ f.name }}{% if f.optional %} <span class="muted">(optional)</span>{% endif %}
+<input type="text" name="arg_{{ f.name }}" data-for="{{ r.name }}" style="width:{{ '520px' if f.kind in ('reviewed','accepted','text') else '160px' }}"
+ placeholder="{{ f.help }}" value="{{ today if f.kind == 'day' else '' }}" disabled></label></p>{% endfor %}
+{% if not r.fields %}<p class="muted small">No arguments.</p>{% endif %}</div>{% endfor %}
+<p><label>Type <b>yes</b> to approve <input type="text" name="yes" size="6" autocomplete="off"></label> <button>Queue it</button></p>
+<p class="small muted">Your typed yes is recorded as the approval, so the job runs without a popup. Production is now v{{ version }}. A <b>ship</b> soaks first (~15 min: today's edition rebuilt with the dev code and compared); if the compare may differ by design, fill <i>accept</i>. Weekends and anything broken: lane <b>fix</b>.</p>
+</form></div>
+<script>
+const WHAT = { {% for r in recipes %}"{{ r.name }}": "{{ r.tier }} · {{ r.what|e }}",{% endfor %} };
+function pick(){ const v=document.getElementById('recipe').value;
+  document.querySelectorAll('.fields').forEach(d=>{ const on = d.id==='f-'+v; d.style.display = on?'block':'none';
+    d.querySelectorAll('input').forEach(i=>{ i.disabled=!on; }); });
+  document.getElementById('what').textContent = WHAT[v] || ''; }
+pick();
+</script>
+<div class="card" style="margin-bottom:10px"><div class="k">Waiting or running · {{ jobs|length }}</div>
+{% if jobs %}<table class="small"><tr><th>State</th><th>Job</th><th>Arguments</th><th>By</th></tr>
+{% for j in jobs %}<tr style="border-top:1px solid var(--line)"><td><span class="pill {{ 'flag' if j.state == 'running' }}">{{ j.state }}</span></td><td>{{ j.id }}</td>
+<td class="muted">{% for k, v in j.args.items() if v %}{{ k }}: {{ v|truncate(80) }}{% if not loop.last %} · {% endif %}{% endfor %}</td><td>{{ j.queued_by }}</td></tr>{% endfor %}</table>
+{% else %}<p class="small muted">Nothing queued.</p>{% endif %}</div>
+<div class="card"><div class="k">Recently finished</div>
+<table class="small"><tr><th>Job</th><th>Status</th><th>Ended</th><th></th></tr>
+{% for d in done %}<tr style="border-top:1px solid var(--line)"><td>{{ d.id }}</td><td><span class="pill {{ 'flag' if d.status != 'ok' }}">{{ d.status }}</span></td><td>{{ d.ended }}</td><td class="muted">{{ d.detail }}</td></tr>{% endfor %}</table>
+<p class="small muted">Full logs under <a href="/runs">Runs</a>.</p></div>
+{% endblock %}

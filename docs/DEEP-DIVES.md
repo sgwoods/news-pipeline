@@ -7,7 +7,9 @@ breakthrough and its controversy, a concept suddenly everywhere (the "third scal
 at inference time), a change in the trajectory of the field, or a story that has matured over several days.
 
 - **Who decides:** Claude picks the topic from today's briefing, the past week and recent deep dives, and may
-  say there is none today. One a day (`deepdive.max_per_week` 7, since 2026-10-19), no repeat within 21 days unless something
+  say there is none today. Every day's suggestions include one technical explainer for investors and business
+  people when the news gives it a hook (how something works and why it changes what can be built, what it costs or
+  who wins; standing themes in `deepdive.technical_themes`). One a day (`deepdive.max_per_week` 7, since 2026-10-19), no repeat within 21 days unless something
   material is new. `./np deepdive --topic "..."` sets the topic yourself.
 - **How it is written:** an explainer for the ear, in six parts: why today → the idea plainly → what is
   established vs claimed → how the AGI-forward / AI-realist / market / policy readings differ (only where the

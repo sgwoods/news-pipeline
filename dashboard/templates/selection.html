@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Selection{% endblock %}{% block body %}
+<h1>Selection <span class="muted small">why today's stories were chosen, and what was left out</span></h1>
+<p class="small">{% for d in days %}<a href="/selection/{{ d }}" class="pill {{ 'flag' if d == day }}">{{ d }}</a> {% endfor %}</p>
+{% if request.args.get('msg') %}<p class="small {{ 's-error' if request.args.get('msg').startswith('Not') else 's-ok' }}">{{ request.args.get('msg') }}</p>{% endif %}
+{% if not sel %}<p class="muted">No selection record for {{ day }}{% if fallback %}: {{ fallback }}{% endif %}. Editions before v0.2.61 were selected mechanically (importance score and caps).</p>
+{% else %}
+<div class="card" style="margin-bottom:10px"><div class="k">The pick · {{ sel.model }}{% if sel.fallback %} · <span class="s-error">mechanical fallback: {{ sel.fallback }}</span>{% endif %}</div>
+{% if sel.lead_note %}<p><b>Lead:</b> {{ sel.lead_note }}</p>{% endif %}
+<table class="small"><tr><th>#</th><th>Story</th><th>Sources</th><th>Imp.</th><th>Flags</th><th>Fate</th><th>Why</th></tr>
+{% for c in sel.candidates %}<tr style="border-top:1px solid var(--line)"><td>{{ c.n }}</td><td>{{ c.headline }}</td><td>{{ c.sources }}</td><td>{{ c.importance or '' }}</td>
+<td class="muted">{{ c.flags|join('; ') }}</td><td><span class="pill {{ 'flag' if c.fate == 'must' }}">{{ c.fate }}</span></td><td>{{ c.why }}</td></tr>{% endfor %}</table>
+{% if sel.left_out %}<p class="small" style="margin-top:8px"><b>Left out, and why:</b></p><ul class="small">{% for x in sel.left_out %}<li>{{ x.headline }} <span class="muted">· {{ x.why }}</span></li>{% endfor %}</ul>{% endif %}
+</div>
+{% endif %}
+<div class="card" style="margin-bottom:10px"><div class="k">Kept without the model filter · {{ protected|length }}</div>
+<p class="small muted">Publications from portfolio, follow-closely and beat sources, and deals with an amount: scored by the summarize stage, never dropped by the filter.</p>
+{% if protected %}<ul class="small">{% for r in protected[:40] %}<li>{{ r.person }} · <a href="{{ r.url }}">{{ r.title }}</a> <span class="muted">· {{ r.reason }}</span></li>{% endfor %}</ul>{% endif %}</div>
+<div class="card" style="margin-bottom:10px"><div class="k">Rescued on the second look · {{ rescued|length }}</div>
+{% if rescued %}<ul class="small">{% for r in rescued %}<li>{{ r.person }} · <a href="{{ r.url }}">{{ r.title }}</a> <span class="muted">· {{ r.reason }}</span></li>{% endfor %}</ul>{% else %}<p class="small muted">Nothing today.</p>{% endif %}</div>
+<details><summary class="small">Dropped by the filter · {{ dropped|length }} (model {{ model_drops }}, rules {{ rule_drops }})</summary>
+<table class="small"><tr><th>Source</th><th>Item</th><th>Reason</th><th></th></tr>
+{% for r in dropped %}<tr style="border-top:1px solid var(--line)"><td>{{ r.person }}</td><td><a href="{{ r.url }}">{{ r.title }}</a></td><td class="muted">{{ r.reason }}</td>
+<td>{% if not r.rule %}<form class="inline" method="post" action="/api/selection/rescue"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="day" value="{{ day }}"><input type="hidden" name="id" value="{{ r.id }}"><button title="analyse it now; it joins today's edition on a rebuild before the cutoff, otherwise tomorrow's context">rescue</button></form>{% endif %}</td></tr>{% endfor %}</table></details>
+{% endblock %}

@@ -134,3 +134,39 @@ class DeepDiveWritten(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HeadlineOnlyFeeds(unittest.TestCase):
+    """Selection review 2026-11-13 (R6): a feed item that carries only the headline is read before the filter,
+    through the headless browser when the plain fetch gets a JavaScript shell."""
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.feed = {"id": "s1", "url": "https://fortune.com/2026/10/14/ai-agents-shopping-spree", "source_kind": "feed",
+                     "person": "Sifted", "title": "Agentic commerce on Base hits 138M payments", "text": ""}
+
+    def test_headless_fallback_reads_the_article_and_prompt_calls_it_the_article(self):
+        shell = "<html><head><title>Agentic commerce on Base hits 138M payments | Fortune</title></head><body><div id=app></div></body></html>"
+        cl = Client({self.feed["url"]: Resp(shell)})
+        with mock.patch("pipeline.netguard.client", lambda **kw: cl), \
+             mock.patch("pipeline.headless.fetch", lambda u, cfg: ARTICLE):
+            stats = reader.read_thin(self.root, [self.feed], {}, None, headless=True)
+        self.assertEqual((stats["read"], stats["headless"]), (1, 1))
+        self.assertIn("138 million", self.feed["read_text"])
+        self.assertEqual(self.feed["read_url"], self.feed["url"])
+        block = stages.item_block(self.feed, 2000)
+        self.assertIn("full article (the feed item was headline-only", block)
+        self.assertNotIn("post's claim", block)
+        cache = json.loads((self.root / reader.CACHE).read_text())
+        self.assertTrue(cache[self.feed["url"]]["headless"])
+
+    def test_without_headless_a_shell_page_stays_thin_and_a_cached_failure_gets_one_headless_try(self):
+        shell = "<html><title>x</title><body><div id=app></div></body></html>"
+        cl = Client({self.feed["url"]: Resp(shell)})
+        with mock.patch("pipeline.netguard.client", lambda **kw: cl):
+            reader.read_thin(self.root, [self.feed], {}, None)
+        self.assertTrue(self.feed.get("thin"))
+        it = dict(self.feed); it.pop("thin")
+        with mock.patch("pipeline.netguard.client", lambda **kw: cl), \
+             mock.patch("pipeline.headless.fetch", lambda u, cfg: ARTICLE):
+            stats = reader.read_thin(self.root, [it], {}, None, headless=True)
+        self.assertEqual(stats["read"], 1)

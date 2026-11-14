@@ -64,3 +64,38 @@ class DashboardButtons(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless((ROOT / "config.yaml").exists(), "needs a checkout with config.yaml")
+class QueueForm(DashboardButtons):
+    """The Queue page (v0.2.62): any recipe with its arguments and a typed yes; ends the Terminal pastes."""
+    def test_page_lists_recipes_and_jobs(self):
+        r = self.c.get("/queue", headers={"Host": "127.0.0.1:8775"})
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        for name in ("ship", "release", "send-held", "rescue-item", "morning-check"):
+            self.assertIn(f'value="{name}"', body)
+        self.assertIn("arg_version", body)
+
+    def test_ship_with_typed_yes_queues_with_the_stamp(self):
+        r = self.post("/api/queue-form", recipe="ship", arg_version="0.2.62-beta", arg_lane="fix",
+                      arg_note="reviewed: queue form", arg_accept="", **{"yes": "yes"})
+        self.assertEqual(r.status_code, 302)
+        recipe, args, stamp, who = self.calls[0]
+        self.assertEqual((recipe, args["version"], args["lane"]), ("ship", "0.2.62-beta", "fix"))
+        self.assertIn("typed yes", stamp)
+        self.assertEqual(who, "Steven (dashboard)")
+
+    def test_without_yes_nothing_is_queued(self):
+        r = self.post("/api/queue-form", recipe="publish", **{"yes": ""})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("type+yes", r.headers["Location"].replace("%20", "+"))
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.post("/api/queue-form", recipe="phone-setup", **{"yes": "yes"}).status_code, 400)
+
+    def test_approve_from_the_form_keeps_the_mac_dialog(self):
+        self.post("/api/queue-form", recipe="approve", arg_note="checked the diff", **{"yes": "yes"})
+        recipe, args, stamp, _ = self.calls[0]
+        self.assertEqual(recipe, "approve")
+        self.assertTrue(args["note"].startswith("reviewed:"))
+        self.assertEqual(stamp, "")

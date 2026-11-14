@@ -13,10 +13,10 @@ This page describes the design as of **v0.2 beta**. Release notes: `CHANGELOG.md
 ## Current facts
 _Generated at build time._
 
-- **Release:** v0.2.60-beta (2026-11-09)
+- **Release:** v0.2.61-beta (2026-11-14)
 - **Schedule:** daily at 05:00, 06:30, 07:30 (local time; later times are retries)
 - **Local model:** qwen3:30b
-- **Modules:** 89 in `pipeline/`
+- **Modules:** 93 in `pipeline/`
 
 ## Contents
 - Design principles
@@ -55,18 +55,20 @@ _Generated at build time._
 | Stage | What happens | Module |
 |---|---|---|
 | fetch | New items from every verified source: RSS and sitemaps, Bluesky lists, a newsletter label (read-only IMAP), shared Slack links, watchlist news search. Archived append-only. | `fetch.py`, `pages.py`, `bluesky.py`, `mailsource.py`, `slacksource.py`, `watchlist.py`, `archive.py` |
-| filter | Rules drop known noise, then a model keeps what matters to the audience. | `stages.py` |
+| filter | Rules drop known noise; feed items that carry only the headline (Sifted, Hugging Face, OpenAI news, TechCrunch) get their article read first, through the headless browser when the page needs JavaScript (`reader.py`); then a local model keeps what matters to the audience against an explicit KEEP list. Publications from portfolio, follow-closely and beat sources (legal AI, robotics, Canadian startups) and any deal with an amount never go through the model; Claude takes one second look at the day's dropped publication items and rescues what the filter got wrong. | `stages.py` |
 | summarize / rank | A summary, tags and a relevance score per item; the best are read in full. | `stages.py`, `reader.py` |
-| cluster | Items about the same thing become one story, with an evidence mix. | `editorial.py`, `profiles.py` |
+| cluster | Items about the same thing become one story, with an evidence mix, and a first ranking. | `editorial.py`, `profiles.py` |
+| select | Claude chooses the day's stories from the top candidates: Must read, Worth knowing and Money, with a one-line reason for each pick, the next five left out and why, and a note on the lead. Code keeps the guards (grounded, not sponsored or a homepage, no post-only lead in Must read, per-source caps, story fatigue, a capability slot and a portfolio/beat slot) and demotes rather than drops; if the call fails the mechanical selector runs. The picks and reasons are kept with the day's stories for the Selection page. | `selection.py` |
 | critique / verify | Each claim gets a verdict: holds, mixed, overstated, unsupported, unverified. Every Must read gets an evidence check. | `stages.py`, `dive.py` |
 | editorial / write | Day in brief, Top of mind, Must read, Worth knowing, Money (rounds, valuations, M&A with an amount), Open questions; citations point at the real article. One chart a day: a Must read with 3-6 comparable figures gets HTML bars, every value checked against that story's sources. | `editorial.py`, `links.py`, `questions.py`, `chart.py` |
 | fact check | Figures traced to their source, searched before they are cut, flagged when unconfirmed; numbers cross-checked; quotes kept only if word for word. Then the pre-send check: every factual sentence of the top section, What happened and Worth knowing is checked against its sources, rewritten when a second model confirms the fix, or listed to the owner in the takes email. | `factcheck.py`, `factsearch.py`, `numbers.py`, `audit.py` |
 | first lines | The day in brief, Top of mind, deep-dive summaries, "Why today" and Agenda lines checked against the checked body and the item's own source; "not disclosed" claims compared with the last 14 editions; after the deep dive is written, the briefing is aligned with it (no story twice, no contradictions). | `consistency.py` |
 | deep dive | A second segment on the day's focal topic, from a queue the owner curates; its script is fact checked turn by turn before it is recorded. | `deepdive.py`, `audit.py` |
 | takes | A private email asks the owner for takes; the edition waits until the cutoff (09:15) or "done"; clean takes go into the site, email and audio. | `takes.py` |
+| morning check | At 08:00, while the edition is held: a light fetch (feeds, Bluesky, X), the new items analysed, and one Claude call on whether anything would displace the lead or enter the top three. If so the cutoff is extended, Steven is told, and the edition is rebuilt from everything known (the 11-12 Huang re-run, automated). `./np morning`; off with `morning.enabled: false`. | `morning.py` |
 | audio | The script becomes speech: a cold open with the lead story's sharpest line, pronunciations and a lint for words the voice may garble, loudness normalised (−16 LUFS, 96 kbps); the briefing and the deep dive are joined into one episode. Stories covered on earlier days get a short "what's new" segment. | `audio.py`, `speech.py` |
 | release gate | Tests, a secret scan, privacy invariants, approval of security-sensitive changes. | `release.py` |
-| publish | The static site, RSS and the podcast feed, after a privacy scan; then a wait until the pages answer. | `site.py`, `publish.py`, `episodes.py` |
+| publish | The static site, RSS and the podcast feed, after a privacy scan (a link carrying a credential, such as a token or signed link, blocks it); then a wait until the pages answer. If today's page still isn't served, the GitHub Pages build is checked, an errored build is rebuilt once, and the email is held with an alert rather than sending dead links. | `site.py`, `publish.py`, `episodes.py` |
 | email | The edition to subscribers through an Apps Script mailer, only once the site is live. | `mailer.py` |
 | hub status | The project's status file and page on the public project hub. | `hub.py` |
 | afterwards | Source labels in the mailbox, reader feedback collected and triaged, a quality scorecard, a private backup. | `mailsource.py`, `feedback.py`, `quality.py`, `publish.py` |
@@ -92,7 +94,9 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
 - **The morning post** (`slackpost.py`, `card.py`): when the email goes out, one branded post in the team channel
   from the app's bot user: the day's leads, one of Steven's published takes, the deep dive, the links, and the
   day's card (a PNG in the newsletter's colours, drawn with Pillow and the Inter files in `assets/fonts`). Gated
-  like every outbound step; once a day; the Slack reader ignores bot posts.
+  like every outbound step; once a day; the Slack reader ignores bot posts. The channel is set by id in config. The
+  deep dive is a reply in the post's thread; the same module posts a one-off "Earlier editions" message and a short
+  promo for the channel on the first Monday of each month.
 - **Drive copies and takes from the Docs** (`drivedocs.py`): the edition and deep dive are written to the Briefings
   folder as Google Docs. Steven's edits to their takes sections (alone or with Claude in the Doc) are read back
   every 20 minutes and applied like any other take, through the same privacy check; an edited deep-dive take
@@ -102,9 +106,10 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
   for, the case against, the deciding question and our lean. Every position goes to `data/positions/ledger.jsonl`
   with what would change our mind and a check date. On Sundays the calls that are due are scored against what we
   have reported since (right, wrong, mixed; "too early" gets more time), and the site's Calls we made page lists them.
-- **Accuracy audit** (`audit.py`): after the edition ships, about five of its claims are checked again against
-  their own sources, and the consistency flags for the day are counted. Partly right or contradicted claims send
-  Steven one alert; the site's Accuracy page shows the daily counts and every correction (`shipped.py`). The same
+- **Accuracy audit** (`audit.py`): about five of the edition's claims are checked again against their own sources,
+  and the consistency flags for the day are counted. When there is a takes step, this runs before the takes email
+  and its findings become choices there (`factopts.py`, v0.2.55); otherwise it runs after sending, and partly right
+  or contradicted claims send Steven one alert; the site's Accuracy page shows the daily counts and every correction (`shipped.py`). The same
   module runs the checks before sending (`audit.presend`) and before a deep dive is recorded
   (`audit.check_sections`); `./np audit deepdive DAY` is a dry run on a recorded dive. Details:
   [Fact checking](FACT-CHECKING.md) 4d and 4e.
@@ -112,12 +117,14 @@ A run records every stage's status, counts and timings (`runlog.py`). A short re
   seconds" with the diligence question replaces the day in brief and Top of mind; every reader of the markdown sees
   it in the classic shape through one function.
 - **Tuning** (`tuning.py`, `profiles/`): named presets for lengths, sections and tone, edited from the dashboard.
-- **Dashboard** (`dashboard/`): a local Flask app on 127.0.0.1 for sources, watchlist, tuning, takes, feedback,
+- **Status board** (`health.py`): what is live and what is broken, one tile per link in the chain, from the records the Mac keeps; top of Home, `./np health`, one line after the morning run.
+- **Dashboard** (`dashboard/`): a local Flask app on 127.0.0.1 for sources, watchlist, tuning, takes, feedback, selection (why each story was picked, what was left out, what the filter kept without the model, rescued or dropped, with a one-click rescue that analyses a dropped item now: `./np rescue DAY ID`),
   runs, quality and control. It's never exposed to the internet.
   Its home screen (`home.py`, v0.2.48) leads with what needs Steven, today's edition (run, site, email, Slack, takes,
   corrections), tomorrow's deep dive and health (critic score against the field, release, failing sources); the
   other pages sit in five menus (Today, Editions, Sources, Audience, System). The old status page is /status.
-- **Services** (`service.py`): launchd agents for the daily run, the evening preflight and the dashboard.
+- **Services** (`service.py`): launchd agents for the daily run, the evening preflight, the dashboard, the run queue,
+  the advance deep dive, the overnight analysis and the nightly rehearsal (`./np service status` lists them all).
 - **Local ports** (`localport.py`): the shared localhost agreement: dashboard ports 8770-8779 (default 8775), one copy at a time via `~/.config/news-pipeline/server.json` and `/whoami`, the `~/.config/local-ports.tsv` registry, `./np dash --status`.
 - **Craft** (`craft.py`): pace, paragraphs, long sentences, repeated phrases and filler, measured for our editions and the benchmark newsletters; the daily craft checks and the Quality page table.
 - **Tighten** (`tighten.py`): splits long sentences and varies over-used phrases after writing; every rewrite is checked by code to keep numbers, citations, quotations and names.
@@ -138,11 +145,11 @@ Smaller pieces:
 | Owner touchpoints | `editor_note.py` (the owner's private evening note), `alerts.py` (an action-needed email when an edition can't go out), `todos.py` (the shared to-do list), `report.py` (the short status report in `logs/last-report.md`) |
 | Quality | `review.py` (the weekly review, from local files only), `critic.py` (the weekly critic email: scores against ten benchmark shows, charts, suggestions; owner only), `trends.py` (running line charts on the dashboard's Quality page: every show's rubric score by week, and our daily edition metrics) |
 | Settings and time | `owner.py` (who runs this instance), `settings.py` (edit single config values without disturbing comments), `schedule.py` (when scheduled jobs actually run, by the local clock) |
-| Public surfaces | `version.py` (the running version), `docs.py` (these pages on the site), `scrub.py` (scrubbing shared by the public code export and the docs) |
+| Public surfaces | `version.py` (the running version), `docs.py` (these pages on the site), `scrub.py` (scrubbing shared by the public code export and the docs; local addresses become plain words on public pages) |
 | Run queue | `runner.py` (jobs from the chat, run on the Mac), `presence.py` (is a person here to approve) |
 | Owner's voice | `takes.py` (the owner's takes: private email, Slack words, privacy hold, wait, audio) |
 | Mail script | `clasp.py` (deploys the Apps Script mailer with Google's clasp CLI: status, setup, deploy behind the owner's approval) |
-| Helpers | `textutil.py` (HTML to text, page metadata, URL ids, dates) |
+| Helpers | `textutil.py` (HTML to text, page metadata, URL ids, dates; tracking and credential parameters stripped from links) |
 
 ## Grounding and fact checking
 Every claim a reader sees must trace back to text the pipeline holds: the archived item, the article the reader
@@ -242,7 +249,17 @@ From v0.2.33 a release goes out through the `ship` job in one of two lanes: the 
 13:00 (`release.slot`), or the fix lane, for something broken, at any time. Since v0.2.58 there is no clock window
 for releases: a ship waits only for what it could break — a run in progress, or today's edition between the morning
 run and its send (from 04:30 until it is sent, at most until 11:00). Evenings and nights are fine. Every ship first soaks: today's edition is rebuilt with the dev code and compared
-with production, and a compare that needs review stops the ship unless the owner accepts it. Rules and approvals:
+with production, and a compare that needs review stops the ship unless the owner accepts it. The soak also rewrites the day's deep
+dive with the dev code (v0.2.44). A nightly rehearsal at 00:30 (`rehearse`) does the same rebuild and compare; a
+ship of exactly that code the next day skips its soak (v0.2.53).
+
+Protected files (code, tests, `config.yaml`, `house_views.md`, `newsletters.yaml` and the other security-sensitive
+files) change in production only through a release (v0.2.46): a pre-commit hook on production's main branch refuses
+other commits, and the run queue notices protected files that differ from the last approval (uncommitted edits
+too) and queues an approval at once, so the prompt reaches the owner before the morning run. A failed release rolls
+back with `git reset --keep`, so uncommitted production edits survive. A production file edited locally that the
+release also changes is restored first when the two copies are identical; otherwise the release stops and names
+the file (v0.2.60). Rules and approvals:
 docs/security/RELEASE.md. Editorial content (sources, watchlist,
 perspective, takes) isn't code and is edited in production at any time.
 
@@ -257,7 +274,7 @@ perspective, takes) isn't code and is edited in production at any time.
 | `./np rollback "reviewed: ..."` | production | returns the code to the previous release |
 | `./np runner status` | production | the run queue: what's queued, waiting for Approve, and done |
 
-Modules: `env.py` (production or staging), `devenv.py` (the development checkout), `compare.py` (staging vs production), `releaser.py` (release and
+Modules: `env.py` (production or staging), `devenv.py` (the development checkout), `compare.py` (staging vs production, edition and deep dive), `releaser.py` (release and
 rollback), `release.py` (the gate).
 
 ## Run queue
@@ -270,9 +287,9 @@ three tiers:
 
 | Tier | Recipes | Runs when |
 |---|---|---|
-| auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify`, `consistency`, `critic-email`, `takes-test`, `takes-check`, `takes-sync`, `drive-save`, `mailer-status`, `audio-check`, `audit`, `audit-deepdive`, `x-probe`, `advance`, and (from v0.2.37) `remaster` and `deepdive-rebuild` | at once |
-| chat | `correct`, `publish`, `restore`, `takes-done`, `takes-apply`, `send-held`, `source-add`, `mailer-setup` | the job quotes the owner's yes from the chat |
-| mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, `phone-setup`, `ntfy-setup`, the public code push, `deploy-mailer` | for `ship` and `release` only (v0.2.37), the owner's yes quoted from the chat when the task starts, once tests and the soak pass; otherwise the owner clicks Approve in a dialog on the Mac, or on his phone (below) (also early, while the morning run is still going: the job then runs as soon as the edition is out); a ship's Approve also covers the public code export and the mail-script deploy |
+| auto | `tests`, `sync`, `preview`, `compare`, `doctor`, `gate`, `verify`, `consistency`, `critic-email`, `takes-test`, `takes-check`, `takes-sync`, `drive-save`, `mailer-status`, `audio-check`, `audit`, `audit-deepdive`, `positions-score`, `x-probe`, `advance`, `remaster`, `deepdive-rebuild`, `rehearse`, `say-compare`, `ntfy-test`, `jev-report`, `slack-card` | at once |
+| chat | `correct`, `publish`, `restore`, `takes-done`, `takes-apply`, `send-held`, `source-add`, `mailer-setup`, `setup`, `email-remind`, `email-remove`, `service-install`, `wake-schedule`, the special-edition steps (`special-draft`, `special-revise`, `special-decide`, `special-release`, `special-slack`) and the Slack posts (`slack-post`, `slack-deepdive`, `slack-promo`, `slack-archive`) | the job quotes the owner's yes from the chat |
+| mac | `ship`, `release`, `rollback`, `approve`, `install-hooks`, `phone-setup`, `ntfy-setup`, `slack-setup`, `jev-setup`, `push-code` (the public code push), `deploy-mailer` | for `ship` and `release` only (v0.2.37), the owner's yes quoted from the chat when the task starts, once tests and the soak pass; otherwise the owner clicks Approve in a dialog on the Mac, or on his phone (below) (also early, while the morning run is still going: the job then runs as soon as the edition is out); a ship's Approve also covers the public code export and the mail-script deploy |
 
 The click grants presence in memory for that job's approved steps only (`presence.py`). Apart from the quoted
 chat yes for `ship` and `release` (which rests on Claude quoting the owner faithfully, as the chat tier does), no
@@ -310,10 +327,13 @@ queue.
   like code.
 
 ## Operations
-- **Schedule:** early morning with two retries. A retry skips work already done. When takes are on, the
+- **Schedule:** the night does most of the work (v0.2.53). Overnight analysis at 23:30, 01:30 and 03:30 fetches,
+  filters, ranks and critiques items as they arrive (the 03:30 slot also checks the day's deep-dive draft), and the
+  Mac is kept awake until 05:45; the 05:00 run reads the last hour and writes, with two retries. A retry skips work
+  already done. When takes are on, the
   edition is built early and held until the cutoff (09:15) or the owner's "done"; retries at 09:30, 10:30 and
-  12:00 send a held edition if the Mac was offline at the cutoff. An evening preflight checks
-  that tomorrow's release is approved.
+  12:00 send a held edition if the Mac was offline at the cutoff. An evening preflight (21:00 and
+  23:00) checks that tomorrow's release is approved. The `wake-schedule` job wakes the Mac at 23:25.
 - **Hearing what was published (v0.2.17):** after the email, the pipeline reads the public podcast feed, downloads
   the day's episode, transcribes it locally with Whisper and compares it with the script it was voiced from
   (`listen.py`). A section that wasn't heard (low coverage) sends one action-needed email. The transcript is kept
@@ -349,6 +369,7 @@ _Generated from each module's own description at build time._
 | `card.py` | The daily card |
 | `chart.py` | One chart a day (quality review, 2026-10-31 |
 | `clasp.py` | Deploy the mail script (scripts/apps-script/Code.gs) with Google's clasp CLI instead of copy and paste. |
+| `clock.py` | The pipeline's clock |
 | `compare.py` | Staging against production for the same day |
 | `consistency.py` | Short texts readers see first must agree with the checked text and the sources (2026-10-23). |
 | `craft.py` | Craft metrics (Steven, 2026-11-03) |
@@ -368,6 +389,7 @@ _Generated from each module's own description at build time._
 | `feedback.py` | Reader feedback |
 | `fetch.py` | Fetch new items from every verified source. |
 | `headless.py` | A local headless browser as the last try for a page the plain fetch couldn't read (Steven, 2026-11-04). |
+| `health.py` | The system status board (Steven, 2026-11-11 |
 | `home.py` | The dashboard's home screen (Steven, 2026-11-01 |
 | `houseviews.py` | Read-only parser for house_views.md, and the positions ledger (Steven, 2026-10-27). |
 | `hub.py` | AI Briefing on Steven's public project hub (sgwoods.github.io/public) |
@@ -381,6 +403,7 @@ _Generated from each module's own description at build time._
 | `mailer.py` | Daily email to subscribers, sent through Steven's Google Apps Script (scripts/apps-script/Code.gs). |
 | `mailguard.py` | The only way the pipeline talks to Gmail |
 | `mailsource.py` | Newsletters as a source |
+| `morning.py` | The 08:00 check while the edition is held for Steven's takes (selection review 2026-11-13, R4). |
 | `netguard.py` | Requests to URLs that came from content (links in posts, newsletters, model output) may only reach the public internet |
 | `ntfy.py` | Notifications on Steven's phone through ntfy (Steven, 2026-10-28 |
 | `numbers.py` | Number check for one edition |
@@ -403,6 +426,7 @@ _Generated from each module's own description at build time._
 | `schedule.py` | When the scheduled jobs actually run |
 | `schedule_page.py` | The day's schedule as a table (Steven, 2026-10-29) |
 | `scrub.py` | Scrubbing shared by the public code export and the public docs |
+| `selection.py` | Claude chooses the day's stories (selection review, 2026-11-13). |
 | `service.py` | Background services on macOS (launchd user agents) + health of what the pipeline depends on. |
 | `settings.py` | Change single values in config.yaml without disturbing comments or layout. |
 | `shipped.py` | Shipped editions don't break (v0.1.7). |

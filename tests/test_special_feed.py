@@ -16,7 +16,7 @@ class Feed(unittest.TestCase):
         (root / special.DIR / "2026-11-04.mp3").write_bytes(b"ID3")
         (root / special.DIR / "2026-11-05.md").write_text("# x\n")
         with open(root / special.LOG, "w") as f:
-            f.write(json.dumps({"day": "2026-11-04", "status": "published", "title": "T"}) + "\n")
+            f.write(json.dumps({"day": "2026-11-04", "status": "published", "title": "T", "at": "2026-11-04T10:30:00"}) + "\n")
             f.write(json.dumps({"day": "2026-11-05", "status": "written", "title": "Draft"}) + "\n")
         eps = special.feed_episodes(root, "https://example.org/b/")
         self.assertEqual([e["day"] for e in eps], ["2026-11-04"])      # a draft is not an episode
@@ -25,6 +25,7 @@ class Feed(unittest.TestCase):
                          ("Special edition: T", "special-2026-11-04.mp3", "ai-briefing-dd-special-2026-11-04",
                           "https://example.org/b/2026-11-04/special/"))
         self.assertEqual(e["summary"], "The summary.")
+        self.assertEqual(e["time"], "10:30:00")                      # the real release time, not a flat 18:00 (11-12)
 
 
 if __name__ == "__main__":

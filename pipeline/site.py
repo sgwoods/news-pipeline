@@ -759,7 +759,7 @@ def build(root: Path, cfg: dict, out: Path | None = None, base_url: str = "", au
             n_audio += 1
             link = sp["link"]
             feed.insert(0, f"<item><title>{htmllib.escape(sp['title'])}</title><link>{link}</link><guid>{link}</guid>"
-                           f"<pubDate>{format_datetime(dt.datetime.fromisoformat(sp['day'] + 'T18:00:00').astimezone())}</pubDate>"
+                           f"<pubDate>{format_datetime(dt.datetime.fromisoformat(sp['day'] + 'T' + sp.get('time', '18:00:00')).astimezone())}</pubDate>"
                            f"<description>{htmllib.escape(sp['summary'])}</description></item>")
         dives_and_specials = sorted(dives + landing_items(root), key=lambda d: d["day"], reverse=True)
     except Exception as e:  # noqa: BLE001 - a special never breaks the site

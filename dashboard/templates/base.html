@@ -75,10 +75,10 @@ section.story{scroll-margin-top:60px}section.speaking{outline:2px solid var(--ac
 <nav>{% set p = request.path %}
 {% macro item(href, label, on) %}<a href="{{ href }}" class="{{ 'on' if on }}">{{ label }}</a>{% endmacro %}
 {% set nav_groups = [
- ("Editions", [("/briefings", "Briefings"), ("/deep-dives", "Deep dives"), ("/threads", "Threads"), ("/questions", "Open questions")]),
+ ("Editions", [("/briefings", "Briefings"), ("/selection", "Selection"), ("/deep-dives", "Deep dives"), ("/threads", "Threads"), ("/questions", "Open questions")]),
  ("Sources", [("/sources", "Sources"), ("/items", "Items"), ("/watchlist", "Watchlist")]),
  ("Audience", [("/subscribers", "Subscribers"), ("/campaigns", "Campaigns"), ("/feedback", "Feedback"), ("/quality", "Quality and trends")]),
- ("System", [("/status", "Run status"), ("/runs", "Runs"), ("/schedule", "Schedule"), ("/control", "Control"), ("/todo", "To do"),
+ ("System", [("/status", "Run status"), ("/runs", "Runs"), ("/queue", "Queue"), ("/schedule", "Schedule"), ("/control", "Control"), ("/todo", "To do"),
              ("/lens", "Lens"), ("/tuning", "Tuning"), ("/voices", "Voices"), ("/audio-brand", "Audio branding"), ("/brand", "Brand")]),
 ] %}
 <a href="/" class="{{ 'on' if p == '/' }}">Today</a>

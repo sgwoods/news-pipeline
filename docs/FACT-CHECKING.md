@@ -36,7 +36,7 @@ Every step runs in the morning run, before the email and the audio.
 | Cut or flag | `factcheck.check` | If a figure is still untraced, the sentence is cut in factual sections (day in brief, Top of mind, What happened, Worth knowing, In brief, Recommended reading). In headlines and analysis (Evidence check, Our read, views, Open questions) it's flagged in the run log only. |
 | Number check | `pipeline/numbers.py` | A stated difference that doesn't add up is corrected. Changes and near-twin figures are flagged. |
 | Quotes | `stages.verify_quotes` | Words in quotation marks must appear word for word in the source material. If they don't, the quotation marks come off and the words stay as a paraphrase. |
-| Speech | `pipeline/speech.py` | Prices, rates, ranges and model sizes are spoken correctly ("two dollars for input and ten for output"). |
+| Speech | `pipeline/speech.py` | Prices, rates, ranges and model sizes are spoken correctly ("two dollars for input and ten for output"). Model and chip names are said the way people say them (GPT-4o "four-oh", GB300 "G B three hundred"), and a comma after a number is kept as a pause, not read as a thousands separator (v0.2.56). |
 
 ## 4. The lines readers see first (deep dives since v0.1.9, the daily briefing since v0.1.14)
 Summaries and "Why today" lines, and the daily briefing's day in brief and Top of mind, appear in the email, on the
@@ -86,7 +86,7 @@ can't be a Must read (`editorial.weak_lead`).
 Steven, 2026-10-30, after a wrong agency name ("CDIC" for the Government of Canada) went out and was corrected
 later: check before sending, not after. Once the draft is written, and before the audio, the takes email and the
 send, `pipeline/audit.presend` checks every factual sentence of the top section, the What happened lines and Worth
-knowing (up to 24) against that story's own source texts, with the same verdicts as the after-ship audit.
+knowing (up to 24) against that story's own source texts, with the same verdicts as the accuracy audit.
 Sentences naming an acronym no source contains go first, and the model is told which names are missing.
 
 1. **A wider look.** Excerpts are ranked, best match first (4,800 characters per claim). A claim the sources
@@ -104,9 +104,9 @@ Sentences naming an acronym no source contains go first, and the model is told w
 4. **A second judge.** The rewritten line is checked by a different model (`llm.stages.judge2`, the local model by
    default), so the model that rewrote it doesn't grade it, one claim per call, falling back to the first model if
    it doesn't answer. A rewrite is kept only when this check confirms it; otherwise it is undone and goes to Steven
-   ("rewrite not confirmed"). The after-send audit uses that model too.
-5. **Steven.** What still doesn't hold (a refused rewrite, a re-check that fails, a name no source has) is listed
-   at the top of the takes email ("Check: …"), while the edition is held. Names aren't cut automatically; figures
+   ("rewrite not confirmed"). The accuracy audit uses that model too.
+5. **Steven.** What still doesn't hold (a refused rewrite, a re-check that fails, a name no source has) goes to
+   him in the takes email as a numbered choice (4f), while the edition is held. Names aren't cut automatically; figures
    still are (section 3).
 
 Saved in `data/audit/DAY-presend.json`. The day page ends with a **Notes** footnote: when the check ran, how many
@@ -126,12 +126,22 @@ spoken sentence (prompt `audit_fix_spoken.md`: no links or markup, passes the au
 The script checks run again over the result. Saved in `data/audit/DAY-deepdive.json`.
 
 What's left for Steven appears in tomorrow's **draft Doc** ("Fact check: please look", above Steven's take; he
-answers in Notes for the editor, and the morning revision is checked again) and in the takes email. The deep-dive
+answers in Notes for the editor, and the morning revision is checked again) and in the takes email (4f). The deep-dive
 page ends with the same Notes footnote. `deepdive.fact_check: false` turns it off.
+
+## 4f. Choices in the takes email (since v0.2.55)
+Steven, 2026-11-04: everything the checks found reaches him before the edition is sent. The pre-send check (4d),
+the deep-dive check (4e) and the accuracy audit, which now runs before the takes email when there is a takes step,
+are listed at the bottom of the takes email as F1, F2 … (`pipeline/factopts.py`). A line the check already rewrote:
+A keep the rewrite, B go back to the original. A line to look at: A keep as written, B use the proposed rewrite
+(re-checked), C cut it. Each has a recommendation. He answers in the same reply as his takes ("F1: B"); an item he
+doesn't answer gets the recommendation. The choices are applied to the edition and the deep dive before
+publishing, and the podcast is re-recorded if what it says changed. Saved in `data/audit/DAY-decisions.json`.
 
 ## 5. Privacy gate: the one check that blocks
 `links.py`, `mailer.privacy_gate`, `publish.scan_site`, `stages.scrub_private`: private names, the owner's
-addresses, board-seat notes and tracker links never leave. A hit removes the text. If anything is still left at
+addresses, board-seat notes and tracker links never leave. Credentials in links (a paid feed's per-reader token, a
+gift link's `*_token`) are stripped, and a page that still carries one is refused at publish. A hit removes the text. If anything is still left at
 the gate, the send is blocked.
 
 ## 6. After shipping
@@ -139,8 +149,10 @@ the gate, the send is blocked.
   can change only through a visible correction: after a hand edit, run `./np correct DAY "what changed"`. The note
   shows on the day page and the deep-dive page. A publish that would change a shipped edition without a
   correction is refused.
-- **Live check.** After each publish, the newest pages, both feeds and the latest MP3 must answer. If they don't,
-  the previous site is restored and the email waits.
+- **Live check.** After each publish, the newest pages, both feeds and the latest MP3 must answer; 5xx and network
+  errors are retried first. If they don't, the previous site is restored and the email waits. If today's page is
+  not served after the wait, the GitHub Pages build is checked and an errored build rebuilt once; a page still
+  missing holds the email and sends an alert (v0.2.60).
 - **Measuring.** The scorecard (`./np quality`) reports "Figures in no source" (target 0). The weekly review
   (`pipeline/review.py`) reads a week of editions side by side and catches what a single day can't, such as two
   days disagreeing about the same fact.
@@ -165,7 +177,7 @@ cut, and the summary and "Why today" lines checked as in section 4.
   to 24 sentences, and Evidence check / Our read / Open questions are analysis and aren't rewritten.
 - A claim is only as good as its source: a report that misreads a release passes against that report. The search
   in 4d prefers the primary source, which catches this when the release is findable; otherwise it is caught only
-  by the after-send check or a reader.
+  by the accuracy audit or a reader.
 
 ## Cut sentences (since v0.2.48)
 On 2026-11-01 the board-seat scrubber removed "a disclosure." from the middle of a deep-dive sentence ("a joke on a
