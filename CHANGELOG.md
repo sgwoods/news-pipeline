@@ -7,6 +7,22 @@ together as a release (docs/plans/release-process.md).
 
 ## Unreleased
 
+## v0.2.62-beta · 2026-11-18
+- Publish retries through a flaky connection: a push that fails is retried every 10 min for up to 2 h
+  (`publish.retry_every_minutes`, `publish.retry_minutes`), waiting for DNS between tries, instead of leaving the
+  edition for the next scheduled slot (11-17: the hotel Wi-Fi dropped exactly at the push; the edition went out 90
+  min late). A push still running after 20 min is cut and retried rather than holding the morning run.
+- **Fix: "AI" was being spelled "Ay-I" and voiced as "I.I." (the 11-16 episode).** The A-acronym rule now covers 3-4
+  letters only and spells with spaces ("Ay M D"), the form the table already uses and the transcript hears right.
+  The 11-16 episode is re-recorded (`remaster`).
+- `schedule.timezone: America/Toronto` set: the schedule, takes cutoff and morning check follow Toronto while Steven travels.
+- Morning check gets its own launchd agent (`./np service install morning`, or the Queue page's service-install with
+  kind `morning`): on 11-15 it never ran because it rode the daily agent, whose 05:00 instance was still holding the
+  edition at 08:00 and launchd starts no second instance.
+- Status board: the Runner tile allows the idle tick cadence (every ~20 min; 11-15/16 false alarms) and points a stuck runner at Control.
+- A nightly rehearsal whose compare "needs review" is no longer reported as failed; it simply records no pass, so the
+  next ship soaks.
+
 ## v0.2.61-beta · 2026-11-14
 Operations without Terminal (the Queue page, the status board), selection, the morning check, names.
 Selection: how the day's stories are chosen (review: docs/plans/selection-review-2026-11-13 in the project; the

@@ -20,7 +20,7 @@ from pathlib import Path
 LABELS = {"daily": "com.sgwoods.news-pipeline", "dashboard": "com.sgwoods.news-pipeline.dashboard",
           "preflight": "com.sgwoods.news-pipeline.preflight", "runner": "com.sgwoods.news-pipeline.runner",
           "advance": "com.sgwoods.news-pipeline.advance", "overnight": "com.sgwoods.news-pipeline.overnight",
-          "rehearsal": "com.sgwoods.news-pipeline.rehearsal"}
+          "rehearsal": "com.sgwoods.news-pipeline.rehearsal", "morning": "com.sgwoods.news-pipeline.morning"}
 
 
 def _sh(args, timeout=20):
@@ -62,7 +62,9 @@ def build_plist(kind: str, root: Path, cfg: dict) -> dict:
                      "StartCalendarInterval": [{"Minute": m} for m in TICK_MINUTES],
                      "StandardOutPath": str(root / "logs" / "launchd.out.log"),
                      "StandardErrorPath": str(root / "logs" / "launchd.err.log"), "RunAtLoad": False})
-    elif kind in ("overnight", "rehearsal"):              # the night's analysis runs and the dev rehearsal (11-03)
+    elif kind in ("overnight", "rehearsal", "morning"):   # the night's analysis runs, the dev rehearsal (11-03) and the
+        # 08:00 morning check (11-15: it cannot ride the daily agent, whose 05:00 instance is still holding the edition
+        # at 08:00; launchd never starts a second instance of a running agent)
         from .schedule import TICK_MINUTES
         base.update({"ProgramArguments": ["/bin/bash", str(root / "np"), "scheduled", kind],
                      "StartCalendarInterval": [{"Minute": m} for m in TICK_MINUTES],

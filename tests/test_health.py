@@ -40,17 +40,19 @@ class Board(unittest.TestCase):
         self.assertTrue(b["headline"].startswith("All well as of 09:40"), b["headline"])
         self.assertEqual(by["Edition"]["state"], "ok"); self.assertIn("emailed to 9", by["Edition"]["note"])
         self.assertEqual(by["Runner"]["state"], "ok"); self.assertEqual(by["Podcast"]["state"], "ok")
+        _w(self.root / "data" / "queue" / "status.json", json.dumps({"at": "2026-11-14T09:15:00", "pending": [], "last": []}))   # 25 min idle: fine
+        self.assertEqual({t["name"]: t for t in health.board(self.root, CFG, self.now)["tiles"]}["Runner"]["state"], "ok")
         self.assertEqual(by["Ingestion"]["note"], "120 new item(s), 1 source(s) failing")
         self.assertIn("v0.2.61-beta in production", by["Release gate"]["note"])
 
     def test_problems_are_named_with_a_button(self):
-        _w(self.root / "data" / "queue" / "status.json", json.dumps({"at": "2026-11-14T08:10:00", "pending": []}))
+        _w(self.root / "data" / "queue" / "status.json", json.dumps({"at": "2026-11-14T08:10:00", "pending": []}))   # 90 min: stuck
         _w(self.root / "data" / "email-log.jsonl", "")
         _w(self.root / "data" / "state" / "shipped.json", "{}")
         _w(self.root / "data" / "takes" / f"{self.day}.json", json.dumps({"day": self.day, "released_at": "2026-11-14T09:15:00"}))
         b = health.board(self.root, CFG, self.now)
         by = {t["name"]: t for t in b["tiles"]}
-        self.assertEqual(by["Runner"]["state"], "bad"); self.assertEqual(by["Runner"]["action"]["recipe"], "service-install")
+        self.assertEqual(by["Runner"]["state"], "bad"); self.assertEqual(by["Runner"]["action"]["href"], "/control")
         self.assertEqual(by["Edition"]["state"], "bad"); self.assertEqual(by["Edition"]["action"]["recipe"], "send-held")
         self.assertTrue(b["headline"].startswith("2 problems: Edition, Runner"), b["headline"]); self.assertIn("1 to watch", b["headline"])
         self.assertIn("BAD  Edition", health.text(b))

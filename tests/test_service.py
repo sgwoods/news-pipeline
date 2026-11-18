@@ -12,6 +12,12 @@ class TestService(unittest.TestCase):
         self.assertFalse(p["RunAtLoad"])
         self.assertIn("/opt/homebrew/bin", p["EnvironmentVariables"]["PATH"])
 
+    def test_morning_check_has_its_own_agent(self):      # 11-15: the daily agent is still holding the edition at 08:00
+        p = service.build_plist("morning", Path("/r"), {})
+        self.assertEqual(p["ProgramArguments"], ["/bin/bash", "/r/np", "scheduled", "morning"])
+        self.assertEqual(p["StartCalendarInterval"], [{"Minute": 0}, {"Minute": 30}])
+        self.assertEqual(p["Label"], "com.sgwoods.news-pipeline.morning")
+
     def test_dashboard_plist_stays_alive(self):
         p = service.build_plist("dashboard", Path("/r"), {})
         self.assertTrue(p["KeepAlive"])

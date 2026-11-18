@@ -11,8 +11,14 @@ import re
 from pathlib import Path
 
 
-def _run(args, cwd=None, check=True):
-    r = subprocess.run(args, cwd=cwd, capture_output=True, text=True)
+PUSH_TIMEOUT = 20 * 60        # a push that is still going after this (slow uplink, hung DNS) is cut and retried (11-18)
+
+
+def _run(args, cwd=None, check=True, timeout=None):
+    try:
+        r = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"{' '.join(args)} timed out after {timeout}s") from e
     if check and r.returncode != 0:
         raise RuntimeError(f"{' '.join(args)} failed: {(r.stderr or r.stdout).strip()[:400]}")
     return r
@@ -130,11 +136,12 @@ def push(root: Path, site: Path, repo: str, message: str, cfg: dict | None = Non
     _run(["git", "config", "--unset-all", "http.postBuffer"], cwd=pub, check=False)
     stall = ["-c", "http.lowSpeedLimit=1000", "-c", "http.lowSpeedTime=60"]
     try:
-        _run(["git", *stall, "push", "-q", "-f", "origin", "main"], cwd=pub)
+        _run(["git", *stall, "push", "-q", "-f", "origin", "main"], cwd=pub, timeout=PUSH_TIMEOUT)
     except Exception:  # noqa: BLE001 - one retry after a pause, over HTTP/1.1
         import time
         time.sleep(30)
-        _run(["git", *stall, "-c", "http.version=HTTP/1.1", "push", "-q", "-f", "origin", "main"], cwd=pub)
+        _run(["git", *stall, "-c", "http.version=HTTP/1.1", "push", "-q", "-f", "origin", "main"], cwd=pub,
+             timeout=PUSH_TIMEOUT)
     if not staging_site and _run(["git", "rev-parse", "-q", "--verify", "refs/heads/previous"], cwd=pub,
                                  check=False).returncode == 0:
         _run(["git", "push", "-q", "-f", "origin", "previous"], cwd=pub, check=False)

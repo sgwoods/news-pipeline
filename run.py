@@ -2855,7 +2855,7 @@ def _wait_live(cfg: dict, day: str) -> bool:
 def _publish_and_verify(cfg: dict, today: str, alert: bool = True) -> bool:
     """Publish, wait until live, then check that readers' pages, feeds and audio answer. False = don't email:
     if the live check fails the previous site is put back first (shipped editions never break)."""
-    if cmd_publish(cfg):
+    if _publish_with_retry(cfg):
         if alert:
             _alert(cfg, "publish", detail="See logs/last-command.txt for the error. The live site was not changed.",
                    next_try=_next_try(cfg))
@@ -2877,6 +2877,34 @@ def _publish_and_verify(cfg: dict, today: str, alert: bool = True) -> bool:
     _alert(cfg, "publish", detail=f"After publishing, these didn't answer: {'; '.join(bad[:6])}. {msg}. "
                                   "The email is held until a publish passes.", next_try=_next_try(cfg))
     return False
+
+
+def _publish_with_retry(cfg: dict, sleep=None) -> int:
+    """cmd_publish, retried through a flaky connection (11-17/18: the hotel Wi-Fi dropped DNS twice a morning, once
+    exactly at the push, and the edition then waited 90 min for the next scheduled slot). Waits for DNS, publishes,
+    and on failure tries again every publish.retry_every_minutes (10) for up to publish.retry_minutes (120).
+    -> 0 when published; the last non-zero code otherwise."""
+    import time
+    pc = cfg.get("publish") or {}
+    every = max(1, int(pc.get("retry_every_minutes", 10)))
+    budget = int(pc.get("retry_minutes", 120))
+    sleep = sleep or time.sleep
+    deadline = time.monotonic() + budget * 60
+    attempt = 0
+    while True:
+        attempt += 1
+        code = cmd_publish(cfg) or 0
+        if code == 0:
+            if attempt > 1:
+                print(f"publish: succeeded on attempt {attempt}")
+            return 0
+        print(f"publish: attempt {attempt} failed (exit {code})")
+        if time.monotonic() >= deadline or budget <= 0:
+            print(f"publish: giving up after {attempt} attempt(s) over {budget} min; the next scheduled run retries")
+            return code
+        sleep(every * 60)
+        while not wait_for_network(minutes=every) and time.monotonic() < deadline:
+            print("publish: still no network; waiting")
 
 
 def _alert(cfg: dict, kind: str, **kw) -> None:

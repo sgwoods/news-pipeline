@@ -701,6 +701,10 @@ class Runner:
             pass
         if where in ("local", "local?"):
             fn = self.local.get(argv[0])
+            if argv[0] == "rehearsal-record" and job.get("needs_review"):
+                with log.open("a", encoding="utf-8") as f:
+                    f.write("rehearsal: the compare needs review, so no pass is recorded (the next ship soaks)\n")
+                return 0
             if fn is None and where == "local?":         # optional: a checkout without it skips the step
                 return 0
             if fn is None:
@@ -712,6 +716,11 @@ class Runner:
         if code == 3 and argv[:2] == ["staging", "compare"] and job["args"].get("accept"):
             with log.open("a", encoding="utf-8") as f:
                 f.write(f"compare needs review; going on: {job['args']['accept']}\n")
+            return 0
+        if code == 3 and argv[:2] == ["staging", "compare"] and job["recipe"] == "rehearse":
+            with log.open("a", encoding="utf-8") as f:    # 11-15: the nightly rehearsal differing from production is
+                f.write("compare needs review: no pass recorded; not a failure\n")   # model variance, not a broken build
+            job["needs_review"] = True
             return 0
         return code
 

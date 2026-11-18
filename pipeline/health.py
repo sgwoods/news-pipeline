@@ -138,17 +138,23 @@ def board(root: Path, cfg: dict, now: dt.datetime | None = None) -> dict:
     # --- Runner: the queue's heartbeat
     q = _json(root / "data" / "queue" / "status.json", {})
     age = _age_min(q.get("at", ""), now)
+    # idle, the runner's tick writes status.json only every ~20 min (np: the Drive takes check); a job lands within a
+    # minute. So the heartbeat is "under 30 min", not "under 5" (11-15/16: two false alarms from the first version).
+    dd = root / "data" / "state" / "drive-docs.json"
+    if dd.exists():
+        hb = (now.replace(tzinfo=None) - dt.datetime.fromtimestamp(dd.stat().st_mtime)).total_seconds() / 60
+        age = min(age, hb) if age is not None else hb
     failed_jobs = [j for j in (q.get("last") or [])[:5] if j.get("status") not in ("ok", None)]
     if age is None:
-        tiles.append(tile("Runner", BAD, "no heartbeat on record", "", "/queue", {"recipe": "service-install", "label": "Restart"}))
-    elif age > 5:
-        tiles.append(tile("Runner", BAD, f"last tick {age:.0f} min ago", _hm(q.get("at", "")), "/queue",
-                          {"recipe": "service-install", "label": "Restart"}))
+        tiles.append(tile("Runner", BAD, "no heartbeat on record", "", "/control", {"href": "/control", "label": "Reinstall services (Control)"}))
+    elif age > 30:
+        tiles.append(tile("Runner", BAD, f"last tick {age:.0f} min ago (a stuck tick, or the Mac slept)", _hm(q.get("at", "")), "/control",
+                          {"href": "/control", "label": "Reinstall services (Control)"}))   # a queued job can't restart a stuck runner
     elif failed_jobs:
         tiles.append(tile("Runner", WARN, f"last job failed: {failed_jobs[0].get('recipe')} ({failed_jobs[0].get('detail', '')})",
                           _hm(q.get("at", "")), "/queue"))
     else:
-        tiles.append(tile("Runner", OK, f"{len(q.get('pending') or [])} waiting", _hm(q.get("at", "")), "/queue"))
+        tiles.append(tile("Runner", OK, f"{len(q.get('pending') or [])} waiting; idle ticks every 20 min", _hm(q.get("at", "")), "/queue"))
 
     # --- Release gate: approval current, protected live-content files awaiting approval
     try:

@@ -203,14 +203,15 @@ _GLUED = re.compile(r"\b([A-Z][a-z]{2,})(\d+(?:\.\d+)?)\b")      # 'Qwen3.8' -> 
 
 
 # Acronyms that start with A: the voice reads a lone "A" as the article ("a, M-D" for AMD; Steven, 2026-11-12), so
-# 2-4 letter all-caps words beginning with A are spelled out with "Ay" unless the table or this list says otherwise.
+# 3-4 letter all-caps words beginning with A are spelled out with "Ay" unless the table or this list says otherwise.
+# Never "AI": the voice reads it right, and "Ay-I" came out as "I.I." on 2026-11-16.
 _A_WORDS = {"ARM", "ASIC", "AWS", "ATM", "AMA", "APAC", "ANSI", "ARPA", "ASAP", "AAPL", "ACE", "ADA", "AIM", "ALL", "AND",
             "ANY", "APP", "ART", "ASK", "AXE", "AGM", "AOL", "AIR", "AREA"}
-_A_ACRONYM = re.compile(r"(?<![\w'’-])A[A-Z0-9]{1,3}(?:s)?(?![\w'’])")
+_A_ACRONYM = re.compile(r"(?<![\w'’-])A[A-Z0-9]{2,3}(?:s)?(?![\w'’])")   # 3-4 letters: "AI" itself reads fine (11-16: "Ay-I" came out as "I.I.")
 
 
 def spell_a_acronyms(text: str, table: dict | None = None) -> str:
-    """AMD -> Ay-M-D, AGI -> Ay-G-I, APIs -> Ay-P-Is: letters said one by one, the A as "Ay"; words with a table entry
+    """AMD -> Ay M D, AGI -> Ay G I, APIs -> Ay P Is: letters said one by one, the A as "Ay"; words with a table entry
     (any case) and pronounceable ones in _A_WORDS are left to the table or the voice."""
     known = {k.upper() for k in (table or {})}
 
@@ -219,7 +220,7 @@ def spell_a_acronyms(text: str, table: dict | None = None) -> str:
         base = w[:-1] if w.endswith("s") else w
         if base in known or base in _A_WORDS or w in known:
             return w
-        return "Ay-" + "-".join(base[1:]) + ("s" if w.endswith("s") else "")
+        return "Ay " + " ".join(base[1:]) + ("s" if w.endswith("s") else "")   # spaces, like the table's "Ay G I": hyphens were misread
     return _A_ACRONYM.sub(sub, text)
 
 

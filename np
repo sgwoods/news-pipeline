@@ -55,12 +55,7 @@ case "$cmd" in
   dive)      run $PY run.py --dive "${1:?usage: ./np dive DAY STORY}" "${2:?usage: ./np dive DAY STORY (number or key)}" ;;
   tests)     NP_ENV=production NP_TESTING=1 run $PY -m unittest discover -s tests ;;   # production behaviour, never the live machine
   scheduled) # launchd ticks every half hour; run only when this Mac's local clock says a scheduled time just passed
-             kind="${1:?usage: ./np scheduled daily|preflight|advance|overnight|rehearsal}"
-             if [ "$kind" = daily ] && $PY run.py --due morning >/dev/null 2>&1; then   # 08:00 check rides the daily agent (R4)
-               cmd=morning; out="logs/cmd-morning-${ts}.txt"
-               CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"
-               run $CAF $PY run.py --morning; exit 0
-             fi
+             kind="${1:?usage: ./np scheduled daily|preflight|advance|overnight|rehearsal|morning}"
              $PY run.py --due "$kind" >/dev/null 2>&1 || exit 0
              cmd="$kind"; out="logs/cmd-${kind}-${ts}.txt"
              if [ "$kind" = daily ]; then
@@ -78,6 +73,9 @@ case "$cmd" in
                run $CAF $PY run.py --overnight "$slot"
              elif [ "$kind" = rehearsal ]; then
                run $PY run.py --rehearse-queue
+             elif [ "$kind" = morning ]; then         # its own agent (11-15): the daily agent is still holding the edition at 08:00
+               CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"
+               run $CAF $PY run.py --morning
              elif [ "$kind" = advance ]; then
                CAF=""; command -v caffeinate >/dev/null 2>&1 && CAF="caffeinate -i -s"
                run $CAF $PY run.py --advance

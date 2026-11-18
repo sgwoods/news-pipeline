@@ -170,7 +170,8 @@ class AAcronyms(unittest.TestCase):
     """2-4 letter acronyms starting with A are spelled with "Ay" (AMD was read "a, MD"; Steven 11-12)."""
     def test_spelled_unless_the_table_or_the_word_list_covers_them(self):
         from pipeline import speech
-        self.assertEqual(speech.spell_a_acronyms("AMD and AGI; ARM chips; APIs; A new day; AMD-based", {}),
-                         "Ay-M-D and Ay-G-I; ARM chips; Ay-P-Is; A new day; Ay-M-D-based")
+        self.assertEqual(speech.spell_a_acronyms("AMD and AGI; ARM chips; APIs; A new day; AMD-based; the AI briefing", {}),
+                         "Ay M D and Ay G I; ARM chips; Ay P Is; A new day; Ay M D-based; the AI briefing")
         self.assertEqual(speech.spell_a_acronyms("AMD fell", {"AMD": "Ay M D"}), "AMD fell")
-        self.assertIn("Ay-M-D fell three percent", speech.spoken("AMD fell 3%", {}))
+        self.assertIn("Ay M D fell three percent", speech.spoken("AMD fell 3%", {}))
+        self.assertEqual(speech.spoken("AI-powered, AI.", {}), "AI-powered, AI.")        # 11-16: "I.I. briefing" never again

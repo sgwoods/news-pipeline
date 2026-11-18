@@ -29,7 +29,7 @@ ul.top{margin:6px 0 0;padding-left:18px}ul.top li{margin:2px 0}
 <div class="board">
 {% for t in board.tiles %}<div class="tile {{ t.state }}"><a href="{{ t.href or '#' }}" style="text-decoration:none;color:inherit"><b>{{ t.name }}</b><div class="n">{{ t.note }}</div></a>
 {% if t.at %}<div class="t">{{ t.at }}</div>{% endif %}
-{% if t.action and t.state in ('bad','warn') %}<form class="inline" method="post" action="/api/queue/{{ t.action.recipe }}"><input type="hidden" name="csrf" value="{{ csrf }}">{% if t.action.recipe == 'approve' %}<input type="hidden" name="note" value="reviewed: from the status board">{% endif %}<button class="mini">{{ t.action.label }}</button></form>{% endif %}</div>{% endfor %}
+{% if t.action and t.action.href and t.state in ('bad','warn') %}<a class="mini" href="{{ t.action.href }}">{{ t.action.label }}</a>{% elif t.action and t.state in ('bad','warn') %}<form class="inline" method="post" action="/api/queue/{{ t.action.recipe }}"><input type="hidden" name="csrf" value="{{ csrf }}">{% if t.action.recipe == 'approve' %}<input type="hidden" name="note" value="reviewed: from the status board">{% endif %}<button class="mini">{{ t.action.label }}</button></form>{% endif %}</div>{% endfor %}
 </div>
 <div class="hm">
 <div style="display:grid;gap:16px">
